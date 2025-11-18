@@ -2,16 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { formatCurrency } from '../utils/formatCurrency'; // Corrected import path
+import { formatCurrency } from '../utils/formatCurrency'; 
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import BillToSection from '../components/BillToSection';
 import ShipToSection from '../components/ShipToSection';
 import ItemDetails from "../components/ItemDetails";
 import { templates } from "../utils/templateRegistry";
-import { FiEdit, FiFileText, FiTrash2 } from "react-icons/fi"; // Added FiTrash2 icon
-import { RefreshCw } from "lucide-react";
+import { FiEdit, FiFileText, FiTrash2, FiLayers } from "react-icons/fi"; 
+import { RefreshCw, Save, Loader2, DollarSign } from "lucide-react"; 
 import { set, sub } from "date-fns";
 import Navigation from '../components/Navigation';
+import { Button } from '@/components/ui/button'; 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; 
 
 const generateRandomInvoiceNumber = () => {
   const length = Math.floor(Math.random() * 6) + 3;
@@ -57,6 +60,15 @@ const noteOptions = [
 
 const Index = () => {
   const navigate = useNavigate();
+  const [isSaving, setIsSaving] = useState(false); 
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false); 
+  
+  const [brandingSettings, setBrandingSettings] = useState({
+    logoUrl: '',
+    brandingCompanyName: '',
+    brandingWebsite: '',
+  });
+
   const [selectedCurrency, setSelectedCurrency] = useState("INR");
   const [billTo, setBillTo] = useState({ name: "", address: "", phone: "" });
   const [shipTo, setShipTo] = useState({ name: "", address: "", phone: "" });
@@ -84,7 +96,40 @@ const Index = () => {
   };
 
   useEffect(() => {
-    // Load form data from localStorage on component mount
+    const fetchBranding = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data, error } = await supabase
+                .from('branding_settings')
+                .select('company_name, website, logo_url')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            if (data) {
+                setBrandingSettings({
+                    logoUrl: data.logo_url || '',
+                    brandingCompanyName: data.company_name || '',
+                    brandingWebsite: data.website || '',
+                });
+
+                setYourCompany(prev => ({
+                    ...prev,
+                    name: prev.name || data.company_name || '',
+                    website: prev.website || data.website || '',
+                }));
+            }
+        } catch (error) {
+            console.error("Error fetching branding settings:", error);
+        }
+    };
+    fetchBranding();
+  }, []);
+
+  useEffect(() => {
     const savedFormData = localStorage.getItem("formData");
     if (savedFormData) {
       const parsedData = JSON.parse(savedFormData);
@@ -93,24 +138,37 @@ const Index = () => {
       setInvoice(
         parsedData.invoice || { date: "", paymentDate: "", number: "" }
       );
-      setYourCompany(
-        parsedData.yourCompany || { name: "", address: "", phone: "", website: "" }
-      );
+      
+      const initialYourCompany = parsedData.yourCompany || { name: "", address: "", phone: "", website: "" };
+      
+      setYourCompany({
+        ...initialYourCompany,
+        name: initialYourCompany.name || brandingSettings.brandingCompanyName,
+        website: initialYourCompany.website || brandingSettings.brandingWebsite,
+      });
+
       setItems(parsedData.items || []);
       settaxPercentage(parsedData.taxPercentage || 0);
       setNotes(parsedData.notes || "");
-      setSelectedCurrency(parsedData.selectedCurrency || "INR"); // Load selectedCurrency from localStorage
+      setSelectedCurrency(parsedData.selectedCurrency || "INR"); 
     } else {
-      // If no saved data, set invoice number
       setInvoice((prev) => ({
         ...prev,
         number: generateRandomInvoiceNumber(),
       }));
+       setYourCompany(prev => ({
+        ...prev,
+        name: brandingSettings.brandingCompanyName,
+        website: brandingSettings.brandingWebsite,
+      }));
     }
-  }, []);
+  }, [
+    brandingSettings.brandingCompanyName, 
+    brandingSettings.brandingWebsite
+  ]); 
+
 
   useEffect(() => {
-    // Save form data to localStorage whenever it changes
     const formData = {
       billTo,
       shipTo,
@@ -122,7 +180,7 @@ const Index = () => {
       subTotal,
       grandTotal,
       notes,
-      selectedCurrency, // Add selectedCurrency to localStorage
+      selectedCurrency,
     };
     localStorage.setItem("formData", JSON.stringify(formData));
   }, [
@@ -136,7 +194,7 @@ const Index = () => {
     taxAmount,
     subTotal,
     grandTotal,
-    selectedCurrency, // Add selectedCurrency to localStorage dependency array
+    selectedCurrency,
   ]);
 
   const handleInputChange = (setter) => (e) => {
@@ -168,48 +226,91 @@ const Index = () => {
 
   const calculateSubTotal = () => {
     const calculatedSubTotal = items.reduce((sum, item) => sum + (item.quantity * item.amount), 0);
-    setSubTotal(calculatedSubTotal); // Store as number
+    setSubTotal(calculatedSubTotal); 
     return calculatedSubTotal;
   };
 
-  const calculateTaxAmount = (subTotalValue) => { // Renamed param to avoid conflict with state
+  const calculateTaxAmount = (subTotalValue) => { 
     const tax = (subTotalValue * taxPercentage) / 100;
-    setTaxAmount(tax); // Store as number
+    setTaxAmount(tax); 
     return tax;
   };
 
-  const calculateGrandTotal = (subTotalValue, taxAmountValue) => { // Renamed params to avoid conflict with state
+  const calculateGrandTotal = (subTotalValue, taxAmountValue) => { 
     const total = parseFloat(subTotalValue) + parseFloat(taxAmountValue);
-    setGrandTotal(total); // Store as number
+    setGrandTotal(total); 
     return total;
   };
 
   const updateTotals = () => {
     const currentSubTotal = calculateSubTotal();
     const currentTaxAmount = calculateTaxAmount(currentSubTotal);
-    // setGrandTotal will be called by calculateGrandTotal via currentTaxAmount's setter,
-    // or directly if we prefer explicit calls.
-    // For clarity and directness, let's call it explicitly here.
     calculateGrandTotal(currentSubTotal, currentTaxAmount);
-    // Note: setSubTotal and setTaxAmount are called within their respective calculate functions.
   };
 
   const handleTaxPercentageChange = (e) => {
     const taxRate = parseFloat(e.target.value) || 0;
     settaxPercentage(taxRate);
-    // updateTotals will be called by the useEffect listening to taxPercentage change
   };
 
   useEffect(() => {
     updateTotals();
-  }, [items, taxPercentage]); // subTotal, taxAmount, grandTotal removed from deps as they are set by updateTotals & its chain
+  }, [items, taxPercentage]);
 
-  const handleTemplateClick = async (templateNumber) => {
+  // *** Invoice Save Logic ***
+  const handleSaveToDatabase = async () => {
+    setIsSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please sign in to save invoices.');
+        setIsSaving(false);
+        return;
+      }
+
+      const currentSubTotal = calculateSubTotal();
+      const currentTaxAmount = calculateTaxAmount(currentSubTotal);
+      const currentGrandTotal = calculateGrandTotal(currentSubTotal, currentTaxAmount);
+
+      const { error } = await supabase.from('invoices').insert({
+        user_id: user.id,
+        invoice_number: invoice.number,
+        bill_to: billTo,
+        ship_to: shipTo,
+        invoice_details: invoice,
+        from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl },
+        items: items,
+        tax: taxPercentage,
+        subtotal: currentSubTotal,
+        grand_total: currentGrandTotal,
+        notes: notes,
+        template_name: templates[0]?.name || 'Template 1', 
+      });
+
+      if (error) throw error;
+      toast.success('Invoice saved successfully!');
+
+    } catch (error) {
+      console.error("Error saving invoice:", error);
+      toast.error('Failed to save invoice');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  // *****************************
+
+  const handleTemplateSelect = (templateNumber) => {
+    setIsTemplateModalOpen(false); // Close modal
+    const companyDataWithBranding = {
+        ...yourCompany,
+        logoUrl: brandingSettings.logoUrl, 
+    };
+
     const formData = {
       billTo,
       shipTo,
       invoice,
-      yourCompany,
+      yourCompany: companyDataWithBranding, 
       items,
       taxPercentage,
       taxAmount,
@@ -218,34 +319,7 @@ const Index = () => {
       notes,
       selectedCurrency,
     };
-
-    // Save invoice to database
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { error } = await supabase.from('invoices').insert({
-          user_id: user.id,
-          invoice_number: invoice.number,
-          bill_to: billTo,
-          ship_to: shipTo,
-          invoice_details: invoice,
-          from_details: yourCompany,
-          items: items,
-          tax: taxPercentage,
-          subtotal: subTotal,
-          grand_total: grandTotal,
-          notes: notes,
-          template_name: `Template ${templateNumber}`,
-        });
-
-        if (error) throw error;
-        toast.success('Invoice saved successfully!');
-      }
-    } catch (error) {
-      toast.error('Failed to save invoice');
-      console.error(error);
-    }
-
+    
     navigate("/template", {
       state: { formData, selectedTemplate: templateNumber },
     });
@@ -269,54 +343,20 @@ const Index = () => {
         .split("T")[0],
       number: generateRandomInvoiceNumber(),
     });
-    setYourCompany({
+    setYourCompany(prev => ({
+      ...prev,
       name: "Your Company",
       address: "789 Oak St, Businessville, USA",
       phone: "(555) 555-5555",
-    });
+      website: "https://example.com"
+    }));
     setItems([
-      {
-        name: "Product A",
-        description: "High-quality item",
-        quantity: 2,
-        amount: 50,
-        total: 100,
-      },
-      {
-        name: "Service B",
-        description: "Professional service",
-        quantity: 1,
-        amount: 200,
-        total: 200,
-      },
-      {
-        name: "Product C",
-        description: "Another great product",
-        quantity: 3,
-        amount: 30,
-        total: 90,
-      },
-      {
-        name: "Service D",
-        description: "Another professional service",
-        quantity: 2,
-        amount: 150,
-        total: 300,
-      },
-      {
-        name: "Product E",
-        description: "Yet another product",
-        quantity: 1,
-        amount: 75,
-        total: 75,
-      },
-      {
-        name: "Service F",
-        description: "Yet another service",
-        quantity: 4,
-        amount: 100,
-        total: 400,
-      },
+      { name: "Product A", description: "High-quality item", quantity: 2, amount: 50, total: 100, },
+      { name: "Service B", description: "Professional service", quantity: 1, amount: 200, total: 200, },
+      { name: "Product C", description: "Another great product", quantity: 3, amount: 30, total: 90, },
+      { name: "Service D", description: "Another professional service", quantity: 2, amount: 150, total: 300, },
+      { name: "Product E", description: "Yet another product", quantity: 1, amount: 75, total: 75, },
+      { name: "Service F", description: "Yet another service", quantity: 4, amount: 100, total: 400, },
     ]);
     settaxPercentage(10);
     calculateSubTotal();
@@ -331,7 +371,13 @@ const Index = () => {
       paymentDate: "",
       number: generateRandomInvoiceNumber(),
     });
-    setYourCompany({ name: "", address: "", phone: "", website: "" });
+    // Resetting yourCompany while preserving branding defaults
+    setYourCompany(prev => ({ 
+        name: brandingSettings.brandingCompanyName || "", 
+        address: "", 
+        phone: "", 
+        website: brandingSettings.brandingWebsite || "" 
+    }));
     setItems([{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
     settaxPercentage(0);
     setNotes("");
@@ -340,218 +386,318 @@ const Index = () => {
 
   return (
     <>
-      <Navigation />
-      <div className="container mx-auto px-4 py-8 relative">
-      <h1 className="text-3xl font-bold mb-8 text-center">Bill Generator</h1>
-      <div className="fixed top-4 left-4 flex gap-2">
-        <button
-          onClick={clearForm}
-          className="bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600"
-          aria-label="Clear Form"
-        >
-          <FiTrash2 size={24} />
-        </button>
-        <button
-          onClick={fillDummyData}
-          className="bg-blue-500 text-white p-2 rounded-full shadow-lg hover:bg-blue-600"
-          aria-label="Fill with Dummy Data"
-        >
-          <FiEdit size={24} />
-        </button>
-      </div>
-      <button
-        onClick={() =>
-          navigate("/receipt", {
-            state: {
-              formData: {
-                billTo,
-                shipTo,
-                invoice,
-                yourCompany,
-                items,
-                taxPercentage,
-                notes,
-                selectedCurrency, // Ensure this is passed
-              },
-            },
-          })
-        }
-        className="fixed top-4 right-4 bg-green-500 text-white p-2 rounded-full shadow-lg hover:bg-green-600"
-        aria-label="Switch to Receipt"
-      >
-        <FiFileText size={24} />
-      </button>
-      <div className="flex flex-col md:flex-row gap-8">
-        <div className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-md">
-          <form>
-            <BillToSection
-              billTo={billTo}
-              handleInputChange={handleInputChange(setBillTo)}
-              selectedCurrency={selectedCurrency}
-              setSelectedCurrency={setSelectedCurrency}
-            />
-            <ShipToSection
-              shipTo={shipTo}
-              handleInputChange={handleInputChange(setShipTo)}
-              billTo={billTo}
-            />
-
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold mb-4">
-                Invoice Information
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FloatingLabelInput
-                  id="invoiceNumber"
-                  label="Invoice Number"
-                  value={invoice.number}
-                  onChange={handleInputChange(setInvoice)}
-                  name="number"
-                />
-                <FloatingLabelInput
-                  id="invoiceDate"
-                  label="Invoice Date"
-                  type="date"
-                  value={invoice.date}
-                  onChange={handleInputChange(setInvoice)}
-                  name="date"
-                />
-                <FloatingLabelInput
-                  id="paymentDate"
-                  label="Payment Date"
-                  type="date"
-                  value={invoice.paymentDate}
-                  onChange={handleInputChange(setInvoice)}
-                  name="paymentDate"
-                />
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold mb-4">Your Company</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FloatingLabelInput
-                  id="yourCompanyName"
-                  label="Name"
-                  value={yourCompany.name}
-                  onChange={handleInputChange(setYourCompany)}
-                  name="name"
-                />
-                <FloatingLabelInput
-                  id="yourCompanyPhone"
-                  label="Phone"
-                  value={yourCompany.phone}
-                  onChange={handleInputChange(setYourCompany)}
-                  name="phone"
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 mt-4">
-                <FloatingLabelInput
-                  id="yourCompanyAddress"
-                  label="Address"
-                  value={yourCompany.address}
-                  onChange={handleInputChange(setYourCompany)}
-                  name="address"
-                />
-                <FloatingLabelInput
-                  id="yourCompanyWebsite"
-                  label="Website"
-                  value={yourCompany.website}
-                  onChange={handleInputChange(setYourCompany)}
-                  name="website"
-                  type="url"
-                />
-              </div>
-            </div>
-
-            <ItemDetails
-              items={items}
-              handleItemChange={handleItemChange}
-              addItem={addItem}
-              removeItem={removeItem}
-              currencyCode={selectedCurrency}
-            />
-
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-2">Totals</h3>
-              <div className="flex justify-between mb-2">
-                <span>Sub Total:</span>
-                <span>{formatCurrency(subTotal, selectedCurrency)}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span>Tax Rate (%):</span>
-                <input
-                  type="number"
-                  value={taxPercentage}
-                  onChange={(e) => handleTaxPercentageChange(e)}
-                  className="w-24 p-2 border rounded"
-                  min="0"
-                  max="28"
-                  step="1"
-                />
-              </div>
-              <div className="flex justify-between mb-2">
-                <span>Tax Amount:</span>
-                <span>{formatCurrency(taxAmount, selectedCurrency)}</span>
-              </div>
-              <div className="flex justify-between font-bold">
-                <span>Grand Total:</span>
-                <span>{formatCurrency(grandTotal, selectedCurrency)}</span>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <div className="flex items-center mb-2">
-                <h3 className="text-lg font-medium">Notes</h3>
-                <button
-                  type="button"
-                  onClick={refreshNotes}
-                  className="ml-2 p-1 rounded-full hover:bg-gray-200"
-                  title="Refresh Notes"
+      <Navigation className="bg-blue-600 shadow-lg" /> 
+      
+      <div className="bg-gray-50 min-h-screen">
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-4xl font-extrabold mb-8 text-center text-gray-900">Professional Invoice Creator</h1>
+          
+          {/* --- ACTION BAR --- */}
+          <div className="mb-8 p-4 bg-blue-600 shadow-2xl rounded-xl"> 
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              
+              {/* Left Group: Utility Actions (Clear, Demo) */}
+              <div className="flex gap-3">
+                <Button
+                  onClick={clearForm}
+                  className="bg-red-500 hover:bg-red-600 font-semibold shadow-lg px-4 text-white" 
+                  aria-label="Clear Form"
+                  title="Clear Form"
                 >
-                  <RefreshCw size={16} />
-                </button>
+                  <FiTrash2 size={16} className="mr-2" />
+                  Clear Form
+                </Button>
+                <Button
+                  onClick={fillDummyData}
+                  className="bg-white text-blue-600 hover:bg-gray-100 font-semibold shadow-lg px-4" 
+                  aria-label="Fill with Dummy Data"
+                  title="Fill with Dummy Data"
+                >
+                  <FiEdit size={16} className="mr-2" />
+                  Demo Data
+                </Button>
               </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2 border rounded"
-                rows="4"
-              ></textarea>
+              
+              {/* Right Group: Save, Navigate, and Currency */}
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                
+                {/* Currency Selector */}
+                <div className="flex items-center space-x-2 bg-white p-2 rounded-lg text-gray-800">
+                    <DollarSign size={16} className="text-green-600" />
+                    <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
+                        <SelectTrigger className="w-[100px] bg-white text-gray-800 border-gray-300">
+                            <SelectValue placeholder="Currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="INR">INR</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                            <SelectItem value="EUR">EUR</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                
+                {/* TEMPLATE BUTTON */}
+                <Button
+                    onClick={() => setIsTemplateModalOpen(true)}
+                    className="bg-orange-500 hover:bg-orange-600 font-semibold shadow-lg px-4 text-white"
+                    aria-label="View and Select Template"
+                >
+                    <FiLayers size={16} className="mr-2" />
+                    View Templates
+                </Button>
+                
+                {/* SAVE BUTTON */}
+                <Button
+                  onClick={handleSaveToDatabase}
+                  disabled={isSaving}
+                  className="bg-green-500 hover:bg-green-600 font-semibold shadow-lg px-4 text-white" 
+                  aria-label="Save to Database"
+                >
+                  {isSaving ? (
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                  ) : (
+                    <Save size={16} className="mr-2" />
+                  )}
+                  Save Invoice
+                </Button>
+
+                {/* RECEIPTS BUTTON */}
+                <Button
+                  onClick={() =>
+                    navigate("/receipt", {
+                      state: {
+                        formData: {
+                          billTo,
+                          shipTo,
+                          invoice,
+                          yourCompany: { ...yourCompany, logoUrl: brandingSettings.logoUrl },
+                          items,
+                          taxPercentage,
+                          notes,
+                          selectedCurrency,
+                        },
+                      },
+                    })
+                  }
+                  className="bg-purple-600 hover:bg-purple-700 font-semibold shadow-lg px-4 text-white"
+                  aria-label="Switch to Receipt Generator"
+                >
+                  <FiFileText size={16} className="mr-2" />
+                  Receipts
+                </Button>
+              </div>
             </div>
+          </div>
+          {/* --- END ACTION BAR --- */}
 
-            {/* Clear Form button removed */}
-          </form>
-        </div>
 
-        <div
-          className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-md overflow-y-auto"
-          // style={{ maxHeight: "calc(100vh - 2rem)" }}
-        >
-          <h2 className="text-2xl font-semibold mb-4">Template Gallery</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map((template, index) => (
-              <div
-                key={index}
-                className="template-card bg-gray-100 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-300"
-                onClick={() => handleTemplateClick(index + 1)}
-              >
-                <img
-                  src={`/assets/template${index + 1}-preview.png`}
-                  alt={template.name}
-                  className={`w-full ${
-                    template.name === "Template 10"
-                      ? "h-[38px] w-[57px]"
-                      : "h-50"
-                  } object-cover rounded mb-2`}
-                />
-                <p className="text-center font-medium">{template.name}</p>
-              </div>
-            ))}
+          {/* --- MAIN FORM (Full Width) --- */}
+          <div className="w-full bg-white p-8 rounded-xl shadow-2xl border border-gray-100">
+              <form>
+                {/* BILL TO & SHIP TO SECTIONS */}
+                <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Client Details</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    <BillToSection
+                      billTo={billTo}
+                      handleInputChange={handleInputChange(setBillTo)}
+                    />
+                    <ShipToSection
+                      shipTo={shipTo}
+                      handleInputChange={handleInputChange(setShipTo)}
+                      billTo={billTo}
+                    />
+                </div>
+
+                {/* INVOICE & COMPANY INFORMATION */}
+                <div className="mt-6 border-t pt-6">
+                  <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Invoice & Sender Info</h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    
+                    {/* INVOICE DATES & ID */}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4 text-gray-700">Dates & ID</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FloatingLabelInput
+                          id="invoiceNumber"
+                          label="Invoice Number"
+                          value={invoice.number}
+                          onChange={handleInputChange(setInvoice)}
+                          name="number"
+                        />
+                        <FloatingLabelInput
+                          id="invoiceDate"
+                          label="Invoice Date"
+                          type="date"
+                          value={invoice.date}
+                          onChange={handleInputChange(setInvoice)}
+                          name="date"
+                        />
+                        <FloatingLabelInput
+                          id="paymentDate"
+                          label="Payment Due Date"
+                          type="date"
+                          value={invoice.paymentDate}
+                          onChange={handleInputChange(setInvoice)}
+                          name="paymentDate"
+                        />
+                        {/* Placeholder for alignment */}
+                        <div></div> 
+                      </div>
+                    </div>
+
+                    {/* YOUR COMPANY INFORMATION */}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4 text-gray-700">Your Company (Sender)</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FloatingLabelInput
+                          id="yourCompanyName"
+                          label="Name"
+                          value={yourCompany.name}
+                          onChange={handleInputChange(setYourCompany)}
+                          name="name"
+                        />
+                        <FloatingLabelInput
+                          id="yourCompanyPhone"
+                          label="Phone"
+                          value={yourCompany.phone}
+                          onChange={handleInputChange(setYourCompany)}
+                          name="phone"
+                        />
+                        <FloatingLabelInput
+                          id="yourCompanyAddress"
+                          label="Address"
+                          value={yourCompany.address}
+                          onChange={handleInputChange(setYourCompany)}
+                          name="address"
+                        />
+                        <FloatingLabelInput
+                          id="yourCompanyWebsite"
+                          label="Website"
+                          value={yourCompany.website}
+                          onChange={handleInputChange(setYourCompany)}
+                          name="website"
+                          type="url"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ITEM DETAILS (SCROLLABLE CONTAINER) */}
+                <div className="mt-6 border-t pt-6">
+                    <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Line Items</h2>
+                    
+                    {/* --- CRITICAL FIX: INTERNAL SCROLLING CONTAINER --- */}
+                    <div className="max-h-[500px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3b82f6 #e5e7eb' }}> 
+                        <ItemDetails
+                          items={items}
+                          handleItemChange={handleItemChange}
+                          removeItem={removeItem}
+                          currencyCode={selectedCurrency}
+                        />
+                    </div>
+                    {/* Add Item Button remains outside the scrollable area */}
+                    <div className="mt-4"> 
+                        <Button 
+                            onClick={addItem}
+                            variant="outline"
+                            className="w-full border-dashed border-blue-400 text-blue-600 hover:bg-blue-50/50"
+                        >
+                            + Add Item
+                        </Button>
+                    </div>
+                    {/* --- END CRITICAL FIX --- */}
+                </div>
+
+
+                {/* TOTALS AND NOTES */}
+                <div className="mt-6 border-t pt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    {/* NOTES SECTION */}
+                    <div>
+                      <div className="flex items-center mb-2">
+                        <h3 className="text-xl font-medium text-gray-700">Notes / Terms</h3>
+                        <button
+                          type="button"
+                          onClick={refreshNotes}
+                          className="ml-2 p-1 rounded-full text-gray-600 hover:bg-gray-200 transition"
+                          title="Refresh Notes"
+                        >
+                          <RefreshCw size={16} />
+                        </button>
+                      </div>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        className="w-full p-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition shadow-inner"
+                        rows="6"
+                        placeholder="Enter payment terms, guarantees, or additional remarks."
+                      ></textarea>
+                    </div>
+                    
+                    {/* TOTALS SUMMARY (Inline) */}
+                    <div className="md:justify-self-end w-full md:w-auto md:min-w-[350px] p-6 border-4 border-blue-500 rounded-xl shadow-lg bg-blue-50/20">
+                      <h3 className="text-2xl font-bold mb-4 text-blue-700">Invoice Total</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between border-b pb-1 border-gray-200">
+                          <span className="text-gray-600">Sub Total:</span>
+                          <span className="font-medium text-gray-800">{formatCurrency(subTotal, selectedCurrency)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b pb-1 border-gray-200">
+                          <span className="text-gray-600">Tax Rate (%):</span>
+                          <input
+                            type="number"
+                            value={taxPercentage}
+                            onChange={(e) => handleTaxPercentageChange(e)}
+                            className="w-20 p-1 border border-gray-300 rounded-lg text-right focus:border-blue-500"
+                            min="0"
+                            max="28"
+                            step="1"
+                          />
+                        </div>
+                        <div className="flex justify-between pt-2">
+                          <span className="text-lg font-semibold">Tax Amount:</span>
+                          <span className="text-lg font-semibold text-red-600">{formatCurrency(taxAmount, selectedCurrency)}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between font-extrabold text-3xl border-t-2 pt-4 mt-4 border-blue-600">
+                        <span>GRAND TOTAL:</span>
+                        <span className="text-green-700">{formatCurrency(grandTotal, selectedCurrency)}</span>
+                      </div>
+                    </div>
+                </div>
+              </form>
+            </div>
+            {/* END MAIN FORM */}
           </div>
         </div>
-      </div>
-    </div>
+   
+      
+      {/* TEMPLATE SELECTION MODAL */}
+      <Dialog open={isTemplateModalOpen} onOpenChange={setIsTemplateModalOpen}>
+        <DialogContent className="max-w-4xl p-6">
+            <DialogHeader>
+                <DialogTitle className="text-3xl font-bold text-gray-900">Select Invoice Template</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 max-h-[70vh] overflow-y-auto mt-4">
+                {templates.map((template, index) => (
+                    <div
+                        key={index}
+                        className="template-card bg-gray-100 p-3 rounded-lg cursor-pointer hover:shadow-xl transition-shadow duration-300 transform hover:scale-[1.05] border-2 border-transparent hover:border-blue-500/50"
+                        onClick={() => handleTemplateSelect(index + 1)}
+                    >
+                        <img
+                            src={`/assets/template${index + 1}-preview.png`}
+                            alt={template.name}
+                            className="w-full h-auto aspect-video object-cover rounded mb-2 border border-gray-300"
+                        />
+                        <p className="text-center font-medium text-sm text-gray-700">{template.name}</p>
+                    </div>
+                ))}
+            </div>
+        </DialogContent>
+      </Dialog> 
     </>
   );
 };

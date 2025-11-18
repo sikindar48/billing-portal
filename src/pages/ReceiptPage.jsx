@@ -60,6 +60,13 @@ const ReceiptPage = () => {
   const navigate = useNavigate();
   const [isDownloading, setIsDownloading] = useState(false);
   const receiptRef = useRef(null);
+  
+  // New state for branding data
+  const [brandingSettings, setBrandingSettings] = useState({
+    logoUrl: '',
+    brandingCompanyName: '',
+    brandingWebsite: '',
+  });
 
   const [billTo, setBillTo] = useState("");
   const [invoice, setInvoice] = useState({
@@ -88,14 +95,58 @@ const ReceiptPage = () => {
     setFooter(footerOptions[randomIndex]);
   };
 
+  // --- Branding Fetching Effect ---
+  useEffect(() => {
+    const fetchBranding = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data, error } = await supabase
+                .from('branding_settings')
+                .select('company_name, website, logo_url')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            if (data) {
+                setBrandingSettings({
+                    logoUrl: data.logo_url || '',
+                    brandingCompanyName: data.company_name || '',
+                    brandingWebsite: data.website || '',
+                });
+
+                // Update yourCompany state with branding details, prioritizing local state
+                setYourCompany(prev => ({
+                    ...prev,
+                    name: prev.name || data.company_name || '',
+                    website: prev.website || data.website || '',
+                }));
+            }
+        } catch (error) {
+            console.error("Error fetching branding settings:", error);
+            // Optionally, show a toast error
+        }
+    };
+    fetchBranding();
+  }, []);
+  // ---------------------------------
+
   useEffect(() => {
     // Load form data from localStorage on component mount
     const savedFormData = localStorage.getItem("receiptFormData");
     if (savedFormData) {
       const parsedData = JSON.parse(savedFormData);
       setBillTo(parsedData.billTo || "");
+      // Preserve branding name/website if localStorage didn't save it or it's empty
+      const initialYourCompany = parsedData.yourCompany || { name: "", address: "", phone: "", gst: "", website: "" };
+      setYourCompany({
+        ...initialYourCompany,
+        name: initialYourCompany.name || brandingSettings.brandingCompanyName,
+        website: initialYourCompany.website || brandingSettings.brandingWebsite,
+      });
       setInvoice(parsedData.invoice || { date: "", number: generateRandomInvoiceNumber() });
-      setYourCompany(parsedData.yourCompany || { name: "", address: "", phone: "", gst: "", website: "" });
       setCashier(parsedData.cashier || "");
       setItems(parsedData.items || [{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
       setTaxPercentage(parsedData.taxPercentage || 0);
@@ -106,8 +157,14 @@ const ReceiptPage = () => {
       // Initialize with default values if nothing in localStorage
       setInvoice((prev) => ({ ...prev, number: generateRandomInvoiceNumber() }));
       setItems([{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
+      // Apply branding defaults on initial load if no localStorage
+      setYourCompany(prev => ({
+        ...prev,
+        name: brandingSettings.brandingCompanyName,
+        website: brandingSettings.brandingWebsite,
+      }));
     }
-  }, []);
+  }, [brandingSettings.brandingCompanyName, brandingSettings.brandingWebsite]); // Depend on branding settings for initial load/merge
 
   useEffect(() => {
     // Save form data to localStorage whenever it changes
@@ -131,7 +188,7 @@ const ReceiptPage = () => {
       const receiptData = {
         billTo,
         invoice,
-        yourCompany,
+        yourCompany: { ...yourCompany, logoUrl: brandingSettings.logoUrl }, // Include logoUrl in data for PDF generation
         cashier,
         items,
         taxPercentage,
@@ -154,7 +211,7 @@ const ReceiptPage = () => {
             invoice_number: invoice.number,
             bill_to: { name: billTo, email: '', address: '', phone: '' },
             invoice_details: invoice,
-            from_details: yourCompany,
+            from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl }, // Save logoUrl with yourCompany data
             items: items,
             tax: taxPercentage,
             subtotal: subTotal,
@@ -216,19 +273,22 @@ const ReceiptPage = () => {
     setItems(newItems);
   };
 
-  const calculateSubTotal = () => {
-    return items.reduce((sum, item) => sum + item.total, 0).toFixed(2);
+  const calculateSubTotal = (currentItems = items) => {
+    return currentItems.reduce((sum, item) => sum + item.total, 0).toFixed(2);
   };
 
-  const calculateTaxAmount = () => {
-    const subTotal = parseFloat(calculateSubTotal());
+  const calculateTaxAmount = (subTotal = parseFloat(calculateSubTotal())) => {
     return (subTotal * (taxPercentage / 100)).toFixed(2);
   };
 
-  const calculateGrandTotal = () => {
-    const subTotal = parseFloat(calculateSubTotal());
-    const taxAmount = parseFloat(calculateTaxAmount());
+  const calculateGrandTotal = (subTotal = parseFloat(calculateSubTotal()), taxAmount = parseFloat(calculateTaxAmount())) => {
     return (subTotal + taxAmount).toFixed(2);
+  };
+
+  // Prepare company data to pass to receipt templates, including the logoUrl
+  const companyDataWithBranding = {
+    ...yourCompany,
+    logoUrl: brandingSettings.logoUrl,
   };
 
   return (
@@ -317,6 +377,14 @@ const ReceiptPage = () => {
                   <RotateCw size={16} />
                 </button>
               </div>
+              <FloatingLabelInput
+                id="yourCompanyWebsite"
+                label="Website"
+                value={yourCompany.website}
+                onChange={handleInputChange(setYourCompany)}
+                name="website"
+                className="mt-4"
+              />
               <FloatingLabelInput
                 id="cashier"
                 label="Cashier"
@@ -486,7 +554,7 @@ const ReceiptPage = () => {
                 data={{
                   billTo,
                   invoice,
-                  yourCompany,
+                  yourCompany: companyDataWithBranding, // Pass merged data
                   cashier,
                   items,
                   taxPercentage,
@@ -501,7 +569,7 @@ const ReceiptPage = () => {
                 data={{
                   billTo,
                   invoice,
-                  yourCompany,
+                  yourCompany: companyDataWithBranding, // Pass merged data
                   cashier,
                   items,
                   taxPercentage,
@@ -516,7 +584,7 @@ const ReceiptPage = () => {
                 data={{
                   billTo,
                   invoice,
-                  yourCompany,
+                  yourCompany: companyDataWithBranding, // Pass merged data
                   cashier,
                   items,
                   taxPercentage,
@@ -531,7 +599,7 @@ const ReceiptPage = () => {
                 data={{
                   billTo,
                   invoice,
-                  yourCompany,
+                  yourCompany: companyDataWithBranding, // Pass merged data
                   items,
                   taxPercentage,
                   footer,
