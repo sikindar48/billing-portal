@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, FileText, RotateCw, Mail } from "lucide-react";
+import { Loader2, RefreshCw, FileText, RotateCw, Mail, Save, DollarSign } from "lucide-react"; // Added Save icon
 import { Button } from "@/components/ui/button";
 import Receipt1 from "../components/templates/Receipt1";
 import Receipt2 from "../components/templates/Receipt2";
@@ -35,7 +35,7 @@ const generateRandomInvoiceNumber = () => {
 const footerOptions = [
   "Thank you for choosing us today! We hope your shopping experience was pleasant and seamless. Your satisfaction matters to us, and we look forward to serving you again soon. Keep this receipt for any returns or exchanges.",
   "Your purchase supports our community! We believe in giving back and working towards a better future. Thank you for being a part of our journey. We appreciate your trust and hope to see you again soon.",
-  "We value your feedback! Help us improve by sharing your thoughts on the text message survey link. Your opinions help us serve you better and improve your shopping experience. Thank you for shopping with us!",
+  "We value your feedback! Help us improve by sharing your thoughts on the text message survey link. Your opinions help us serve you better and improve your shopping experience. Thank thank you for shopping with us!",
   "Did you know you can save more with our loyalty program? Ask about it on your next visit and earn points on every purchase. It’s our way of saying thank you for being a loyal customer. See you next time!",
   "Need assistance with your purchase? We’re here to help! Reach out to our customer support, or visit our website for more information. We’re committed to providing you with the best service possible.",
   "Keep this receipt for returns or exchanges.",
@@ -59,6 +59,8 @@ const footerOptions = [
 const ReceiptPage = () => {
   const navigate = useNavigate();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // NEW: Loading state
   const receiptRef = useRef(null);
   
   // New state for branding data
@@ -95,7 +97,7 @@ const ReceiptPage = () => {
     setFooter(footerOptions[randomIndex]);
   };
 
-  // --- Branding Fetching Effect ---
+  // --- Branding/Data Fetching Effect ---
   useEffect(() => {
     const fetchBranding = async () => {
         try {
@@ -126,7 +128,8 @@ const ReceiptPage = () => {
             }
         } catch (error) {
             console.error("Error fetching branding settings:", error);
-            // Optionally, show a toast error
+        } finally {
+            setIsLoading(false); // End loading regardless of success
         }
     };
     fetchBranding();
@@ -182,6 +185,45 @@ const ReceiptPage = () => {
     localStorage.setItem("receiptFormData", JSON.stringify(formData));
   }, [billTo, invoice, yourCompany, cashier, items, taxPercentage, notes, footer, selectedCurrency]);
 
+  const handleSaveToDatabase = async () => {
+    setIsSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please sign in to save receipts.');
+        setIsSaving(false);
+        return;
+      }
+
+      const subTotal = calculateSubTotal(items);
+      const taxAmount = calculateTaxAmount(subTotal, taxPercentage);
+      const total = calculateGrandTotal(subTotal, taxAmount);
+
+      const { error } = await supabase.from('invoices').insert({
+        user_id: user.id,
+        invoice_number: invoice.number,
+        bill_to: { name: billTo, email: '', address: '', phone: '' },
+        invoice_details: invoice,
+        from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl }, // Save logoUrl with yourCompany data
+        items: items,
+        tax: taxPercentage,
+        subtotal: subTotal,
+        grand_total: total,
+        notes: notes,
+        template_name: theme,
+      });
+
+      if (error) throw error;
+      toast.success('Receipt saved successfully!');
+
+    } catch (error) {
+      console.error("Error saving receipt:", error);
+      toast.error('Failed to save receipt');
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   const handleDownloadPDF = async () => {
     if (!isDownloading && receiptRef.current) {
       setIsDownloading(true);
@@ -198,34 +240,11 @@ const ReceiptPage = () => {
       };
       try {
         await generateReceiptPDF(receiptRef.current, theme, receiptData);
-        
-        // Save receipt to database
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const subTotal = calculateSubTotal(items);
-          const taxAmount = calculateTaxAmount(subTotal, taxPercentage);
-          const total = calculateGrandTotal(subTotal, taxAmount);
-          
-          const { error } = await supabase.from('invoices').insert({
-            user_id: user.id,
-            invoice_number: invoice.number,
-            bill_to: { name: billTo, email: '', address: '', phone: '' },
-            invoice_details: invoice,
-            from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl }, // Save logoUrl with yourCompany data
-            items: items,
-            tax: taxPercentage,
-            subtotal: subTotal,
-            grand_total: total,
-            notes: notes,
-            template_name: theme,
-          });
-
-          if (error) throw error;
-          toast.success('Receipt saved successfully!');
-        }
+        // Removed database saving logic
+        toast.success('Receipt downloaded successfully!');
       } catch (error) {
         console.error("Error generating PDF:", error);
-        toast.error('Failed to save receipt');
+        toast.error('Failed to download receipt');
       } finally {
         setIsDownloading(false);
       }
@@ -274,15 +293,19 @@ const ReceiptPage = () => {
   };
 
   const calculateSubTotal = (currentItems = items) => {
-    return currentItems.reduce((sum, item) => sum + item.total, 0).toFixed(2);
+    // Stabilized calculation to handle null/undefined items safely
+    return currentItems.reduce((sum, item) => sum + (item.total || 0), 0).toFixed(2);
   };
 
-  const calculateTaxAmount = (subTotal = parseFloat(calculateSubTotal())) => {
-    return (subTotal * (taxPercentage / 100)).toFixed(2);
+  const calculateTaxAmount = (subTotalStr = calculateSubTotal()) => {
+    const subTotal = parseFloat(subTotalStr);
+    return (subTotal * (taxPercentage / 100) || 0).toFixed(2); // Safely return 0
   };
 
-  const calculateGrandTotal = (subTotal = parseFloat(calculateSubTotal()), taxAmount = parseFloat(calculateTaxAmount())) => {
-    return (subTotal + taxAmount).toFixed(2);
+  const calculateGrandTotal = (subTotalStr = calculateSubTotal(), taxAmountStr = calculateTaxAmount()) => {
+    const subTotal = parseFloat(subTotalStr) || 0;
+    const taxAmount = parseFloat(taxAmountStr) || 0;
+    return (subTotal + taxAmount).toFixed(2); // Safely return sum
   };
 
   // Prepare company data to pass to receipt templates, including the logoUrl
@@ -291,42 +314,88 @@ const ReceiptPage = () => {
     logoUrl: brandingSettings.logoUrl,
   };
 
+  // --- RENDER CHECK (Critical Stability Fix) ---
+  if (isLoading) {
+    return (
+        <div className="flex justify-center items-center h-screen bg-gray-50">
+            <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
+            <p className="ml-4 text-gray-700">Loading receipt data...</p>
+        </div>
+    );
+  }
+  // ----------------------------------------------
+
+
   return (
     <>
-      <Navigation />
+      <Navigation className="bg-blue-600 shadow-lg" />
       <div className="container mx-auto px-4 py-8 relative">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Receipt Generator</h1>
-        <div className="flex items-center">
-          <Button
-            onClick={handleDownloadPDF}
-            disabled={isDownloading}
-            className="mr-4"
-          >
-            {isDownloading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Downloading...
-              </>
-            ) : (
-              "Download Receipt PDF"
-            )}
-          </Button>
-          <button
-            onClick={() => navigate("/")}
-            className="bg-blue-500 text-white p-2 rounded-full shadow-lg hover:bg-blue-600"
-            aria-label="Switch to Bill Generator"
-          >
-            <FileText size={24} />
-          </button>
+        <h1 className="text-3xl font-bold mb-8 text-center text-gray-900">Receipt Generator</h1>
+
+        {/* --- ACTION BAR (Responsive Controls) --- */}
+        <div className="mb-8 p-4 bg-blue-600 shadow-2xl rounded-xl"> 
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                
+                <div className="flex gap-3">
+                    <Button
+                        onClick={() => navigate("/")}
+                        className="bg-white text-blue-600 hover:bg-gray-100 font-semibold shadow-lg px-4"
+                        aria-label="Switch to Bill Generator"
+                    >
+                        <FileText size={16} className="mr-2" />
+                        Go to Invoice
+                    </Button>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                    
+                    {/* Currency Display (Since selection is done on the Invoice Page) */}
+                    <div className="flex items-center space-x-2 bg-white p-2 rounded-lg text-gray-800 font-semibold">
+                        <DollarSign size={16} className="text-green-600" />
+                        <span>Currency: {selectedCurrency}</span>
+                    </div>
+
+                    {/* SAVE BUTTON */}
+                    <Button
+                        onClick={handleSaveToDatabase}
+                        disabled={isSaving}
+                        className="bg-green-500 hover:bg-green-600 font-semibold shadow-lg px-4 text-white" 
+                        aria-label="Save to Database"
+                    >
+                        {isSaving ? (
+                            <Loader2 size={16} className="animate-spin mr-2" />
+                        ) : (
+                            <Save size={16} className="mr-2" />
+                        )}
+                        Save to DB
+                    </Button>
+
+                    {/* DOWNLOAD BUTTON */}
+                    <Button
+                        onClick={handleDownloadPDF}
+                        disabled={isDownloading}
+                        className="bg-orange-500 hover:bg-orange-600 font-semibold shadow-lg px-4 text-white"
+                    >
+                        {isDownloading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Generating PDF...
+                            </>
+                        ) : (
+                            "Download Receipt PDF"
+                        )}
+                    </Button>
+                </div>
+            </div>
         </div>
-      </div>
+        {/* --- END ACTION BAR --- */}
+
 
       <div className="flex flex-col md:flex-row gap-8">
-        <div className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-md">
+        <div className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-2xl border border-gray-100">
           <form>
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold mb-4">Your Company</h2>
+            <div className="mb-6 border-b pb-4">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800">Your Company & Cashier</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FloatingLabelInput
                   id="yourCompanyName"
@@ -351,40 +420,41 @@ const ReceiptPage = () => {
                 name="address"
                 className="mt-4"
               />
-              <div className="relative mt-4">
+              <div className="relative mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <FloatingLabelInput
+                    id="yourCompanyGST"
+                    label="GST No."
+                    value={yourCompany.gst}
+                    onChange={(e) => {
+                      const value = e.target.value.slice(0, 15);
+                      handleInputChange(setYourCompany)({
+                        target: { name: "gst", value },
+                      });
+                    }}
+                    name="gst"
+                    maxLength={15}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newGST = generateGSTNumber();
+                      setYourCompany(prev => ({ ...prev, gst: newGST }));
+                    }}
+                    className="absolute right-2 top-1/4 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-200"
+                    title="Generate new GST number"
+                  >
+                    <RotateCw size={16} />
+                  </button>
+                </div>
                 <FloatingLabelInput
-                  id="yourCompanyGST"
-                  label="GST No."
-                  value={yourCompany.gst}
-                  onChange={(e) => {
-                    const value = e.target.value.slice(0, 15);
-                    handleInputChange(setYourCompany)({
-                      target: { name: "gst", value },
-                    });
-                  }}
-                  name="gst"
-                  maxLength={15}
+                  id="yourCompanyWebsite"
+                  label="Website"
+                  value={yourCompany.website}
+                  onChange={handleInputChange(setYourCompany)}
+                  name="website"
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newGST = generateGSTNumber();
-                    setYourCompany(prev => ({ ...prev, gst: newGST }));
-                  }}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-200"
-                  title="Generate new GST number"
-                >
-                  <RotateCw size={16} />
-                </button>
               </div>
-              <FloatingLabelInput
-                id="yourCompanyWebsite"
-                label="Website"
-                value={yourCompany.website}
-                onChange={handleInputChange(setYourCompany)}
-                name="website"
-                className="mt-4"
-              />
               <FloatingLabelInput
                 id="cashier"
                 label="Cashier"
@@ -395,32 +465,27 @@ const ReceiptPage = () => {
               />
             </div>
 
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold mb-4">Bill To</h2>
+            <div className="mb-6 border-b pb-4">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800">Customer & Receipt ID</h2>
               <FloatingLabelInput
                 id="billTo"
-                label="Bill To"
+                label="Customer Name / Bill To"
                 value={billTo}
                 onChange={(e) => setBillTo(e.target.value)}
                 name="billTo"
               />
-            </div>
 
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold mb-4">
-                Invoice Information
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <FloatingLabelInput
                   id="invoiceNumber"
-                  label="Invoice Number"
+                  label="Receipt Number"
                   value={invoice.number}
                   onChange={handleInputChange(setInvoice)}
                   name="number"
                 />
                 <FloatingLabelInput
                   id="invoiceDate"
-                  label="Invoice Date"
+                  label="Date"
                   type="date"
                   value={invoice.date}
                   onChange={handleInputChange(setInvoice)}
@@ -429,184 +494,125 @@ const ReceiptPage = () => {
               </div>
             </div>
 
-            <ItemDetails
-              items={items}
-              handleItemChange={handleItemChange}
-              addItem={addItem}
-              removeItem={removeItem}
-            />
-
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-2">Totals</h3>
-              <div className="flex justify-between mb-2">
-                <span>Sub Total:</span>
-                <span>{formatCurrency(parseFloat(calculateSubTotal()), selectedCurrency)}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span>Tax (%):</span>
-                <input
-                  type="number"
-                  value={taxPercentage}
-                  onChange={(e) =>
-                    setTaxPercentage(parseFloat(e.target.value) || 0)
-                  }
-                  className="w-24 p-2 border rounded"
-                  min="0"
-                  max="28"
-                  step="1"
+            {/* ITEM DETAILS (SCROLLABLE CONTAINER) */}
+            <div className="mt-4">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Items Sold</h2>
+              <div className="max-h-[300px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3b82f6 #e5e7eb' }}> 
+                <ItemDetails
+                  items={items}
+                  handleItemChange={handleItemChange}
+                  removeItem={removeItem}
+                  currencyCode={selectedCurrency}
                 />
               </div>
-              <div className="flex justify-between mb-2">
-                <span>Tax Amount:</span>
-                <span>{formatCurrency(parseFloat(calculateTaxAmount()), selectedCurrency)}</span>
-              </div>
-              <div className="flex justify-between font-bold">
-                <span>Grand Total:</span>
-                <span>{formatCurrency(parseFloat(calculateGrandTotal()), selectedCurrency)}</span>
+              <div className="mt-4"> 
+                <Button 
+                    onClick={addItem}
+                    variant="outline"
+                    className="w-full border-dashed border-blue-400 text-blue-600 hover:bg-blue-50/50"
+                >
+                    + Add Item
+                </Button>
               </div>
             </div>
 
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-2">Notes</h3>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2 border rounded"
-                rows="4"
-              ></textarea>
+            <div className="mt-6 border-t pt-4">
+              <h3 className="text-xl font-bold mb-2 text-gray-800">Totals</h3>
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <span>Sub Total:</span>
+                  <span>{formatCurrency(calculateSubTotal(), selectedCurrency)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Tax (%):</span>
+                  <input
+                    type="number"
+                    value={taxPercentage}
+                    onChange={(e) =>
+                      setTaxPercentage(parseFloat(e.target.value) || 0)
+                    }
+                    className="w-20 p-1 border rounded text-right"
+                    min="0"
+                    max="28"
+                    step="1"
+                  />
+                </div>
+                <div className="flex justify-between border-b pb-2">
+                  <span>Tax Amount:</span>
+                  <span>{formatCurrency(calculateTaxAmount(), selectedCurrency)}</span>
+                </div>
+                <div className="flex justify-between font-extrabold text-2xl pt-2">
+                  <span>Grand Total:</span>
+                  <span className="text-green-700">{formatCurrency(calculateGrandTotal(), selectedCurrency)}</span>
+                </div>
+              </div>
             </div>
-            <div className="mb-6">
+
+            <div className="mt-6 border-t pt-4">
               <div className="flex items-center mb-2">
-                <h3 className="text-lg font-medium">Footer</h3>
+                <h3 className="text-xl font-bold text-gray-800">Notes & Footer Message</h3>
                 <button
                   type="button"
                   onClick={refreshFooter}
-                  className="ml-2 p-1 rounded-full hover:bg-gray-200"
+                  className="ml-2 p-1 rounded-full text-gray-600 hover:bg-gray-200"
                   title="Refresh footer"
                 >
                   <RefreshCw size={16} />
                 </button>
               </div>
               <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full p-2 border rounded resize-none mb-2"
+                rows="3"
+                placeholder="Notes for the customer..."
+              ></textarea>
+              <textarea
                 value={footer}
                 onChange={(e) => setFooter(e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded resize-none"
                 rows="2"
+                placeholder="Footer message (e.g., Thank you for your business)."
               ></textarea>
             </div>
           </form>
         </div>
 
-        <div className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-semibold mb-4">Receipt Preview</h2>
-          <div className="mb-4 flex items-center">
-            <h3 className="text-lg font-medium mr-4">Receipt Type</h3>
-            <div className="flex gap-4">
+        <div className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-2xl border border-gray-100">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">Receipt Preview</h2>
+          <div className="mb-4">
+            <h3 className="text-lg font-medium mr-4">Receipt Style</h3>
+            <div className="flex gap-4 mt-2">
               <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="theme"
-                  value="Receipt1"
-                  checked={theme === "Receipt1"}
-                  onChange={() => setTheme("Receipt1")}
-                  className="mr-2"
-                />
-                Receipt1
+                <input type="radio" name="theme" value="Receipt1" checked={theme === "Receipt1"} onChange={() => setTheme("Receipt1")} className="mr-2" />
+                Receipt 1 (Thermal)
               </label>
               <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="theme"
-                  value="Receipt2"
-                  checked={theme === "Receipt2"}
-                  onChange={() => setTheme("Receipt2")}
-                  className="mr-2"
-                />
-                Receipt2
+                <input type="radio" name="theme" value="Receipt2" checked={theme === "Receipt2"} onChange={() => setTheme("Receipt2")} className="mr-2" />
+                Receipt 2
               </label>
               <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="theme"
-                  value="Receipt3"
-                  checked={theme === "Receipt3"}
-                  onChange={() => setTheme("Receipt3")}
-                  className="mr-2"
-                />
-                Receipt3
+                <input type="radio" name="theme" value="Receipt3" checked={theme === "Receipt3"} onChange={() => setTheme("Receipt3")} className="mr-2" />
+                Receipt 3
               </label>
               <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="theme"
-                  value="Receipt4"
-                  checked={theme === "Receipt4"}
-                  onChange={() => setTheme("Receipt4")}
-                  className="mr-2"
-                />
-                Receipt4
+                <input type="radio" name="theme" value="Receipt4" checked={theme === "Receipt4"} onChange={() => setTheme("Receipt4")} className="mr-2" />
+                Receipt 4
               </label>
             </div>
           </div>
-          <div ref={receiptRef} className="w-[380px] mx-auto border shadow-lg">
+          <div ref={receiptRef} className="w-[380px] mx-auto border shadow-lg overflow-hidden">
             {theme === "Receipt1" && (
-              <Receipt1
-                data={{
-                  billTo,
-                  invoice,
-                  yourCompany: companyDataWithBranding, // Pass merged data
-                  cashier,
-                  items,
-                  taxPercentage,
-                  notes,
-                  footer,
-                  selectedCurrency,
-                }}
-              />
+              <Receipt1 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
             )}
             {theme === "Receipt2" && (
-              <Receipt2
-                data={{
-                  billTo,
-                  invoice,
-                  yourCompany: companyDataWithBranding, // Pass merged data
-                  cashier,
-                  items,
-                  taxPercentage,
-                  notes,
-                  footer,
-                  selectedCurrency,
-                }}
-              />
+              <Receipt2 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
             )}
             {theme === "Receipt3" && (
-              <Receipt3
-                data={{
-                  billTo,
-                  invoice,
-                  yourCompany: companyDataWithBranding, // Pass merged data
-                  cashier,
-                  items,
-                  taxPercentage,
-                  notes,
-                  footer,
-                  selectedCurrency,
-                }}
-              />
+              <Receipt3 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
             )}
             {theme === "Receipt4" && (
-              <Receipt4
-                data={{
-                  billTo,
-                  invoice,
-                  yourCompany: companyDataWithBranding, // Pass merged data
-                  items,
-                  taxPercentage,
-                  footer,
-                  cashier,
-                  selectedCurrency,
-                }}
-              />
+              <Receipt4 data={{ billTo, invoice, yourCompany: companyDataWithBranding, items, taxPercentage, footer, cashier, selectedCurrency, }} />
             )}
           </div>
         </div>
