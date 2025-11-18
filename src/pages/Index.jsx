@@ -389,9 +389,7 @@ const Index = () => {
       <Navigation className="bg-blue-600 shadow-lg" /> 
       
       <div className="bg-gray-50 min-h-screen">
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-4xl font-extrabold mb-8 text-center text-gray-900">Professional Invoice Creator</h1>
-          
+        <div className="container mx-auto px-4 py-8">          
           {/* --- ACTION BAR --- */}
           <div className="mb-8 p-4 bg-blue-600 shadow-2xl rounded-xl"> 
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, FileText, RotateCw, Mail, Save, DollarSign } from "lucide-react"; // Added Save icon
+import { Loader2, RefreshCw, FileText, RotateCw, Mail, Save, DollarSign, Download } from "lucide-react"; // Added Download icon
 import { Button } from "@/components/ui/button";
 import Receipt1 from "../components/templates/Receipt1";
 import Receipt2 from "../components/templates/Receipt2";
@@ -15,6 +15,7 @@ import FloatingLabelInput from "../components/FloatingLabelInput";
 import ItemDetails from "../components/ItemDetails";
 import Navigation from '../components/Navigation';
 
+// Helper function definitions (generateRandomInvoiceNumber, footerOptions) remain the same
 const generateRandomInvoiceNumber = () => {
   const length = Math.floor(Math.random() * 6) + 3;
   const alphabetCount = Math.min(Math.floor(Math.random() * 4), length);
@@ -55,12 +56,13 @@ const footerOptions = [
   "Thank you for visiting! Did you know you can save more with our rewards program? Ask about it during your next visit and start earning points today!",
   "We appreciate your trust in us. If you ever need assistance with your order, please visit our website or call customer service. We’re here to help!",
 ];
+// -----------------------------------------------------------------------------
 
 const ReceiptPage = () => {
   const navigate = useNavigate();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // NEW: Loading state
+  const [isLoading, setIsLoading] = useState(true); 
   const receiptRef = useRef(null);
   
   // New state for branding data
@@ -119,7 +121,6 @@ const ReceiptPage = () => {
                     brandingWebsite: data.website || '',
                 });
 
-                // Update yourCompany state with branding details, prioritizing local state
                 setYourCompany(prev => ({
                     ...prev,
                     name: prev.name || data.company_name || '',
@@ -129,7 +130,7 @@ const ReceiptPage = () => {
         } catch (error) {
             console.error("Error fetching branding settings:", error);
         } finally {
-            setIsLoading(false); // End loading regardless of success
+            setIsLoading(false); 
         }
     };
     fetchBranding();
@@ -142,7 +143,6 @@ const ReceiptPage = () => {
     if (savedFormData) {
       const parsedData = JSON.parse(savedFormData);
       setBillTo(parsedData.billTo || "");
-      // Preserve branding name/website if localStorage didn't save it or it's empty
       const initialYourCompany = parsedData.yourCompany || { name: "", address: "", phone: "", gst: "", website: "" };
       setYourCompany({
         ...initialYourCompany,
@@ -167,7 +167,7 @@ const ReceiptPage = () => {
         website: brandingSettings.brandingWebsite,
       }));
     }
-  }, [brandingSettings.brandingCompanyName, brandingSettings.brandingWebsite]); // Depend on branding settings for initial load/merge
+  }, [brandingSettings.brandingCompanyName, brandingSettings.brandingWebsite]);
 
   useEffect(() => {
     // Save form data to localStorage whenever it changes
@@ -204,7 +204,7 @@ const ReceiptPage = () => {
         invoice_number: invoice.number,
         bill_to: { name: billTo, email: '', address: '', phone: '' },
         invoice_details: invoice,
-        from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl }, // Save logoUrl with yourCompany data
+        from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl },
         items: items,
         tax: taxPercentage,
         subtotal: subTotal,
@@ -230,7 +230,7 @@ const ReceiptPage = () => {
       const receiptData = {
         billTo,
         invoice,
-        yourCompany: { ...yourCompany, logoUrl: brandingSettings.logoUrl }, // Include logoUrl in data for PDF generation
+        yourCompany: { ...yourCompany, logoUrl: brandingSettings.logoUrl },
         cashier,
         items,
         taxPercentage,
@@ -240,7 +240,6 @@ const ReceiptPage = () => {
       };
       try {
         await generateReceiptPDF(receiptRef.current, theme, receiptData);
-        // Removed database saving logic
         toast.success('Receipt downloaded successfully!');
       } catch (error) {
         console.error("Error generating PDF:", error);
@@ -260,10 +259,6 @@ const ReceiptPage = () => {
     const body = `Dear Customer,\n\nPlease find your receipt details below:\n\nReceipt Number: ${invoice.number}\nDate: ${invoice.date}\nTotal: ${formatCurrency(total, selectedCurrency)}\n\n${notes}\n\nBest regards,\n${yourCompany.name}`;
     
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  };
-
-  const handleBack = () => {
-    navigate("/");
   };
 
   const handleInputChange = (setter) => (e) => {
@@ -293,22 +288,20 @@ const ReceiptPage = () => {
   };
 
   const calculateSubTotal = (currentItems = items) => {
-    // Stabilized calculation to handle null/undefined items safely
     return currentItems.reduce((sum, item) => sum + (item.total || 0), 0).toFixed(2);
   };
 
   const calculateTaxAmount = (subTotalStr = calculateSubTotal()) => {
     const subTotal = parseFloat(subTotalStr);
-    return (subTotal * (taxPercentage / 100) || 0).toFixed(2); // Safely return 0
+    return (subTotal * (taxPercentage / 100) || 0).toFixed(2);
   };
 
   const calculateGrandTotal = (subTotalStr = calculateSubTotal(), taxAmountStr = calculateTaxAmount()) => {
     const subTotal = parseFloat(subTotalStr) || 0;
     const taxAmount = parseFloat(taxAmountStr) || 0;
-    return (subTotal + taxAmount).toFixed(2); // Safely return sum
+    return (subTotal + taxAmount).toFixed(2);
   };
 
-  // Prepare company data to pass to receipt templates, including the logoUrl
   const companyDataWithBranding = {
     ...yourCompany,
     logoUrl: brandingSettings.logoUrl,
@@ -328,296 +321,330 @@ const ReceiptPage = () => {
 
   return (
     <>
-      <Navigation className="bg-blue-600 shadow-lg" />
-      <div className="container mx-auto px-4 py-8 relative">
-        <h1 className="text-3xl font-bold mb-8 text-center text-gray-900">Receipt Generator</h1>
+      {/* Navigation - Tailwind has replaced bg-blue-600 with a gradient and shadow */}
+      <Navigation className="bg-gradient-to-r from-blue-600 to-indigo-700 shadow-2xl" />
+      
+      {/* Main Container with Background */}
+      <div className="min-h-screen bg-gray-50 bg-opacity-70 backdrop-blur-sm pt-8 pb-16">
+        {/* Background Overlay for a modern, subtle gradient look */}
+        <div className="absolute inset-0 z-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at top left, #a5b4fc, transparent), radial-gradient(circle at bottom right, #3b82f6, transparent)' }}></div>
+        
+        <div className="container mx-auto px-4 relative z-10">
+          {/* --- ACTION BAR (Modernized) --- */}
+          <div className="mb-12 p-5 bg-white shadow-3xl rounded-xl border border-blue-100/50"> 
+              <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                  
+                  {/* Left Side: Navigation & Info */}
+                  <div className="flex gap-4 items-center">
+                      <Button
+                          onClick={() => navigate("/")}
+                          className="bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-lg px-4 transition-all duration-300"
+                          aria-label="Switch to Bill Generator"
+                      >
+                          <FileText size={16} className="mr-2" />
+                          Go to Invoice
+                      </Button>
+                      <div className="flex items-center space-x-2 bg-blue-50 p-2 rounded-lg text-gray-800 font-semibold border border-blue-200">
+                          <DollarSign size={16} className="text-green-600" />
+                          <span>Currency: {selectedCurrency}</span>
+                      </div>
+                  </div>
+                  
+                  {/* Right Side: Actions */}
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                      
+                      {/* EMAIL BUTTON */}
+                      <Button
+                          onClick={handleSendEmail}
+                          className="bg-purple-600 hover:bg-purple-700 font-semibold shadow-lg px-4 text-white transition-all duration-300" 
+                          aria-label="Send Email"
+                      >
+                          <Mail size={16} className="mr-2" />
+                          Email Receipt
+                      </Button>
 
-        {/* --- ACTION BAR (Responsive Controls) --- */}
-        <div className="mb-8 p-4 bg-blue-600 shadow-2xl rounded-xl"> 
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                
-                <div className="flex gap-3">
-                    <Button
-                        onClick={() => navigate("/")}
-                        className="bg-white text-blue-600 hover:bg-gray-100 font-semibold shadow-lg px-4"
-                        aria-label="Switch to Bill Generator"
-                    >
-                        <FileText size={16} className="mr-2" />
-                        Go to Invoice
-                    </Button>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row items-center gap-3">
+                      {/* SAVE BUTTON */}
+                      <Button
+                          onClick={handleSaveToDatabase}
+                          disabled={isSaving}
+                          className="bg-green-600 hover:bg-green-700 font-semibold shadow-lg px-4 text-white transition-all duration-300" 
+                          aria-label="Save to Database"
+                      >
+                          {isSaving ? (
+                              <Loader2 size={16} className="animate-spin mr-2" />
+                          ) : (
+                              <Save size={16} className="mr-2" />
+                          )}
+                          Save to DB
+                      </Button>
+
+                      {/* DOWNLOAD BUTTON */}
+                      <Button
+                          onClick={handleDownloadPDF}
+                          disabled={isDownloading}
+                          className="bg-red-500 hover:bg-red-600 font-semibold shadow-lg px-4 text-white transition-all duration-300"
+                      >
+                          {isDownloading ? (
+                              <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Generating...
+                              </>
+                          ) : (
+                              <>
+                                  <Download size={16} className="mr-2" />
+                                  Download PDF
+                              </>
+                          )}
+                      </Button>
+                  </div>
+              </div>
+          </div>
+          {/* --- END ACTION BAR --- */}
+
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* --- INPUT FORM SECTION (2/3 width on large screens) --- */}
+            <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-3xl border border-gray-100/70">
+                <form>
                     
-                    {/* Currency Display (Since selection is done on the Invoice Page) */}
-                    <div className="flex items-center space-x-2 bg-white p-2 rounded-lg text-gray-800 font-semibold">
-                        <DollarSign size={16} className="text-green-600" />
-                        <span>Currency: {selectedCurrency}</span>
+                    {/* Your Company & Cashier */}
+                    <div className="mb-8 border-b border-dashed pb-6">
+                        <h2 className="text-2xl font-bold mb-4 text-indigo-700 flex items-center">
+                            <span className="p-2 bg-indigo-100 rounded-full mr-3">🏢</span> Your Company & Cashier
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FloatingLabelInput
+                                id="yourCompanyName"
+                                label="Name"
+                                value={yourCompany.name}
+                                onChange={handleInputChange(setYourCompany)}
+                                name="name"
+                            />
+                            <FloatingLabelInput
+                                id="yourCompanyPhone"
+                                label="Phone"
+                                value={yourCompany.phone}
+                                onChange={handleInputChange(setYourCompany)}
+                                name="phone"
+                            />
+                        </div>
+                        <FloatingLabelInput
+                            id="yourCompanyAddress"
+                            label="Address"
+                            value={yourCompany.address}
+                            onChange={handleInputChange(setYourCompany)}
+                            name="address"
+                            className="mt-4"
+                        />
+                        <div className="relative mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <FloatingLabelInput
+                                    id="yourCompanyGST"
+                                    label="GST No."
+                                    value={yourCompany.gst}
+                                    onChange={(e) => {
+                                        const value = e.target.value.slice(0, 15);
+                                        handleInputChange(setYourCompany)({
+                                            target: { name: "gst", value },
+                                        });
+                                    }}
+                                    name="gst"
+                                    maxLength={15}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const newGST = generateGSTNumber();
+                                        setYourCompany(prev => ({ ...prev, gst: newGST }));
+                                    }}
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded-full text-blue-600 hover:bg-blue-100 transition-colors"
+                                    title="Generate new GST number"
+                                >
+                                    <RotateCw size={16} />
+                                </button>
+                            </div>
+                            <FloatingLabelInput
+                                id="yourCompanyWebsite"
+                                label="Website"
+                                value={yourCompany.website}
+                                onChange={handleInputChange(setYourCompany)}
+                                name="website"
+                            />
+                        </div>
+                        <FloatingLabelInput
+                            id="cashier"
+                            label="Cashier"
+                            value={cashier}
+                            onChange={(e) => setCashier(e.target.value)}
+                            name="cashier"
+                            className="mt-4"
+                        />
                     </div>
 
-                    {/* SAVE BUTTON */}
-                    <Button
-                        onClick={handleSaveToDatabase}
-                        disabled={isSaving}
-                        className="bg-green-500 hover:bg-green-600 font-semibold shadow-lg px-4 text-white" 
-                        aria-label="Save to Database"
-                    >
-                        {isSaving ? (
-                            <Loader2 size={16} className="animate-spin mr-2" />
-                        ) : (
-                            <Save size={16} className="mr-2" />
-                        )}
-                        Save to DB
-                    </Button>
+                    {/* Customer & Receipt ID */}
+                    <div className="mb-8 border-b border-dashed pb-6">
+                        <h2 className="text-2xl font-bold mb-4 text-indigo-700 flex items-center">
+                            <span className="p-2 bg-indigo-100 rounded-full mr-3">👤</span> Customer & Receipt ID
+                        </h2>
+                        <FloatingLabelInput
+                            id="billTo"
+                            label="Customer Name / Bill To"
+                            value={billTo}
+                            onChange={(e) => setBillTo(e.target.value)}
+                            name="billTo"
+                        />
 
-                    {/* DOWNLOAD BUTTON */}
-                    <Button
-                        onClick={handleDownloadPDF}
-                        disabled={isDownloading}
-                        className="bg-orange-500 hover:bg-orange-600 font-semibold shadow-lg px-4 text-white"
-                    >
-                        {isDownloading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Generating PDF...
-                            </>
-                        ) : (
-                            "Download Receipt PDF"
-                        )}
-                    </Button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <FloatingLabelInput
+                                id="invoiceNumber"
+                                label="Receipt Number"
+                                value={invoice.number}
+                                onChange={handleInputChange(setInvoice)}
+                                name="number"
+                            />
+                            <FloatingLabelInput
+                                id="invoiceDate"
+                                label="Date"
+                                type="date"
+                                value={invoice.date}
+                                onChange={handleInputChange(setInvoice)}
+                                name="date"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Item Details */}
+                    <div className="mt-4 mb-8">
+                        <h2 className="text-2xl font-bold mb-4 text-indigo-700 border-b border-dashed pb-2 flex items-center">
+                            <span className="p-2 bg-indigo-100 rounded-full mr-3">🛒</span> Items Sold
+                        </h2>
+                        <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar border border-gray-200 p-3 rounded-lg bg-gray-50/50"> 
+                            <ItemDetails
+                                items={items}
+                                handleItemChange={handleItemChange}
+                                removeItem={removeItem}
+                                currencyCode={selectedCurrency}
+                            />
+                        </div>
+                        <div className="mt-4"> 
+                            <Button 
+                                onClick={addItem}
+                                variant="outline"
+                                type="button"
+                                className="w-full border-2 border-dashed border-blue-400 text-blue-600 hover:bg-blue-50/50 transition-colors"
+                            >
+                                + Add Item
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Totals & Notes */}
+                    <div className="mt-8 border-t border-dashed pt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 className="text-xl font-bold mb-4 text-indigo-700">Totals Summary</h3>
+                            <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="flex justify-between text-lg font-medium">
+                                    <span>Sub Total:</span>
+                                    <span>{formatCurrency(calculateSubTotal(), selectedCurrency)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-lg font-medium">
+                                    <span>Tax (%):</span>
+                                    <input
+                                        type="number"
+                                        value={taxPercentage}
+                                        onChange={(e) =>
+                                            setTaxPercentage(parseFloat(e.target.value) || 0)
+                                        }
+                                        className="w-20 p-1 border border-gray-300 rounded text-right focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                        min="0"
+                                        max="28"
+                                        step="1"
+                                    />
+                                </div>
+                                <div className="flex justify-between border-b border-blue-300 pb-3 text-lg font-medium">
+                                    <span>Tax Amount:</span>
+                                    <span>{formatCurrency(calculateTaxAmount(), selectedCurrency)}</span>
+                                </div>
+                                <div className="flex justify-between font-extrabold text-3xl pt-3 border-t border-blue-300">
+                                    <span>Grand Total:</span>
+                                    <span className="text-green-700">{formatCurrency(calculateGrandTotal(), selectedCurrency)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="flex items-center mb-2">
+                                <h3 className="text-xl font-bold text-indigo-700">Notes & Footer Message</h3>
+                                <button
+                                    type="button"
+                                    onClick={refreshFooter}
+                                    className="ml-2 p-1 rounded-full text-blue-600 hover:bg-blue-100 transition-colors"
+                                    title="Refresh footer"
+                                >
+                                    <RefreshCw size={16} />
+                                </button>
+                            </div>
+                            <textarea
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg resize-none mb-3 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                rows="3"
+                                placeholder="Notes for the customer (e.g., payment method)..."
+                            ></textarea>
+                            <textarea
+                                value={footer}
+                                onChange={(e) => setFooter(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                rows="2"
+                                placeholder="Footer message (e.g., Thank you for your business)."
+                            ></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            {/* --- PREVIEW SECTION (1/3 width on large screens) --- */}
+            <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-3xl border border-gray-100/70 sticky top-4">
+                <h2 className="text-2xl font-bold mb-6 text-indigo-700 flex items-center">
+                    <span className="p-2 bg-indigo-100 rounded-full mr-3">🎨</span> Receipt Preview
+                </h2>
+                
+                {/* Style Selection */}
+                <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <h3 className="text-lg font-semibold mb-3 text-gray-700">Receipt Style Selection</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        {["Receipt1", "Receipt2", "Receipt3", "Receipt4"].map((rName) => (
+                            <label key={rName} className={`flex items-center p-2 rounded-lg cursor-pointer transition-all ${theme === rName ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-700 hover:bg-blue-50 border'}`}>
+                                <input type="radio" name="theme" value={rName} checked={theme === rName} onChange={() => setTheme(rName)} className="mr-2" />
+                                {rName.replace('Receipt', 'Style ')}
+                            </label>
+                        ))}
+                    </div>
                 </div>
+
+                {/* Receipt Preview Window */}
+                <div ref={receiptRef} className="w-full max-w-[380px] mx-auto border-4 border-gray-900 rounded-md shadow-2xl overflow-hidden mt-6 bg-white">
+                    {theme === "Receipt1" && (
+                        <Receipt1 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
+                    )}
+                    {theme === "Receipt2" && (
+                        <Receipt2 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
+                    )}
+                    {theme === "Receipt3" && (
+                        <Receipt3 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
+                    )}
+                    {theme === "Receipt4" && (
+                        <Receipt4 data={{ billTo, invoice, yourCompany: companyDataWithBranding, items, taxPercentage, footer, cashier, selectedCurrency, }} />
+                    )}
+                </div>
+                <p className="text-center text-sm text-gray-500 mt-4 italic">
+                    Preview size is fixed for consistent display.
+                </p>
             </div>
         </div>
-        {/* --- END ACTION BAR --- */}
-
-
-      <div className="flex flex-col md:flex-row gap-8">
-        <div className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-2xl border border-gray-100">
-          <form>
-            <div className="mb-6 border-b pb-4">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">Your Company & Cashier</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FloatingLabelInput
-                  id="yourCompanyName"
-                  label="Name"
-                  value={yourCompany.name}
-                  onChange={handleInputChange(setYourCompany)}
-                  name="name"
-                />
-                <FloatingLabelInput
-                  id="yourCompanyPhone"
-                  label="Phone"
-                  value={yourCompany.phone}
-                  onChange={handleInputChange(setYourCompany)}
-                  name="phone"
-                />
-              </div>
-              <FloatingLabelInput
-                id="yourCompanyAddress"
-                label="Address"
-                value={yourCompany.address}
-                onChange={handleInputChange(setYourCompany)}
-                name="address"
-                className="mt-4"
-              />
-              <div className="relative mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <FloatingLabelInput
-                    id="yourCompanyGST"
-                    label="GST No."
-                    value={yourCompany.gst}
-                    onChange={(e) => {
-                      const value = e.target.value.slice(0, 15);
-                      handleInputChange(setYourCompany)({
-                        target: { name: "gst", value },
-                      });
-                    }}
-                    name="gst"
-                    maxLength={15}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newGST = generateGSTNumber();
-                      setYourCompany(prev => ({ ...prev, gst: newGST }));
-                    }}
-                    className="absolute right-2 top-1/4 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-200"
-                    title="Generate new GST number"
-                  >
-                    <RotateCw size={16} />
-                  </button>
-                </div>
-                <FloatingLabelInput
-                  id="yourCompanyWebsite"
-                  label="Website"
-                  value={yourCompany.website}
-                  onChange={handleInputChange(setYourCompany)}
-                  name="website"
-                />
-              </div>
-              <FloatingLabelInput
-                id="cashier"
-                label="Cashier"
-                value={cashier}
-                onChange={(e) => setCashier(e.target.value)}
-                name="cashier"
-                className="mt-4"
-              />
-            </div>
-
-            <div className="mb-6 border-b pb-4">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">Customer & Receipt ID</h2>
-              <FloatingLabelInput
-                id="billTo"
-                label="Customer Name / Bill To"
-                value={billTo}
-                onChange={(e) => setBillTo(e.target.value)}
-                name="billTo"
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <FloatingLabelInput
-                  id="invoiceNumber"
-                  label="Receipt Number"
-                  value={invoice.number}
-                  onChange={handleInputChange(setInvoice)}
-                  name="number"
-                />
-                <FloatingLabelInput
-                  id="invoiceDate"
-                  label="Date"
-                  type="date"
-                  value={invoice.date}
-                  onChange={handleInputChange(setInvoice)}
-                  name="date"
-                />
-              </div>
-            </div>
-
-            {/* ITEM DETAILS (SCROLLABLE CONTAINER) */}
-            <div className="mt-4">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Items Sold</h2>
-              <div className="max-h-[300px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3b82f6 #e5e7eb' }}> 
-                <ItemDetails
-                  items={items}
-                  handleItemChange={handleItemChange}
-                  removeItem={removeItem}
-                  currencyCode={selectedCurrency}
-                />
-              </div>
-              <div className="mt-4"> 
-                <Button 
-                    onClick={addItem}
-                    variant="outline"
-                    className="w-full border-dashed border-blue-400 text-blue-600 hover:bg-blue-50/50"
-                >
-                    + Add Item
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-6 border-t pt-4">
-              <h3 className="text-xl font-bold mb-2 text-gray-800">Totals</h3>
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span>Sub Total:</span>
-                  <span>{formatCurrency(calculateSubTotal(), selectedCurrency)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Tax (%):</span>
-                  <input
-                    type="number"
-                    value={taxPercentage}
-                    onChange={(e) =>
-                      setTaxPercentage(parseFloat(e.target.value) || 0)
-                    }
-                    className="w-20 p-1 border rounded text-right"
-                    min="0"
-                    max="28"
-                    step="1"
-                  />
-                </div>
-                <div className="flex justify-between border-b pb-2">
-                  <span>Tax Amount:</span>
-                  <span>{formatCurrency(calculateTaxAmount(), selectedCurrency)}</span>
-                </div>
-                <div className="flex justify-between font-extrabold text-2xl pt-2">
-                  <span>Grand Total:</span>
-                  <span className="text-green-700">{formatCurrency(calculateGrandTotal(), selectedCurrency)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 border-t pt-4">
-              <div className="flex items-center mb-2">
-                <h3 className="text-xl font-bold text-gray-800">Notes & Footer Message</h3>
-                <button
-                  type="button"
-                  onClick={refreshFooter}
-                  className="ml-2 p-1 rounded-full text-gray-600 hover:bg-gray-200"
-                  title="Refresh footer"
-                >
-                  <RefreshCw size={16} />
-                </button>
-              </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2 border rounded resize-none mb-2"
-                rows="3"
-                placeholder="Notes for the customer..."
-              ></textarea>
-              <textarea
-                value={footer}
-                onChange={(e) => setFooter(e.target.value)}
-                className="w-full p-2 border rounded resize-none"
-                rows="2"
-                placeholder="Footer message (e.g., Thank you for your business)."
-              ></textarea>
-            </div>
-          </form>
-        </div>
-
-        <div className="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-2xl border border-gray-100">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800">Receipt Preview</h2>
-          <div className="mb-4">
-            <h3 className="text-lg font-medium mr-4">Receipt Style</h3>
-            <div className="flex gap-4 mt-2">
-              <label className="flex items-center">
-                <input type="radio" name="theme" value="Receipt1" checked={theme === "Receipt1"} onChange={() => setTheme("Receipt1")} className="mr-2" />
-                Receipt 1 (Thermal)
-              </label>
-              <label className="flex items-center">
-                <input type="radio" name="theme" value="Receipt2" checked={theme === "Receipt2"} onChange={() => setTheme("Receipt2")} className="mr-2" />
-                Receipt 2
-              </label>
-              <label className="flex items-center">
-                <input type="radio" name="theme" value="Receipt3" checked={theme === "Receipt3"} onChange={() => setTheme("Receipt3")} className="mr-2" />
-                Receipt 3
-              </label>
-              <label className="flex items-center">
-                <input type="radio" name="theme" value="Receipt4" checked={theme === "Receipt4"} onChange={() => setTheme("Receipt4")} className="mr-2" />
-                Receipt 4
-              </label>
-            </div>
-          </div>
-          <div ref={receiptRef} className="w-[380px] mx-auto border shadow-lg overflow-hidden">
-            {theme === "Receipt1" && (
-              <Receipt1 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
-            )}
-            {theme === "Receipt2" && (
-              <Receipt2 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
-            )}
-            {theme === "Receipt3" && (
-              <Receipt3 data={{ billTo, invoice, yourCompany: companyDataWithBranding, cashier, items, taxPercentage, notes, footer, selectedCurrency, }} />
-            )}
-            {theme === "Receipt4" && (
-              <Receipt4 data={{ billTo, invoice, yourCompany: companyDataWithBranding, items, taxPercentage, footer, cashier, selectedCurrency, }} />
-            )}
-          </div>
         </div>
       </div>
-    </div>
     </>
   );
 };
