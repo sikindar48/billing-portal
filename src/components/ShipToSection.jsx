@@ -3,7 +3,8 @@ import FloatingLabelInput from './FloatingLabelInput';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const ShipToSection = ({ shipTo, handleInputChange, billTo }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Changed default state to true
+  const [isExpanded, setIsExpanded] = useState(true);
   const [copyBillToShip, setCopyBillToShip] = useState(false);
 
   const toggleExpand = (e) => {
@@ -35,7 +36,12 @@ const ShipToSection = ({ shipTo, handleInputChange, billTo }) => {
             />
             <label htmlFor="copyBillToShip">Same as Bill To</label>
           </div>
-          <button onClick={(e) => toggleExpand(e)} className="focus:outline-none">
+          {/* Added type="button" to prevent form submission/refresh */}
+          <button 
+            type="button" 
+            onClick={(e) => toggleExpand(e)} 
+            className="focus:outline-none"
+          >
             {isExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
           </button>
         </div>
