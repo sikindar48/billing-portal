@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, FileText, RotateCw, Mail, Save, DollarSign, Download } from "lucide-react"; // Added Download icon
+import { Loader2, RefreshCw, FileText, RotateCw, Mail, Save, DollarSign, Download } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
 import Receipt1 from "../components/templates/Receipt1";
 import Receipt2 from "../components/templates/Receipt2";
@@ -15,7 +15,7 @@ import FloatingLabelInput from "../components/FloatingLabelInput";
 import ItemDetails from "../components/ItemDetails";
 import Navigation from '../components/Navigation';
 
-// Helper function definitions (generateRandomInvoiceNumber, footerOptions) remain the same
+// Helper function definitions
 const generateRandomInvoiceNumber = () => {
   const length = Math.floor(Math.random() * 6) + 3;
   const alphabetCount = Math.min(Math.floor(Math.random() * 4), length);
@@ -33,6 +33,7 @@ const generateRandomInvoiceNumber = () => {
 
   return result;
 };
+
 const footerOptions = [
   "Thank you for choosing us today! We hope your shopping experience was pleasant and seamless. Your satisfaction matters to us, and we look forward to serving you again soon. Keep this receipt for any returns or exchanges.",
   "Your purchase supports our community! We believe in giving back and working towards a better future. Thank you for being a part of our journey. We appreciate your trust and hope to see you again soon.",
@@ -56,7 +57,6 @@ const footerOptions = [
   "Thank you for visiting! Did you know you can save more with our rewards program? Ask about it during your next visit and start earning points today!",
   "We appreciate your trust in us. If you ever need assistance with your order, please visit our website or call customer service. We’re here to help!",
 ];
-// -----------------------------------------------------------------------------
 
 const ReceiptPage = () => {
   const navigate = useNavigate();
@@ -519,23 +519,14 @@ const ReceiptPage = () => {
                         <h2 className="text-2xl font-bold mb-4 text-indigo-700 border-b border-dashed pb-2 flex items-center">
                             <span className="p-2 bg-indigo-100 rounded-full mr-3">🛒</span> Items Sold
                         </h2>
-                        <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar border border-gray-200 p-3 rounded-lg bg-gray-50/50"> 
+                        <div className="pr-2 border border-gray-200 p-3 rounded-lg bg-gray-50/50"> 
                             <ItemDetails
                                 items={items}
                                 handleItemChange={handleItemChange}
                                 removeItem={removeItem}
+                                addItem={addItem}
                                 currencyCode={selectedCurrency}
                             />
-                        </div>
-                        <div className="mt-4"> 
-                            <Button 
-                                onClick={addItem}
-                                variant="outline"
-                                type="button"
-                                className="w-full border-2 border-dashed border-blue-400 text-blue-600 hover:bg-blue-50/50 transition-colors"
-                            >
-                                + Add Item
-                            </Button>
                         </div>
                     </div>
 
