@@ -18,7 +18,7 @@ const TemplatePage = () => {
   
   // Restriction State
   const [downloadCount, setDownloadCount] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isUnlimited, setIsUnlimited] = useState(false); // Combines Admin + Pro checks
   const DOWNLOAD_LIMIT = 5;
 
   useEffect(() => {
@@ -33,23 +33,41 @@ const TemplatePage = () => {
       }
     }
 
-    // 2. Check Admin & Download Count
-    const checkUserStatus = async () => {
+    // 2. Check Subscription & Download Count
+    const checkAccess = async () => {
         const savedCount = parseInt(localStorage.getItem('pdf_download_count') || '0');
         setDownloadCount(savedCount);
 
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-             const adminEmails = ['nssoftwaresolutions1@gmail.com', 'admin@invoiceport.com'];
-             if (adminEmails.includes(user.email)) {
-                 setIsAdmin(true);
-                 return;
-             }
-             const { data } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
-             if (data) setIsAdmin(true);
+        if (!user) return;
+
+        // A. Admin Check
+        const adminEmails = ['nssoftwaresolutions1@gmail.com', 'admin@invoiceport.com'];
+        if (adminEmails.includes(user.email)) {
+             setIsUnlimited(true);
+             return;
+        }
+        
+        // B. Role Check
+        const { data: role } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+        if (role) {
+            setIsUnlimited(true);
+            return;
+        }
+
+        // C. Subscription Plan Check
+        const { data: sub } = await supabase
+            .from('user_subscriptions')
+            .select('*, subscription_plans(slug)')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        
+        // If plan is NOT trial, allow unlimited
+        if (sub?.subscription_plans?.slug !== 'trial') {
+            setIsUnlimited(true);
         }
     };
-    checkUserStatus();
+    checkAccess();
   }, [location.state]);
 
   const handleTemplateChange = (templateNumber) => {
@@ -59,12 +77,12 @@ const TemplatePage = () => {
   const handleDownloadPDF = async () => {
     if (!formData) return;
 
-    // Check Limit
-    if (!isAdmin && downloadCount >= DOWNLOAD_LIMIT) {
+    // Check Limit logic
+    if (!isUnlimited && downloadCount >= DOWNLOAD_LIMIT) {
         toast.error(
             <div className="flex flex-col">
                 <span className="font-bold">Download Limit Reached</span>
-                <span className="text-xs">You have reached the limit of {DOWNLOAD_LIMIT} downloads.</span>
+                <span className="text-xs">Free trial allows 5 downloads. Please upgrade.</span>
             </div>
         );
         return;
@@ -74,8 +92,8 @@ const TemplatePage = () => {
     try {
       await generatePDF(formData, currentTemplate);
       
-      // Increment Count if not admin
-      if (!isAdmin) {
+      // Increment Count if NOT unlimited
+      if (!isUnlimited) {
           const newCount = downloadCount + 1;
           setDownloadCount(newCount);
           localStorage.setItem('pdf_download_count', newCount.toString());
@@ -123,9 +141,9 @@ const TemplatePage = () => {
 
                     <Button 
                         onClick={handleDownloadPDF} 
-                        disabled={isDownloading || (!isAdmin && downloadCount >= DOWNLOAD_LIMIT)}
+                        disabled={isDownloading || (!isUnlimited && downloadCount >= DOWNLOAD_LIMIT)}
                         className={`w-full h-12 text-base font-semibold shadow-md transition-all ${
-                            (!isAdmin && downloadCount >= DOWNLOAD_LIMIT) 
+                            (!isUnlimited && downloadCount >= DOWNLOAD_LIMIT) 
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                             : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-indigo-200'
                         }`}
@@ -141,12 +159,12 @@ const TemplatePage = () => {
                         )}
                     </Button>
 
-                    {!isAdmin && (
+                    {!isUnlimited && (
                         <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
                             <div className="flex justify-between text-xs font-medium text-slate-600 mb-1">
-                                <span>Daily Downloads</span>
+                                <span>Downloads Remaining</span>
                                 <span className={downloadCount >= DOWNLOAD_LIMIT ? "text-red-600" : "text-indigo-600"}>
-                                    {downloadCount} / {DOWNLOAD_LIMIT}
+                                    {Math.max(0, DOWNLOAD_LIMIT - downloadCount)} left
                                 </span>
                             </div>
                             <div className="w-full bg-slate-200 rounded-full h-1.5">
@@ -157,9 +175,17 @@ const TemplatePage = () => {
                             </div>
                             {downloadCount >= DOWNLOAD_LIMIT && (
                                 <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
-                                    <Lock className="w-3 h-3" /> Limit reached.
+                                    <Lock className="w-3 h-3" /> Trial limit reached.
                                 </p>
                             )}
+                        </div>
+                    )}
+                    
+                    {isUnlimited && (
+                        <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-100 text-center">
+                             <p className="text-xs font-medium text-green-700 flex items-center justify-center gap-1">
+                                 <CheckCircle className="w-3 h-3" /> Unlimited Downloads Active
+                             </p>
                         </div>
                     )}
                 </div>
