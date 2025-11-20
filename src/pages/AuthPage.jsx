@@ -24,10 +24,8 @@ const AuthPage = () => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
-          // User is authenticated, redirect immediately to Index
           navigate('/', { replace: true }); 
         } else {
-          // No session found, stop loading and show the login form
           setVerifyingSession(false);
         }
       } catch (error) {
@@ -55,11 +53,10 @@ const AuthPage = () => {
         if (error) throw error;
 
         toast.success('Welcome back! Logged in successfully.');
-        // Direct redirect to Index
         navigate('/', { replace: true });
       } else {
-        // --- SIGNUP LOGIC ---
-        const { error } = await supabase.auth.signUp({
+        // --- SIGNUP LOGIC WITH 3-DAY TRIAL ---
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -69,8 +66,28 @@ const AuthPage = () => {
 
         if (error) throw error;
 
-        toast.success('Account created successfully! Please check your email.');
-        // Direct redirect to Index
+        // 1. Calculate Trial End Date (Current Date + 3 Days)
+        if (data?.user) {
+            const trialEndDate = new Date();
+            trialEndDate.setDate(trialEndDate.getDate() + 3);
+
+            // 2. Insert Subscription Record
+            const { error: subError } = await supabase
+                .from('user_subscriptions')
+                .insert({
+                    user_id: data.user.id,
+                    plan_id: 1, // Assuming '1' is your basic/starter plan ID
+                    status: 'trialing',
+                    current_period_end: trialEndDate.toISOString()
+                });
+            
+            if (subError) {
+                console.error("Error creating trial subscription:", subError);
+                // We don't block the flow here, but you might want to log this
+            }
+        }
+
+        toast.success('Account created! Your 3-Day Free Trial has started.');
         navigate('/', { replace: true });
       }
     } catch (error) {
@@ -117,7 +134,7 @@ const AuthPage = () => {
                 <h1 className="text-3xl font-bold tracking-tight">InvoicePort</h1>
             </div>
             <h2 className="text-4xl font-extrabold mb-6 leading-tight">
-                Manage your business finances with confidence.
+                Start your 3-Day Free Trial.
             </h2>
             <p className="text-indigo-100 text-lg mb-8 leading-relaxed">
                 Create professional invoices, track payments, and manage your clients all in one place. Join thousands of businesses trusting InvoicePort.
@@ -136,10 +153,6 @@ const AuthPage = () => {
                 ))}
             </div>
         </div>
-        
-        {/* Abstract Circles for depth */}
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-400/20 rounded-full blur-3xl" />
       </div>
 
       {/* Right Side - Auth Form */}
@@ -150,7 +163,7 @@ const AuthPage = () => {
                     {isLogin ? 'Welcome back' : 'Create an account'}
                 </h2>
                 <p className="text-gray-500 mt-2">
-                    {isLogin ? 'Enter your details to access your account.' : 'Start your journey with us today.'}
+                    {isLogin ? 'Enter your details to access your account.' : 'Start your 3-day free trial today.'}
                 </p>
             </div>
 
@@ -207,7 +220,7 @@ const AuthPage = () => {
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     ) : (
                         <span className="flex items-center justify-center gap-2">
-                            {isLogin ? 'Sign In' : 'Create Account'} 
+                            {isLogin ? 'Sign In' : 'Start Free Trial'} 
                             <ArrowRight className="h-4 w-4" />
                         </span>
                     )}

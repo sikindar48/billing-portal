@@ -1,181 +1,108 @@
--- Create app_role enum
-CREATE TYPE public.app_role AS ENUM ('admin', 'user');
+-- 1. Create Subscription Plans Table
+CREATE TABLE public.subscription_plans (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE, -- 'trial', 'monthly', 'yearly'
+  price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  billing_period TEXT NOT NULL, -- 'monthly', 'yearly', 'one_time'
+  features TEXT[] DEFAULT '{}',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
--- Create profiles table
-CREATE TABLE public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT NOT NULL,
+ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
+-- Everyone can read plans
+CREATE POLICY "Public view plans" ON public.subscription_plans FOR SELECT USING (true);
+
+
+-- 2. Create User Subscriptions Table
+CREATE TABLE public.user_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  plan_id INTEGER REFERENCES public.subscription_plans(id),
+  status TEXT NOT NULL, -- 'trialing', 'active', 'canceled', 'expired'
+  current_period_start TIMESTAMPTZ DEFAULT NOW(),
+  current_period_end TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_subscriptions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
+-- Users can view their own subscription
+CREATE POLICY "Users view own subscription" ON public.user_subscriptions 
+  FOR SELECT USING (auth.uid() = user_id);
 
--- Create user_roles table
-CREATE TABLE public.user_roles (
+-- Users can insert their own subscription (needed for signup trigger mostly, but good for safety)
+CREATE POLICY "Users insert own subscription" ON public.user_subscriptions 
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+
+-- 3. Create Subscription Requests Table (For manual admin approval flow)
+CREATE TABLE public.subscription_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  role app_role NOT NULL,
-  UNIQUE (user_id, role)
+  plan_id INTEGER REFERENCES public.subscription_plans(id),
+  message TEXT,
+  status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscription_requests ENABLE ROW LEVEL SECURITY;
 
--- Create security definer function to check roles
-CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
-RETURNS BOOLEAN
-LANGUAGE SQL
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.user_roles
-    WHERE user_id = _user_id AND role = _role
-  )
-$$;
+-- Users can insert requests
+CREATE POLICY "Users create requests" ON public.subscription_requests 
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can view their own roles"
-  ON public.user_roles FOR SELECT
-  USING (auth.uid() = user_id);
+-- Users can view their own requests
+CREATE POLICY "Users view requests" ON public.subscription_requests 
+  FOR SELECT USING (auth.uid() = user_id);
 
--- Create branding_settings table
-CREATE TABLE public.branding_settings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  logo_url TEXT,
-  company_name TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id)
-);
 
-ALTER TABLE public.branding_settings ENABLE ROW LEVEL SECURITY;
+-- 4. Insert Default Plans
+INSERT INTO public.subscription_plans (name, slug, price, billing_period, features) VALUES
+('Starter Trial', 'trial', 0, 'one_time', '{"3 Days Access", "Basic Invoicing", "PDF Export"}'),
+('Pro Monthly', 'monthly', 29.00, 'monthly', '{"Unlimited Invoices", "Priority Support", "Custom Branding"}'),
+('Enterprise Yearly', 'yearly', 290.00, 'yearly', '{"All Pro Features", "API Access", "Dedicated Account Manager"}');
 
-CREATE POLICY "Users can view their own branding"
-  ON public.branding_settings FOR SELECT
-  USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert their own branding"
-  ON public.branding_settings FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own branding"
-  ON public.branding_settings FOR UPDATE
-  USING (auth.uid() = user_id);
-
--- Create invoices table for history
-CREATE TABLE public.invoices (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  invoice_number TEXT NOT NULL,
-  bill_to JSONB NOT NULL,
-  ship_to JSONB,
-  invoice_details JSONB NOT NULL,
-  from_details JSONB NOT NULL,
-  items JSONB NOT NULL,
-  tax NUMERIC(10, 2) DEFAULT 0,
-  notes TEXT,
-  template_name TEXT,
-  subtotal NUMERIC(10, 2) NOT NULL,
-  grand_total NUMERIC(10, 2) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own invoices"
-  ON public.invoices FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own invoices"
-  ON public.invoices FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own invoices"
-  ON public.invoices FOR UPDATE
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own invoices"
-  ON public.invoices FOR DELETE
-  USING (auth.uid() = user_id);
-
--- Create storage bucket for logos
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('logos', 'logos', true);
-
--- Storage policies for logos
-CREATE POLICY "Users can view logos"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'logos');
-
-CREATE POLICY "Users can upload their own logos"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'logos' AND
-    auth.uid()::text = (storage.foldername(name))[1]
-  );
-
-CREATE POLICY "Users can update their own logos"
-  ON storage.objects FOR UPDATE
-  USING (
-    bucket_id = 'logos' AND
-    auth.uid()::text = (storage.foldername(name))[1]
-  );
-
-CREATE POLICY "Users can delete their own logos"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'logos' AND
-    auth.uid()::text = (storage.foldername(name))[1]
-  );
-
--- Trigger function for updated_at
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+-- 5. Automation: Handle New User Trial
+-- This function will be called by the trigger whenever a new user signs up
+CREATE OR REPLACE FUNCTION public.handle_new_user_subscription()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  trial_plan_id INTEGER;
 BEGIN
-  NEW.updated_at = NOW();
+  -- Get the ID of the 'trial' plan
+  SELECT id INTO trial_plan_id FROM public.subscription_plans WHERE slug = 'trial' LIMIT 1;
+
+  -- Insert the subscription record
+  INSERT INTO public.user_subscriptions (
+    user_id,
+    plan_id,
+    status,
+    current_period_start,
+    current_period_end
+  ) VALUES (
+    NEW.id,
+    trial_plan_id,
+    'trialing',
+    NOW(),
+    NOW() + INTERVAL '3 days' -- Set expiration to 3 days from now
+  );
+
   RETURN NEW;
 END;
 $$;
 
--- Apply triggers
-CREATE TRIGGER update_profiles_updated_at
-  BEFORE UPDATE ON public.profiles
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-CREATE TRIGGER update_branding_settings_updated_at
-  BEFORE UPDATE ON public.branding_settings
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-CREATE TRIGGER update_invoices_updated_at
-  BEFORE UPDATE ON public.invoices
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
--- Trigger to create profile on signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email);
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER on_auth_user_created
+-- Attach the trigger to auth.users
+-- Note: You already have a trigger 'on_auth_user_created' for profiles. 
+-- We can add a second trigger or combine them. Adding a second is cleaner here.
+DROP TRIGGER IF EXISTS on_auth_user_created_subscription ON auth.users;
+CREATE TRIGGER on_auth_user_created_subscription
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_subscription();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // Added useLocation
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { formatCurrency } from '../utils/formatCurrency'; 
@@ -8,8 +8,8 @@ import BillToSection from '../components/BillToSection';
 import ShipToSection from '../components/ShipToSection';
 import ItemDetails from "../components/ItemDetails";
 import { templates } from "../utils/templateRegistry";
-import { FiEdit, FiFileText, FiTrash2, FiLayers } from "react-icons/fi"; 
-import { RefreshCw, Save, Loader2, DollarSign } from "lucide-react"; 
+import { FiEdit, FiTrash2, FiLayers } from "react-icons/fi"; 
+import { RefreshCw, Save, Loader2, DollarSign, User, FileText, ShoppingBag, StickyNote, Clock, AlertCircle, ShieldCheck } from "lucide-react"; 
 import Navigation from '../components/Navigation';
 import { Button } from '@/components/ui/button'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,47 +21,35 @@ const generateRandomInvoiceNumber = () => {
   let result = "";
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const numbers = "0123456789";
-
-  for (let i = 0; i < alphabetCount; i++) {
-    result += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-
-  for (let i = alphabetCount; i < length; i++) {
-    result += numbers[Math.floor(Math.random() * numbers.length)];
-  }
-
+  for (let i = 0; i < alphabetCount; i++) result += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (let i = alphabetCount; i < length; i++) result += numbers[Math.floor(Math.random() * numbers.length)];
   return result;
 };
 
 const noteOptions = [
-  "Thank you for choosing us today! We hope your shopping experience was pleasant and seamless. Your satisfaction matters to us, and we look forward to serving you again soon. Keep this receipt for any returns or exchanges.",
-  "Your purchase supports our community! We believe in giving back and working towards a better future. Thank you for being a part of our journey. We appreciate your trust and hope to see you again soon.",
-  "We value your feedback! Help us improve by sharing your thoughts on the text message survey link. Your opinions help us serve you better and improve your shopping experience. Thank you for shopping with us!",
-  "Did you know you can save more with our loyalty program? Ask about it on your next visit and earn points on every purchase. It’s our way of saying thank you for being a loyal customer. See you next time!",
-  "Need assistance with your purchase? We’re here to help! Reach out to our customer support, or visit our website for more information. We’re committed to providing you with the best service possible.",
-  "Keep this receipt for returns or exchanges.",
-  "Every purchase makes a difference! We are dedicated to eco-friendly practices and sustainability. Thank thank you for supporting a greener planet with us. Together, we can build a better tomorrow.",
-  "Have a great day!",
-  "“Thank you for shopping with us today. Did you know you can return or exchange your items within 30 days with this receipt? We want to ensure that you’re happy with your purchase, so don’t hesitate to come back if you need assistance.",
-  "Eco-friendly business. This receipt is recyclable.",
-  "We hope you enjoyed your shopping experience! Remember, for every friend you refer, you can earn exclusive rewards. Visit www.example.com/refer for more details. We look forward to welcoming you back soon!",
-  "Thank you for choosing us! We appreciate your business and look forward to serving you again. Keep this receipt for any future inquiries or returns.",
-  "Your purchase supports local businesses and helps us continue our mission. Thank you for being a valued customer. We hope to see you again soon!",
-  "We hope you had a great shopping experience today. If you have any feedback, please share it with us on our website. We are always here to assist you.",
-  "Thank you for your visit! Remember, we offer exclusive discounts to returning customers. Check your email for special offers on your next purchase.",
-  "Your satisfaction is our top priority. If you need any help or have questions about your purchase, don’t hesitate to contact us. Have a great day!",
-  "We love our customers! Thank you for supporting our business. Follow us on social media for updates on promotions and new products. See you next time!",
-  "Every purchase counts! We are committed to making a positive impact, and your support helps us achieve our goals. Thank you for shopping with us today!",
-  "We hope you found everything you needed. If not, please let us know so we can improve your experience. Your feedback helps us serve you better. Thank you!",
-  "Thank you for visiting! Did you know you can save more with our rewards program? Ask about it during your next visit and start earning points today!",
-  "We appreciate your trust in us. If you ever need assistance with your order, please visit our website or call customer service. We’re here to help!",
+  "Thank you for choosing us today! We hope your shopping experience was pleasant.",
+  "Payment is due within 30 days. Please include the invoice number on your check.",
+  "We appreciate your business and look forward to serving you again.",
+  "Please make checks payable to the company name listed above.",
+  "Thank you for your prompt payment."
 ];
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // Hook to access history data
   const [isSaving, setIsSaving] = useState(false); 
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false); 
+  const [isAdmin, setIsAdmin] = useState(false);
   
+  // Usage State
+  const [usageStats, setUsageStats] = useState({
+      count: 0,
+      limit: 10,
+      trialEnds: null,
+      planName: 'Loading...',
+      daysLeft: 0
+  });
+
   const [brandingSettings, setBrandingSettings] = useState({
     logoUrl: '',
     brandingCompanyName: '',
@@ -72,9 +60,9 @@ const Index = () => {
   const [billTo, setBillTo] = useState({ name: "", address: "", phone: "" });
   const [shipTo, setShipTo] = useState({ name: "", address: "", phone: "" });
   const [invoice, setInvoice] = useState({
-    date: "",
+    date: new Date().toISOString().split('T')[0],
     paymentDate: "",
-    number: "",
+    number: generateRandomInvoiceNumber(),
   });
   const [yourCompany, setYourCompany] = useState({
     name: "",
@@ -94,107 +82,120 @@ const Index = () => {
     setNotes(noteOptions[randomIndex]);
   };
 
+  // 1. INITIAL DATA FETCH (Branding, Admin Check, Usage Stats)
   useEffect(() => {
-    const fetchBranding = async () => {
+    const initData = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data, error } = await supabase
-                .from('branding_settings')
-                .select('company_name, website, logo_url')
+            // A. Check Admin Status
+            let adminStatus = false;
+            const adminEmails = ['nssoftwaresolutions1@gmail.com', 'admin@invoiceport.com'];
+            if (adminEmails.includes(user.email)) {
+                adminStatus = true;
+            } else {
+                const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+                if (roleData) adminStatus = true;
+            }
+            setIsAdmin(adminStatus);
+
+            // B. Fetch Branding
+            const { data: branding } = await supabase.from('branding_settings').select('*').eq('user_id', user.id).maybeSingle();
+            if (branding) {
+                setBrandingSettings({
+                    logoUrl: branding.logo_url || '',
+                    brandingCompanyName: branding.company_name || '',
+                    brandingWebsite: branding.website || '',
+                });
+                
+                // FIX: Only overwrite company info with default branding if we ARE NOT loading a specific invoice from history
+                if (!location.state?.invoiceData) {
+                    setYourCompany(prev => ({
+                        ...prev,
+                        name: prev.name || branding.company_name || '',
+                        website: prev.website || branding.website || '',
+                    }));
+                }
+            }
+
+            // C. Fetch Usage & Subscription
+            const { data: sub } = await supabase
+                .from('user_subscriptions')
+                .select('*, subscription_plans(*)')
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-            if (error && error.code !== 'PGRST116') throw error;
-
-            if (data) {
-                setBrandingSettings({
-                    logoUrl: data.logo_url || '',
-                    brandingCompanyName: data.company_name || '',
-                    brandingWebsite: data.website || '',
-                });
-
-                setYourCompany(prev => ({
-                    ...prev,
-                    name: prev.name || data.company_name || '',
-                    website: prev.website || data.website || '',
-                }));
+            let daysLeft = 0;
+            if (sub?.current_period_end) {
+                const end = new Date(sub.current_period_end);
+                const now = new Date();
+                const diff = end - now;
+                daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
             }
+
+            const currentCount = sub?.invoice_usage_count || 0;
+            const limit = sub?.subscription_plans?.slug === 'trial' ? 10 : 10000;
+
+            setUsageStats({
+                count: currentCount,
+                limit: limit,
+                planName: sub?.subscription_plans?.name || 'Free Trial',
+                daysLeft: daysLeft > 0 ? daysLeft : 0
+            });
+
         } catch (error) {
-            console.error("Error fetching branding settings:", error);
+            console.error("Error initializing data:", error);
         }
     };
-    fetchBranding();
-  }, []);
+    initData();
+  }, []); // Empty dependency array is intentional to run once
 
+  // 2. LOAD FORM DATA (History OR Draft)
   useEffect(() => {
-    const savedFormData = localStorage.getItem("formData");
-    if (savedFormData) {
-      const parsedData = JSON.parse(savedFormData);
-      setBillTo(parsedData.billTo || { name: "", address: "", phone: "" });
-      setShipTo(parsedData.shipTo || { name: "", address: "", phone: "" });
-      setInvoice(
-        parsedData.invoice || { date: "", paymentDate: "", number: "" }
-      );
-      
-      const initialYourCompany = parsedData.yourCompany || { name: "", address: "", phone: "", website: "" };
-      
-      setYourCompany({
-        ...initialYourCompany,
-        name: initialYourCompany.name || brandingSettings.brandingCompanyName,
-        website: initialYourCompany.website || brandingSettings.brandingWebsite,
-      });
+    // Option A: Load from History (passed via navigation state)
+    if (location.state && location.state.invoiceData) {
+        const data = location.state.invoiceData;
+        setBillTo(data.billTo || { name: "", address: "", phone: "" });
+        setShipTo(data.shipTo || { name: "", address: "", phone: "" });
+        // Important: We usually generate a NEW number when copying/viewing an old invoice to avoid duplicate ID issues on save
+        setInvoice(data.invoice ? { ...data.invoice, number: generateRandomInvoiceNumber() } : { date: new Date().toISOString().split('T')[0], paymentDate: "", number: generateRandomInvoiceNumber() });
+        setYourCompany(data.yourCompany || { name: "", address: "", phone: "", website: "" });
+        setItems(data.items || []);
+        settaxPercentage(data.taxPercentage || 0);
+        setNotes(data.notes || "");
+        setSelectedCurrency(data.selectedCurrency || "INR");
+        toast.info("Invoice details loaded.");
+        // Clear state so refresh doesn't reload it unexpectedly? (Optional, keeping it allows refresh to persist view)
+    } 
+    // Option B: Load from Local Storage (Draft)
+    else {
+        const savedFormData = localStorage.getItem("formData");
+        if (savedFormData) {
+            const parsedData = JSON.parse(savedFormData);
+            setBillTo(parsedData.billTo || { name: "", address: "", phone: "" });
+            setShipTo(parsedData.shipTo || { name: "", address: "", phone: "" });
+            setInvoice(parsedData.invoice || { date: new Date().toISOString().split('T')[0], paymentDate: "", number: generateRandomInvoiceNumber() });
+            
+            const initialYourCompany = parsedData.yourCompany || { name: "", address: "", phone: "", website: "" };
+            // If branding loaded before this, we might want to respect it, but usually initData handles that for defaults
+            setYourCompany(initialYourCompany);
 
-      setItems(parsedData.items || []);
-      settaxPercentage(parsedData.taxPercentage || 0);
-      setNotes(parsedData.notes || "");
-      setSelectedCurrency(parsedData.selectedCurrency || "INR"); 
-    } else {
-      setInvoice((prev) => ({
-        ...prev,
-        number: generateRandomInvoiceNumber(),
-      }));
-       setYourCompany(prev => ({
-        ...prev,
-        name: brandingSettings.brandingCompanyName,
-        website: brandingSettings.brandingWebsite,
-      }));
+            setItems(parsedData.items || []);
+            settaxPercentage(parsedData.taxPercentage || 0);
+            setNotes(parsedData.notes || "");
+            setSelectedCurrency(parsedData.selectedCurrency || "INR"); 
+        }
     }
-  }, [
-    brandingSettings.brandingCompanyName, 
-    brandingSettings.brandingWebsite
-  ]); 
+  }, [location.state]);
 
-
+  // 3. SAVE DRAFT TO LOCAL STORAGE
   useEffect(() => {
     const formData = {
-      billTo,
-      shipTo,
-      invoice,
-      yourCompany,
-      items,
-      taxPercentage,
-      taxAmount,
-      subTotal,
-      grandTotal,
-      notes,
-      selectedCurrency,
+      billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxAmount, subTotal, grandTotal, notes, selectedCurrency,
     };
     localStorage.setItem("formData", JSON.stringify(formData));
-  }, [
-    billTo,
-    shipTo,
-    invoice,
-    yourCompany,
-    items,
-    taxPercentage,
-    notes,
-    taxAmount,
-    subTotal,
-    grandTotal,
-    selectedCurrency,
-  ]);
+  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, notes, taxAmount, subTotal, grandTotal, selectedCurrency]);
 
   const handleInputChange = (setter) => (e) => {
     const { name, value } = e.target;
@@ -208,14 +209,10 @@ const Index = () => {
       newItems[index].total = newItems[index].quantity * newItems[index].amount;
     }
     setItems(newItems);
-    updateTotals();
   };
 
   const addItem = () => {
-    setItems([
-      ...items,
-      { name: "", description: "", quantity: 0, amount: 0, total: 0 },
-    ]);
+    setItems([...items, { name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
   };
 
   const removeItem = (index) => {
@@ -223,42 +220,33 @@ const Index = () => {
     setItems(newItems);
   };
 
-  const calculateSubTotal = () => {
-    const calculatedSubTotal = items.reduce((sum, item) => sum + (item.quantity * item.amount), 0);
-    setSubTotal(calculatedSubTotal); 
-    return calculatedSubTotal;
-  };
-
-  const calculateTaxAmount = (subTotalValue) => { 
-    const tax = (subTotalValue * taxPercentage) / 100;
-    setTaxAmount(tax); 
-    return tax;
-  };
-
-  const calculateGrandTotal = (subTotalValue, taxAmountValue) => { 
-    const total = parseFloat(subTotalValue) + parseFloat(taxAmountValue);
-    setGrandTotal(total); 
-    return total;
-  };
-
-  const updateTotals = () => {
-    const currentSubTotal = calculateSubTotal();
-    const currentTaxAmount = calculateTaxAmount(currentSubTotal);
-    calculateGrandTotal(currentSubTotal, currentTaxAmount);
-  };
-
-  const handleTaxPercentageChange = (e) => {
-    const taxRate = parseFloat(e.target.value) || 0;
-    settaxPercentage(taxRate);
-  };
+  const calculateSubTotal = () => items.reduce((sum, item) => sum + (item.quantity * item.amount), 0);
+  const calculateTaxAmount = (sub) => (sub * taxPercentage) / 100;
+  const calculateGrandTotal = (sub, tax) => parseFloat(sub) + parseFloat(tax);
 
   useEffect(() => {
-    updateTotals();
+    const sub = calculateSubTotal();
+    const tax = calculateTaxAmount(sub);
+    setSubTotal(sub);
+    setTaxAmount(tax);
+    setGrandTotal(calculateGrandTotal(sub, tax));
   }, [items, taxPercentage]);
 
-  // *** Invoice Save Logic ***
   const handleSaveToDatabase = async () => {
     setIsSaving(true);
+    
+    if (!isAdmin && usageStats.count >= usageStats.limit) {
+        toast.error(
+            <div className="flex flex-col gap-1">
+                <span className="font-bold">Limit Reached ({usageStats.limit}/{usageStats.limit})</span>
+                <span className="text-xs">You have used all free invoices. Please upgrade.</span>
+            </div>,
+            { duration: 5000 }
+        );
+        setIsSaving(false);
+        return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -277,6 +265,7 @@ const Index = () => {
         bill_to: billTo,
         ship_to: shipTo,
         invoice_details: invoice,
+        // Explicitly merge logoUrl to ensure it saves correctly
         from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl },
         items: items,
         tax: taxPercentage,
@@ -287,6 +276,10 @@ const Index = () => {
       });
 
       if (error) throw error;
+
+      await supabase.rpc('increment_invoice_usage');
+      setUsageStats(prev => ({ ...prev, count: prev.count + 1 }));
+      
       toast.success('Invoice saved successfully!');
 
     } catch (error) {
@@ -296,391 +289,254 @@ const Index = () => {
       setIsSaving(false);
     }
   };
-  // *****************************
 
   const handleTemplateSelect = (templateNumber) => {
-    setIsTemplateModalOpen(false); // Close modal
+    setIsTemplateModalOpen(false);
     const companyDataWithBranding = {
         ...yourCompany,
         logoUrl: brandingSettings.logoUrl, 
     };
-
     const formData = {
-      billTo,
-      shipTo,
-      invoice,
-      yourCompany: companyDataWithBranding, 
-      items,
-      taxPercentage,
-      taxAmount,
-      subTotal,
-      grandTotal,
-      notes,
-      selectedCurrency,
+      billTo, shipTo, invoice, yourCompany: companyDataWithBranding, items, taxPercentage, taxAmount, subTotal, grandTotal, notes, selectedCurrency,
     };
-    
-    navigate("/template", {
-      state: { formData, selectedTemplate: templateNumber },
-    });
+    navigate("/template", { state: { formData, selectedTemplate: templateNumber } });
   };
 
   const fillDummyData = () => {
-    setBillTo({
-      name: "John Doe",
-      address: "123 Main St, Anytown, USA",
-      phone: "(555) 123-4567",
-    });
-    setShipTo({
-      name: "Jane Smith",
-      address: "456 Elm St, Othertown, USA",
-      phone: "(555) 987-6543",
-    });
-    setInvoice({
-      date: new Date().toISOString().split("T")[0],
-      paymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0],
-      number: generateRandomInvoiceNumber(),
-    });
-    setYourCompany(prev => ({
-      ...prev,
-      name: "Your Company",
-      address: "789 Oak St, Businessville, USA",
-      phone: "(555) 555-5555",
-      website: "https://example.com"
-    }));
-    setItems([
-      { name: "Product A", description: "High-quality item", quantity: 2, amount: 50, total: 100, },
-      { name: "Service B", description: "Professional service", quantity: 1, amount: 200, total: 200, },
-      { name: "Product C", description: "Another great product", quantity: 3, amount: 30, total: 90, },
-      { name: "Service D", description: "Another professional service", quantity: 2, amount: 150, total: 300, },
-      { name: "Product E", description: "Yet another product", quantity: 1, amount: 75, total: 75, },
-      { name: "Service F", description: "Yet another service", quantity: 4, amount: 100, total: 400, },
-    ]);
+    setBillTo({ name: "John Doe", address: "123 Main St, Anytown, USA", phone: "(555) 123-4567" });
+    setShipTo({ name: "Jane Smith", address: "456 Elm St, Othertown, USA", phone: "(555) 987-6543" });
+    setItems([{ name: "Product A", description: "High-quality item", quantity: 2, amount: 50, total: 100 }]);
     settaxPercentage(10);
-    calculateSubTotal();
     setNotes("Thank you for your business!");
   };
 
   const clearForm = () => {
     setBillTo({ name: "", address: "", phone: "" });
     setShipTo({ name: "", address: "", phone: "" });
-    setInvoice({
-      date: "",
-      paymentDate: "",
-      number: generateRandomInvoiceNumber(),
-    });
-    // Resetting yourCompany while preserving branding defaults
-    setYourCompany(prev => ({ 
-        name: brandingSettings.brandingCompanyName || "", 
-        address: "", 
-        phone: "", 
-        website: brandingSettings.brandingWebsite || "" 
-    }));
     setItems([{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
-    settaxPercentage(0);
     setNotes("");
     localStorage.removeItem("formData");
   };
   
   // Totals Summary Component
   const TotalsSummary = () => (
-    // Sticky sidebar container
-    <div className="w-full p-6 border-4 border-blue-500 rounded-xl shadow-lg bg-blue-50/20 sticky top-20">
-        <h3 className="text-2xl font-bold mb-4 text-blue-700">Invoice Total</h3>
+    <div className="w-full space-y-6 sticky top-24">
         
-        {/* === Action 1: Save Button === */}
-        <Button
-            onClick={handleSaveToDatabase}
-            disabled={isSaving}
-            className="w-full mb-4 bg-green-600 hover:bg-green-700 font-extrabold shadow-lg px-4 text-white text-lg" 
-            aria-label="Save to Database"
-        >
-            {isSaving ? (
-                <Loader2 size={20} className="animate-spin mr-2" />
-            ) : (
-                <Save size={20} className="mr-2" />
-            )}
-            {isSaving ? 'Saving...' : 'SAVE INVOICE'}
-        </Button>
-        
-        {/* --- 2. UTILITY & NAVIGATION ACTIONS --- */}
-        <div className="mb-6 pt-4 border-t border-blue-300 space-y-4">
-            
-            {/* Currency Selector */}
-            <div className="flex items-center space-x-2 bg-white p-2 rounded-lg text-gray-800 border border-gray-300">
-                <DollarSign size={16} className="text-green-600 flex-shrink-0" />
-                <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
-                    <SelectTrigger className="w-full bg-white text-gray-800 border-none h-auto p-0">
-                        <SelectValue placeholder="Currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="INR">INR</SelectItem>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            
-            {/* Clear and Demo Buttons */}
-            <div className="flex gap-2 w-full">
-                <Button
-                    onClick={clearForm}
-                    className="w-1/2 bg-red-500 hover:bg-red-600 font-semibold shadow-md px-3 text-white" 
-                    aria-label="Clear Form"
-                    title="Clear Form"
-                >
-                    <FiTrash2 size={16} className="mr-2" />
-                    Clear
-                </Button>
-                <Button
-                    onClick={fillDummyData}
-                    className="w-1/2 bg-gray-700 text-white hover:bg-gray-800 font-semibold shadow-md px-3" 
-                    aria-label="Fill with Dummy Data"
-                    title="Fill with Dummy Data"
-                >
-                    <FiEdit size={16} className="mr-2" />
-                    Demo
-                </Button>
-            </div>
-            
-            {/* Template/Receipt Navigation Buttons */}
-            <Button
-                onClick={() => setIsTemplateModalOpen(true)}
-                className="w-full bg-orange-500 hover:bg-orange-600 font-semibold shadow-lg px-4 text-white"
-                aria-label="View and Select Template"
-            >
-                <FiLayers size={16} className="mr-2" />
-                View Templates
-            </Button>
-            <Button
-                onClick={() =>
-                    navigate("/receipt", {
-                        state: {
-                            formData: {
-                                billTo,
-                                shipTo,
-                                invoice,
-                                yourCompany: { ...yourCompany, logoUrl: brandingSettings.logoUrl },
-                                items,
-                                taxPercentage,
-                                notes,
-                                selectedCurrency,
-                            },
-                        },
-                    })
-                }
-                className="w-full bg-purple-600 hover:bg-purple-700 font-semibold shadow-lg px-4 text-white"
-                aria-label="Switch to Receipt Generator"
-            >
-                <FiFileText size={16} className="mr-2" />
-                Receipts Generator
-            </Button>
+        {/* USAGE CARD */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+             <div className="bg-indigo-50/50 p-4 border-b border-indigo-50 flex justify-between items-center">
+                <h4 className="font-semibold text-indigo-900 text-sm flex items-center gap-2">
+                    {isAdmin ? <ShieldCheck className="w-4 h-4 text-indigo-600" /> : <Clock className="w-4 h-4 text-indigo-600" />}
+                    {isAdmin ? "Admin Access" : "Account Status"}
+                </h4>
+                {!isAdmin && (
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${usageStats.daysLeft <= 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                        {usageStats.daysLeft} Days Left
+                    </span>
+                )}
+             </div>
+             
+             {!isAdmin && (
+                 <div className="p-4 space-y-3">
+                    <div className="flex justify-between text-xs font-medium text-gray-500 mb-1">
+                        <span>Invoices Created</span>
+                        <span className={usageStats.count >= usageStats.limit ? "text-red-600 font-bold" : "text-gray-700"}>
+                            {usageStats.count} / {usageStats.limit}
+                        </span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div 
+                            className={`h-2 rounded-full transition-all duration-500 ${usageStats.count >= usageStats.limit ? 'bg-red-500' : 'bg-indigo-500'}`} 
+                            style={{ width: `${Math.min((usageStats.count / usageStats.limit) * 100, 100)}%` }}
+                        ></div>
+                    </div>
+                    
+                    {usageStats.count >= usageStats.limit && (
+                        <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 p-2 rounded mt-2">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            <span>Limit reached.</span>
+                        </div>
+                    )}
+                 </div>
+             )}
+             
+             {isAdmin && (
+                 <div className="p-4 text-xs text-gray-500 flex items-center gap-2">
+                     <ShieldCheck className="w-4 h-4 text-green-500" /> Unlimited creation enabled.
+                 </div>
+             )}
         </div>
-        
-        {/* --- 3. TOTALS BREAKDOWN --- */}
-        <div className="space-y-2 pt-4 border-t border-blue-300">
-            <div className="flex justify-between border-b pb-1 border-gray-200">
-                <span className="text-gray-600">Sub Total:</span>
-                <span className="font-medium text-gray-800">{formatCurrency(subTotal, selectedCurrency)}</span>
+
+        {/* INVOICE SUMMARY CARD */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-5 border-b border-indigo-100">
+                <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-indigo-600" />
+                    Invoice Summary
+                </h3>
             </div>
-            <div className="flex justify-between items-center border-b pb-1 border-gray-200">
-                <span className="text-gray-600">Tax Rate (%):</span>
-                <input
-                    type="number"
-                    value={taxPercentage}
-                    onChange={(e) => handleTaxPercentageChange(e)}
-                    className="w-20 p-1 border border-gray-300 rounded-lg text-right focus:border-blue-500"
-                    min="0"
-                    max="28"
-                    step="1"
-                />
+
+            <div className="p-5 space-y-6">
+                <Button
+                    onClick={handleSaveToDatabase}
+                    disabled={isSaving || (!isAdmin && usageStats.count >= usageStats.limit)}
+                    className={`w-full font-bold h-11 text-md shadow-md transition-all 
+                        ${(!isAdmin && usageStats.count >= usageStats.limit) 
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-indigo-200'}`
+                    }
+                >
+                    {isSaving ? (
+                        <Loader2 size={18} className="animate-spin mr-2" />
+                    ) : (
+                        <Save size={18} className="mr-2" />
+                    )}
+                    {isSaving ? 'Saving...' : 'Save Invoice'}
+                </Button>
+
+                <div className="pt-4 pb-4 border-b border-dashed border-gray-200 space-y-3">
+                    <div className="flex justify-between text-sm text-gray-600">
+                        <span>Sub Total</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(subTotal, selectedCurrency)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-gray-600">
+                        <span className="flex items-center gap-1">Tax Rate <span className="text-xs text-gray-400">(%)</span></span>
+                        <input
+                            type="number"
+                            value={taxPercentage}
+                            onChange={(e) => handleTaxPercentageChange(e)}
+                            className="w-14 p-1 text-right border border-gray-200 rounded bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                            min="0"
+                            max="100"
+                        />
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-600">
+                        <span>Tax Amount</span>
+                        <span className="font-medium text-red-500">+{formatCurrency(taxAmount, selectedCurrency)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-100 mt-2">
+                        <span className="text-base font-bold text-gray-800">Total</span>
+                        <span className="text-xl font-bold text-indigo-600">{formatCurrency(grandTotal, selectedCurrency)}</span>
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Tools & Options</div>
+                    <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-md border border-gray-200">
+                        <DollarSign size={14} className="text-gray-400 flex-shrink-0" />
+                        <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
+                            <SelectTrigger className="w-full bg-transparent border-none h-auto p-0 focus:ring-0 text-gray-700 font-medium text-sm">
+                                <SelectValue placeholder="Currency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="INR">INR (₹)</SelectItem>
+                                <SelectItem value="USD">USD ($)</SelectItem>
+                                <SelectItem value="EUR">EUR (€)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <Button onClick={clearForm} variant="outline" size="sm" className="text-red-600 border-red-100 hover:bg-red-50"><FiTrash2 className="mr-2 h-3.5 w-3.5" /> Clear</Button>
+                        <Button onClick={fillDummyData} variant="outline" size="sm" className="text-gray-600 border-gray-200 hover:bg-gray-50"><FiEdit className="mr-2 h-3.5 w-3.5" /> Demo</Button>
+                    </div>
+                    <Button onClick={() => setIsTemplateModalOpen(true)} variant="secondary" className="w-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100"><FiLayers size={16} className="mr-2" /> Change Template</Button>
+                </div>
             </div>
-            <div className="flex justify-between pt-2">
-                <span className="text-lg font-semibold">Tax Amount:</span>
-                <span className="text-lg font-semibold text-red-600">{formatCurrency(taxAmount, selectedCurrency)}</span>
-            </div>
-        </div>
-        
-        <div className="flex justify-between font-extrabold text-3xl border-t-2 pt-4 mt-4 border-blue-600">
-            <span>GRAND TOTAL:</span>
-            <span className="text-green-700">{formatCurrency(grandTotal, selectedCurrency)}</span>
         </div>
     </div>
   );
 
   return (
     <>
-      <Navigation className="bg-blue-600 shadow-lg" /> 
-      
-      <div className="bg-gray-50 min-h-screen">
-        <div className="container mx-auto px-4 py-8">          
-          
-          {/* --- MAIN LAYOUT: FORM + SIDEBAR --- */}
-          <div className="flex flex-col md:flex-row gap-8">
-            
-            {/* 1. MAIN FORM CONTENT (2/3 width) */}
-            <div className="w-full md:w-2/3 bg-white p-8 rounded-xl shadow-2xl border border-gray-100">
-                
+      <Navigation /> 
+      <div className="bg-slate-50 min-h-screen font-sans text-gray-900 pb-20">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">          
+          <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+            <div>
+                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">New Invoice</h1>
+                <p className="text-gray-500 mt-1 text-sm">Create and manage your financial documents.</p>
+            </div>
+            <div className="mt-4 md:mt-0 px-3 py-1 bg-white border border-gray-200 rounded-full text-sm font-mono text-gray-600 shadow-sm">
+                ID: <span className="font-bold text-indigo-600">{invoice.number}</span>
+            </div>
+          </div>
 
-                <form>
-                  {/* BILL TO & SHIP TO SECTIONS */}
-                  <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Client Details</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                      <BillToSection
-                        billTo={billTo}
-                        handleInputChange={handleInputChange(setBillTo)}
-                      />
-                      <ShipToSection
-                        shipTo={shipTo}
-                        handleInputChange={handleInputChange(setShipTo)}
-                        billTo={billTo}
-                      />
-                  </div>
-
-                  {/* INVOICE & COMPANY INFORMATION */}
-                  <div className="mt-6 border-t pt-6">
-                    <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Invoice & Sender Info</h2>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      
-                      {/* INVOICE DATES & ID */}
-                      <div>
-                        <h3 className="text-xl font-semibold mb-4 text-gray-700">Dates & ID</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <FloatingLabelInput
-                            id="invoiceNumber"
-                            label="Invoice Number"
-                            value={invoice.number}
-                            onChange={handleInputChange(setInvoice)}
-                            name="number"
-                          />
-                          <FloatingLabelInput
-                            id="invoiceDate"
-                            label="Invoice Date"
-                            type="date"
-                            value={invoice.date}
-                            onChange={handleInputChange(setInvoice)}
-                            name="date"
-                          />
-                          <FloatingLabelInput
-                            id="paymentDate"
-                            label="Payment Due Date"
-                            type="date"
-                            value={invoice.paymentDate}
-                            onChange={handleInputChange(setInvoice)}
-                            name="paymentDate"
-                          />
-                          {/* Placeholder for alignment */}
-                          <div></div> 
+          <div className="flex flex-col lg:flex-row gap-8">
+            <div className="w-full lg:w-3/4 space-y-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <form onSubmit={(e) => e.preventDefault()}>
+                        <div className="p-6 md:p-8 border-b border-gray-100">
+                            <h2 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2"><div className="p-1.5 bg-blue-50 rounded text-blue-600"><User className="w-4 h-4" /></div> Client & Shipping Details</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <BillToSection billTo={billTo} handleInputChange={handleInputChange(setBillTo)} />
+                                <ShipToSection shipTo={shipTo} handleInputChange={handleInputChange(setShipTo)} billTo={billTo} />
+                            </div>
                         </div>
-                      </div>
 
-                      {/* YOUR COMPANY INFORMATION */}
-                      <div>
-                        <h3 className="text-xl font-semibold mb-4 text-gray-700">Your Company (Sender)</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <FloatingLabelInput
-                            id="yourCompanyName"
-                            label="Name"
-                            value={yourCompany.name}
-                            onChange={handleInputChange(setYourCompany)}
-                            name="name"
-                          />
-                          <FloatingLabelInput
-                            id="yourCompanyPhone"
-                            label="Phone"
-                            value={yourCompany.phone}
-                            onChange={handleInputChange(setYourCompany)}
-                            name="phone"
-                          />
-                          <FloatingLabelInput
-                            id="yourCompanyAddress"
-                            label="Address"
-                            value={yourCompany.address}
-                            onChange={handleInputChange(setYourCompany)}
-                            name="address"
-                          />
-                          <FloatingLabelInput
-                            id="yourCompanyWebsite"
-                            label="Website"
-                            value={yourCompany.website}
-                            onChange={handleInputChange(setYourCompany)}
-                            name="website"
-                            type="url"
-                          />
+                        <div className="p-6 md:p-8 border-b border-gray-100 bg-gray-50/30">
+                            <h2 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2"><div className="p-1.5 bg-indigo-50 rounded text-indigo-600"><FileText className="w-4 h-4" /></div> Document Information</h2>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div>
+                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Dates & ID</h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <FloatingLabelInput id="invoiceNumber" label="Invoice Number" value={invoice.number} onChange={handleInputChange(setInvoice)} name="number" />
+                                        <FloatingLabelInput id="invoiceDate" label="Issue Date" type="date" value={invoice.date} onChange={handleInputChange(setInvoice)} name="date" />
+                                        <FloatingLabelInput id="paymentDate" label="Due Date" type="date" value={invoice.paymentDate} onChange={handleInputChange(setInvoice)} name="paymentDate" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Sender Info</h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <FloatingLabelInput id="yourCompanyName" label="Company Name" value={yourCompany.name} onChange={handleInputChange(setYourCompany)} name="name" />
+                                        <FloatingLabelInput id="yourCompanyPhone" label="Phone Number" value={yourCompany.phone} onChange={handleInputChange(setYourCompany)} name="phone" />
+                                        <FloatingLabelInput id="yourCompanyAddress" label="Address" value={yourCompany.address} onChange={handleInputChange(setYourCompany)} name="address" className="sm:col-span-2" />
+                                        <FloatingLabelInput id="yourCompanyWebsite" label="Website" value={yourCompany.website} onChange={handleInputChange(setYourCompany)} name="website" type="url" className="sm:col-span-2" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* ITEM DETAILS */}
-                  <div className="mt-6 border-t pt-6">
-                      <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Line Items</h2>
-                      
-                      <ItemDetails
-                        items={items}
-                        handleItemChange={handleItemChange}
-                        removeItem={removeItem}
-                        addItem={addItem}
-                        currencyCode={selectedCurrency}
-                      />
-                  </div>
+                        <div className="p-6 md:p-8 border-b border-gray-100">
+                            <div className="mb-6 flex justify-between items-center">
+                                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><div className="p-1.5 bg-green-50 rounded text-green-600"><ShoppingBag className="w-4 h-4" /></div> Line Items</h2>
+                                <span className="text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">{items.length} {items.length === 1 ? 'Item' : 'Items'}</span>
+                            </div>
+                            <ItemDetails items={items} handleItemChange={handleItemChange} removeItem={removeItem} addItem={addItem} currencyCode={selectedCurrency} />
+                        </div>
 
-
-                  {/* NOTES SECTION (Moved to main content area) */}
-                  <div className="mt-6 border-t pt-6">
-                    <div className="flex items-center mb-2">
-                      <h3 className="text-xl font-medium text-gray-700">Notes / Terms</h3>
-                      <button
-                        type="button"
-                        onClick={refreshNotes}
-                        className="ml-2 p-1 rounded-full text-gray-600 hover:bg-gray-200 transition"
-                        title="Refresh Notes"
-                      >
-                        <RefreshCw size={16} />
-                      </button>
-                    </div>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full p-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition shadow-inner"
-                      rows="6"
-                      placeholder="Enter payment terms, guarantees, or additional remarks."
-                    ></textarea>
-                  </div>
-                </form>
-              </div>
-              {/* END MAIN FORM */}
+                        <div className="p-6 md:p-8 bg-gray-50/50">
+                            <div className="flex items-center justify-between mb-3">
+                                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><div className="p-1.5 bg-orange-50 rounded text-orange-600"><StickyNote className="w-4 h-4" /></div> Terms & Notes</h2>
+                                <Button type="button" variant="ghost" size="sm" onClick={refreshNotes} className="text-indigo-600 hover:bg-indigo-50 h-8 text-xs"><RefreshCw size={12} className="mr-1.5" /> Auto-Generate</Button>
+                            </div>
+                            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white text-sm text-gray-700 min-h-[100px] resize-y shadow-sm" placeholder="Enter payment terms, thank you notes, or additional instructions..."></textarea>
+                        </div>
+                    </form>
+                </div>
+            </div>
             
-            {/* 2. SIDEBAR (1/3 width, sticky) */}
-            <div className="w-full md:w-1/3">
+            <div className="w-full lg:w-1/4 min-w-[300px]">
                 <TotalsSummary />
             </div>
           </div>
-          {/* --- END MAIN LAYOUT --- */}
         </div>
       </div>
    
-      
-      {/* TEMPLATE SELECTION MODAL */}
       <Dialog open={isTemplateModalOpen} onOpenChange={setIsTemplateModalOpen}>
-        <DialogContent className="max-w-4xl p-6">
+        <DialogContent className="max-w-5xl p-8 bg-slate-50">
             <DialogHeader>
-                <DialogTitle className="text-3xl font-bold text-gray-900">Select Invoice Template</DialogTitle>
+                <DialogTitle className="text-2xl font-bold text-gray-900 mb-1">Choose a Template</DialogTitle>
+                <p className="text-gray-500 text-sm">Select a professional design for your invoice.</p>
             </DialogHeader>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 max-h-[70vh] overflow-y-auto mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-6 max-h-[60vh] overflow-y-auto p-2">
                 {templates.map((template, index) => (
-                    <div
-                        key={index}
-                        className="template-card bg-gray-100 p-3 rounded-lg cursor-pointer hover:shadow-xl transition-shadow duration-300 transform hover:scale-[1.05] border-2 border-transparent hover:border-blue-500/50"
-                        onClick={() => handleTemplateSelect(index + 1)}
-                    >
-                        <img
-                            src={`/assets/template${index + 1}-preview.png`}
-                            alt={template.name}
-                            className="w-full h-auto aspect-video object-cover rounded mb-2 border border-gray-300"
-                        />
-                        <p className="text-center font-medium text-sm text-gray-700">{template.name}</p>
+                    <div key={index} className="group relative bg-white rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-indigo-500" onClick={() => handleTemplateSelect(index + 1)}>
+                        <div className="aspect-[210/297] w-full bg-gray-100 relative overflow-hidden">
+                             <img src={`/assets/template${index + 1}-preview.png`} alt={template.name} className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                        </div>
+                        <div className="p-3 text-center bg-white border-t border-gray-100"><p className="font-semibold text-sm text-gray-700 group-hover:text-indigo-600 transition-colors">{template.name}</p></div>
                     </div>
                 ))}
             </div>

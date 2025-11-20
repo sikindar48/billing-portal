@@ -13,17 +13,6 @@ const ItemDetails = ({ items, handleItemChange, addItem, removeItem, currencyCod
 
   return (
     <div className="space-y-6">
-        {/* Section Header */}
-        <div className="flex items-center justify-between px-1">
-             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Package className="w-5 h-5 text-blue-600" />
-                Line Items
-             </h2>
-             <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
-                {items.length} {items.length === 1 ? 'Item' : 'Items'}
-             </span>
-        </div>
-      
       <div className="space-y-4">
         {items.map((item, index) => (
             <div 

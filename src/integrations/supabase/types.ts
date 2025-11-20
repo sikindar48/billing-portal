@@ -119,6 +119,74 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_plans: {
+        Row: {
+          billing_period: string
+          created_at: string
+          features: string[] | null
+          id: number
+          is_active: boolean | null
+          name: string
+          price: number
+          slug: string
+        }
+        Insert: {
+          billing_period: string
+          created_at?: string
+          features?: string[] | null
+          id?: number
+          is_active?: boolean | null
+          name: string
+          price?: number
+          slug: string
+        }
+        Update: {
+          billing_period?: string
+          created_at?: string
+          features?: string[] | null
+          id?: number
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          slug?: string
+        }
+        Relationships: []
+      }
+      subscription_requests: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          plan_id: number | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          plan_id?: number | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          plan_id?: number | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_requests_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -137,16 +205,72 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan_id: number | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_id?: number | null
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_id?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_admin_dashboard_data: {
+        Args: Record<string, never>
+        Returns: {
+          user_id: string
+          email: string
+          company_name: string
+          plan_name: string
+          status: string
+          period_end: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_admin: {
+        Args: Record<string, never>
         Returns: boolean
       }
     }
