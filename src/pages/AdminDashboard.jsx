@@ -3,13 +3,18 @@ import { supabase } from '@/integrations/supabase/client';
 import Navigation from '@/components/Navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, TrendingUp, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Users, TrendingUp, AlertCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, active: 0, trialing: 0 });
+  
+  // State to track which user is currently being deleted
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -32,8 +37,34 @@ const AdminDashboard = () => {
 
     } catch (error) {
       console.error('Error fetching admin data:', error);
+      toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId, email) => {
+    if (!window.confirm(`Are you sure you want to delete user ${email}? This will wipe all their data (invoices, settings, etc.) permanently.`)) {
+      return;
+    }
+
+    setDeletingId(userId);
+    try {
+      const { error } = await supabase.rpc('delete_user_by_admin', { target_user_id: userId });
+
+      if (error) throw error;
+
+      toast.success(`User ${email} deleted successfully.`);
+      
+      // Remove from local state to update UI instantly
+      setUsers(users.filter(u => u.user_id !== userId));
+      setStats(prev => ({ ...prev, total: prev.total - 1 }));
+      
+    } catch (error) {
+      console.error("Delete failed:", error);
+      toast.error(error.message || "Failed to delete user");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -89,6 +120,7 @@ const AdminDashboard = () => {
                             <th className="px-6 py-3">Current Plan</th>
                             <th className="px-6 py-3">Status</th>
                             <th className="px-6 py-3">Expires / Renews</th>
+                            <th className="px-6 py-3 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -101,11 +133,27 @@ const AdminDashboard = () => {
                                 <td className="px-6 py-4 text-gray-500">
                                     {user.period_end ? format(new Date(user.period_end), 'MMM dd, yyyy') : '-'}
                                 </td>
+                                <td className="px-6 py-4 text-right">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteUser(user.user_id, user.email)}
+                                        disabled={deletingId === user.user_id}
+                                        className="text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                        title="Delete User"
+                                    >
+                                        {deletingId === user.user_id ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                </td>
                             </tr>
                         ))}
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                                     <div className="flex flex-col items-center justify-center">
                                         <AlertCircle className="h-8 w-8 text-gray-300 mb-2" />
                                         No users found.
