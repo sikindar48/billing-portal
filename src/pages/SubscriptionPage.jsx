@@ -51,11 +51,13 @@ const SubscriptionPage = () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             
+            // Define UI-Rich Plans (We use these for display to ensure icons/colors work)
             const displayPlans = [
                 { 
                     id: 'starter', 
                     name: 'Free Starter', 
                     price: 0, 
+                    period: '',
                     slug: 'trial', 
                     icon: <Sparkles className="w-5 h-5" />,
                     color: "blue",
@@ -81,7 +83,7 @@ const SubscriptionPage = () => {
                     icon: <ShieldCheck className="w-5 h-5" />,
                     color: "slate",
                     description: 'For large teams requiring control.',
-                    features: ['Dedicated Manager', 'Custom Templates', 'SLA Support', 'API Access', 'Team Management'] 
+                    features: ['Custom Templates', 'Dedicated Manager', 'SLA Support', 'Custom Features'] 
                 }
             ];
 
@@ -124,6 +126,7 @@ const SubscriptionPage = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+             // Map UI IDs to DB IDs
              let dbPlanId = 1; 
              if (selectedPlan.id === 'pro') dbPlanId = 2;
              if (selectedPlan.id === 'enterprise') dbPlanId = 3;
@@ -145,26 +148,31 @@ const SubscriptionPage = () => {
       }
   };
 
-  const getButtonClass = (color, isActive, isCurrent) => {
-      const base = "w-full h-10 rounded-lg font-bold text-sm transition-all duration-300 shadow-sm";
-      if (isCurrent) return `${base} bg-slate-100 text-slate-400 cursor-not-allowed border-2 border-slate-200`;
-      if (!isActive) return `${base} bg-slate-100 text-slate-900 hover:bg-slate-200`;
-      
-      switch(color) {
-          case 'blue': return `${base} bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/30`;
-          case 'indigo': return `${base} bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/30`;
-          case 'slate': return `${base} bg-slate-800 hover:bg-slate-900 text-white shadow-slate-500/30`;
-          default: return `${base} bg-indigo-600 hover:bg-indigo-700 text-white`;
-      }
-  };
-
-  const getIconBgClass = (color, isActive) => {
+  const getIconBgClass = (color, isActive, isEnterprise) => {
+      if (isEnterprise) return 'bg-slate-800 text-white';
       if (!isActive) return 'bg-slate-100 text-slate-500';
       switch(color) {
           case 'blue': return 'bg-blue-100 text-blue-600';
           case 'indigo': return 'bg-indigo-100 text-indigo-600';
           case 'slate': return 'bg-slate-200 text-slate-700';
           default: return 'bg-indigo-100 text-indigo-600';
+      }
+  };
+  
+  // Updated Button Class Logic for Enterprise
+  const getButtonClass = (color, isActive, isCurrent, isEnterprise) => {
+      const base = "w-full h-10 rounded-lg font-bold text-sm transition-all duration-300 shadow-sm";
+      
+      if (isCurrent) return `${base} bg-slate-100 text-slate-400 cursor-not-allowed border-2 border-slate-200`;
+
+      if (isEnterprise) return `${base} bg-white text-slate-900 hover:bg-slate-200 hover:text-black`;
+
+      if (!isActive) return `${base} bg-slate-100 text-slate-900 hover:bg-slate-200`;
+      
+      switch(color) {
+          case 'blue': return `${base} bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/30`;
+          case 'indigo': return `${base} bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/30`;
+          default: return `${base} bg-indigo-600 hover:bg-indigo-700 text-white`;
       }
   };
 
@@ -203,6 +211,8 @@ const SubscriptionPage = () => {
                 >
                     Yearly
                 </button>
+                
+                {/* Sliding Background */}
                 <div className={`absolute top-1 bottom-1 w-[50%] bg-indigo-600 rounded-md shadow-sm transition-transform duration-300 ${billingCycle === 'monthly' ? 'translate-x-0' : 'translate-x-full left-[-4px]'}`}></div>
             </div>
             
@@ -227,22 +237,29 @@ const SubscriptionPage = () => {
                 
                 const isActiveUI = hoveredPlanId === plan.id || (hoveredPlanId === null && isHighlighted) || isCurrentPlan;
                 
+                // Dynamic Styles based on Enterprise Mode
+                const cardBg = isEnterprise ? 'bg-slate-900 text-white' : 'bg-white';
+                const textColor = isEnterprise ? 'text-white' : 'text-slate-900';
+                const mutedText = isEnterprise ? 'text-slate-400' : 'text-slate-500';
+                const borderColor = isEnterprise ? 'border-slate-800' : 'border-slate-200';
+
                 return (
                     <div 
                         key={plan.id}
                         onMouseEnter={() => setHoveredPlanId(plan.id)}
                         onMouseLeave={() => setHoveredPlanId(null)}
-                        className={`relative flex flex-col p-6 rounded-3xl transition-all duration-500 ease-out transform cursor-default bg-white
+                        className={`relative flex flex-col p-6 rounded-3xl transition-all duration-500 ease-out transform cursor-default border
+                            ${cardBg} ${borderColor}
                             ${isCurrentPlan 
-                                ? `border-[2px] ${isExpired ? 'border-red-300 ring-4 ring-red-50' : 'border-emerald-500 ring-4 ring-emerald-50'} shadow-xl z-20` 
+                                ? `ring-4 ${isExpired ? 'ring-red-100 border-red-300' : 'ring-emerald-50 border-emerald-500'} shadow-xl z-20` 
                                 : isActiveUI 
-                                    ? `border-2 border-${plan.color}-500 shadow-xl shadow-${plan.color}-500/10 -translate-y-1 z-10` 
-                                    : 'border border-slate-200 shadow-sm opacity-90 hover:opacity-100'
+                                    ? `shadow-xl -translate-y-2 z-10 ${!isEnterprise && `border-${plan.color}-500 shadow-${plan.color}-500/10`}` 
+                                    : 'shadow-sm opacity-90 hover:opacity-100'
                             }
                         `}
                         style={{ animationDelay: `${index * 100}ms` }}
                     >
-                        {/* BADGES */}
+                        {/* BADGES (Top) */}
                         {isCurrentPlan ? (
                             <div className="absolute -top-3 left-0 right-0 flex justify-center z-30">
                                 <span className={`text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-md flex items-center gap-1 ${isExpired ? 'bg-red-600' : 'bg-emerald-600'}`}>
@@ -260,29 +277,36 @@ const SubscriptionPage = () => {
 
                         <div className="mb-4 relative">
                             <div className="flex justify-between items-start">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors duration-300 ${getIconBgClass(plan.color, isActiveUI)}`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors duration-300 ${getIconBgClass(plan.color, isActiveUI, isEnterprise)}`}>
                                     {plan.icon}
                                 </div>
+                                {/* Status Badge inside card */}
                                 {isCurrentPlan && (
                                     <div className="text-right">
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide border font-bold ${statusColor} block mb-1`}>
                                             {statusText}
                                         </span>
+                                        {currentSubscription?.current_period_end && (
+                                            <p className={`text-[10px] font-mono ${isExpired ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                {isExpired ? 'Ended: ' : 'Renews: '} 
+                                                {new Date(currentSubscription.current_period_end).toLocaleDateString(undefined, { month:'short', day:'numeric' })}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>
-                            <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
-                            <p className="text-xs text-slate-500 mt-1 min-h-[32px] leading-relaxed">{plan.description}</p>
+                            <h3 className={`text-xl font-bold ${textColor}`}>{plan.name}</h3>
+                            <p className={`text-xs ${mutedText} mt-1 min-h-[32px] leading-relaxed`}>{plan.description}</p>
                         </div>
 
-                        <div className="mb-6 border-b border-slate-100 pb-4">
+                        <div className={`mb-6 border-b pb-4 ${isEnterprise ? 'border-slate-800' : 'border-slate-100'}`}>
                             <div className="flex items-baseline gap-0.5">
                                 {isEnterprise ? (
-                                    <span className="text-3xl font-extrabold text-slate-900">Custom</span>
+                                    <span className={`text-3xl font-extrabold ${textColor}`}>Custom</span>
                                 ) : (
                                     <>
-                                        <span className="text-4xl font-extrabold text-slate-900 tracking-tight">₹{plan.price}</span>
-                                        <span className="text-sm font-medium text-slate-400">{plan.period}</span>
+                                        <span className={`text-4xl font-extrabold ${textColor} tracking-tight`}>₹{plan.price}</span>
+                                        <span className={`text-sm font-medium ${mutedText}`}>{plan.period}</span>
                                     </>
                                 )}
                             </div>
@@ -293,23 +317,15 @@ const SubscriptionPage = () => {
                             )}
                         </div>
 
-                        {/* Current Plan Renewal Info */}
-                        {isCurrentPlan && currentSubscription?.current_period_end && (
-                             <div className={`mb-4 p-2.5 rounded-lg border text-center ${isExpired ? 'bg-red-50 border-red-100 text-red-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
-                                 <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5 flex items-center justify-center gap-1">
-                                    <CalendarClock className="w-3 h-3" />
-                                    {isExpired ? 'Expired On' : 'Renews On'}
-                                 </p>
-                                 <p className="text-xs font-mono font-bold">
-                                    {new Date(currentSubscription.current_period_end).toLocaleDateString(undefined, { month:'short', day:'numeric' })}
-                                 </p>
-                             </div>
-                        )}
-
                         <ul className="space-y-3 mb-6 flex-1">
                             {plan.features.map((f, i) => (
-                                <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
-                                    <div className={`mt-0.5 rounded-full p-0.5 flex-shrink-0 ${isActiveUI ? `bg-${plan.color}-100 text-${plan.color}-600` : 'bg-slate-100 text-slate-400'}`}>
+                                <li key={i} className={`flex items-start gap-2.5 text-sm ${mutedText}`}>
+                                    <div className={`mt-0.5 rounded-full p-0.5 flex-shrink-0 
+                                        ${isEnterprise 
+                                            ? 'bg-slate-800 text-slate-300' 
+                                            : isActiveUI ? `bg-${plan.color}-100 text-${plan.color}-600` : 'bg-slate-100 text-slate-400'
+                                        }`
+                                    }>
                                         <Check className="w-2.5 h-2.5" />
                                     </div>
                                     <span className="leading-snug text-xs">{f}</span>
@@ -320,7 +336,7 @@ const SubscriptionPage = () => {
                         <CardFooter className="p-0 pt-2">
                             <Button 
                                 onClick={() => handlePlanSelect(plan)}
-                                className={getButtonClass(plan.color, isActiveUI, isCurrentPlan)}
+                                className={getButtonClass(plan.color, isActiveUI, isCurrentPlan, isEnterprise)}
                                 disabled={isCurrentPlan && !isExpired} 
                             >
                                 {isCurrentPlan 
@@ -402,17 +418,11 @@ const SubscriptionPage = () => {
             </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* CSS Animations */}
+      
+      {/* Animations */}
       <style>{`
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-up { animation: fadeInUp 0.6s ease-out forwards; }
         .animate-fade-in-down { animation: fadeInDown 0.6s ease-out forwards; }
       `}</style>

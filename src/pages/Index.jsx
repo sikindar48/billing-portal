@@ -21,15 +21,8 @@ const generateRandomInvoiceNumber = () => {
   let result = "";
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const numbers = "0123456789";
-
-  for (let i = 0; i < alphabetCount; i++) {
-    result += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-
-  for (let i = alphabetCount; i < length; i++) {
-    result += numbers[Math.floor(Math.random() * numbers.length)];
-  }
-
+  for (let i = 0; i < alphabetCount; i++) result += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (let i = alphabetCount; i < length; i++) result += numbers[Math.floor(Math.random() * numbers.length)];
   return result;
 };
 
@@ -97,7 +90,7 @@ const Index = () => {
     setNotes(noteOptions[randomIndex]);
   };
 
-  // 1. INITIAL DATA FETCH
+  // 1. INITIAL DATA FETCH (Admin Check & Branding Metadata)
   useEffect(() => {
     const initData = async () => {
         try {
@@ -114,23 +107,32 @@ const Index = () => {
             }
             setIsAdmin(adminStatus);
 
+            // B. Fetch Branding (Metadata Only)
             const { data: branding } = await supabase.from('branding_settings').select('*').eq('user_id', user.id).maybeSingle();
             if (branding) {
+                const fetchedCompanyName = branding.company_name || '';
+                const fetchedWebsite = branding.website || '';
+
                 setBrandingSettings({
                     logoUrl: branding.logo_url || '',
-                    brandingCompanyName: branding.company_name || '',
-                    brandingWebsite: branding.website || '',
+                    brandingCompanyName: fetchedCompanyName,
+                    brandingWebsite: fetchedWebsite,
                 });
                 
-                if (!location.state?.invoiceData) {
+                // FIX: If there's no saved draft in localStorage AND we got non-empty branding data, 
+                // set the company info based on what the user saved in branding settings.
+                const savedFormData = localStorage.getItem("formData");
+                
+                if (!savedFormData && (fetchedCompanyName || fetchedWebsite)) {
                     setYourCompany(prev => ({
                         ...prev,
-                        name: prev.name || branding.company_name || '',
-                        website: prev.website || branding.website || '',
+                        name: fetchedCompanyName,
+                        website: fetchedWebsite,
                     }));
                 }
             }
 
+            // C. Fetch Usage & Subscription (Rest of the logic)
             const { data: sub } = await supabase.from('user_subscriptions').select('*, subscription_plans(*)')
                 .eq('user_id', user.id).maybeSingle();
 
@@ -156,10 +158,11 @@ const Index = () => {
         }
     };
     initData();
-  }, []);
+  }, []); // Empty dependency array is intentional to run once
 
   // 2. LOAD FORM DATA (History OR Draft)
   useEffect(() => {
+    // Option A: Load from History (passed via navigation state)
     if (location.state && location.state.invoiceData) {
         const data = location.state.invoiceData;
         setBillTo(data.billTo || { name: "", address: "", phone: "" });
@@ -175,7 +178,9 @@ const Index = () => {
         setNotes(data.notes || "");
         setSelectedCurrency(data.selectedCurrency || "INR");
         toast.info("Invoice details loaded.");
-    } else {
+    } 
+    // Option B: Load from Local Storage (Draft) - This runs only if no history data is present
+    else {
         const savedFormData = localStorage.getItem("formData");
         if (savedFormData) {
             const parsedData = JSON.parse(savedFormData);
@@ -183,6 +188,7 @@ const Index = () => {
             setShipTo(parsedData.shipTo || { name: "", address: "", phone: "" });
             setInvoice(parsedData.invoice || { date: new Date().toISOString().split('T')[0], paymentDate: "", number: generateRandomInvoiceNumber() });
             
+            // FIX: Ensure if local storage is blank, we don't accidentally load old state values.
             const initialYourCompany = parsedData.yourCompany || { name: "", address: "", phone: "", website: "" };
             setYourCompany(initialYourCompany);
 
@@ -194,6 +200,10 @@ const Index = () => {
 
             setNotes(parsedData.notes || "");
             setSelectedCurrency(parsedData.selectedCurrency || "INR"); 
+        } else {
+            // If no local storage data exists, ensure all sender fields are truly empty
+            setYourCompany({ name: "", address: "", phone: "", website: "" });
+            setItems([]);
         }
     }
   }, [location.state]);
@@ -321,7 +331,22 @@ const Index = () => {
   const clearForm = () => {
     setBillTo({ name: "", address: "", phone: "" });
     setShipTo({ name: "", address: "", phone: "" });
+    setInvoice({
+      date: new Date().toISOString().split("T")[0],
+      paymentDate: "",
+      number: generateRandomInvoiceNumber(),
+    });
+    
+    // Resetting yourCompany to empty strings, respecting branding only if non-empty
+    setYourCompany(prev => ({ 
+        name: brandingSettings.brandingCompanyName || "", 
+        address: "", 
+        phone: "", 
+        website: brandingSettings.brandingWebsite || "" 
+    }));
+    
     setItems([{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
+    setTaxPercentage(0);
     setNotes("");
     localStorage.removeItem("formData");
   };
@@ -475,7 +500,7 @@ const Index = () => {
                     <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-md border border-gray-200">
                         <DollarSign size={14} className="text-gray-400 flex-shrink-0" />
                         <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
-                            <SelectTrigger className="w-full bg-transparent border-none h-auto p-0 focus:ring-0 text-gray-700 font-medium text-sm"><SelectValue placeholder="Currency" /></SelectTrigger>
+                            <SelectTrigger className="w-full h-8 text-xs bg-gray-50 border-gray-200"><SelectValue placeholder="Currency" /></SelectTrigger>
                             <SelectContent><SelectItem value="INR">INR (₹)</SelectItem><SelectItem value="USD">USD ($)</SelectItem><SelectItem value="EUR">EUR (€)</SelectItem></SelectContent>
                         </Select>
                     </div>
@@ -543,7 +568,6 @@ const Index = () => {
                             </div>
                         </div>
 
-                        {/* Items */}
                         <div className="p-6 md:p-8 border-b border-gray-100">
                             <div className="mb-6 flex justify-between items-center">
                                 <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><div className="p-1.5 bg-green-50 rounded text-green-600"><ShoppingBag className="w-4 h-4" /></div> Line Items</h2>
@@ -552,7 +576,6 @@ const Index = () => {
                             <ItemDetails items={items} handleItemChange={handleItemChange} removeItem={removeItem} addItem={addItem} currencyCode={selectedCurrency} />
                         </div>
 
-                        {/* Notes */}
                         <div className="p-6 md:p-8 bg-gray-50/50">
                             <div className="flex items-center justify-between mb-3">
                                 <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><div className="p-1.5 bg-orange-50 rounded text-orange-600"><StickyNote className="w-4 h-4" /></div> Terms & Notes</h2>
