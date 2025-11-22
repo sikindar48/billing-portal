@@ -56,7 +56,6 @@ const AdminDashboard = () => {
         
       if (reqError) console.warn("Error fetching requests:", reqError);
       
-      // Filter out requests where the profile join failed entirely
       const validRequests = (reqData || []).filter(req => req.profiles); 
       setRequests(validRequests);
 
@@ -235,7 +234,6 @@ const AdminDashboard = () => {
                             {requests.map((req) => (
                                 <tr key={req.id} className="bg-white hover:bg-orange-50/30">
                                     <td className="px-6 py-4 font-medium">
-                                        {/* Display Name + Email */}
                                         <div className="text-gray-900">{req.profiles?.full_name || 'N/A'}</div>
                                         <div className="text-xs text-gray-500">{req.profiles?.email || 'N/A'}</div>
                                     </td>

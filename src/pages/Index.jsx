@@ -34,12 +34,23 @@ const noteOptions = [
   "Thank you for your prompt payment."
 ];
 
+// Initial default state for a clean slate
+const getInitialCompany = () => ({ name: "", address: "", phone: "", website: "" });
+const getInitialInvoice = () => ({
+    date: new Date().toISOString().split('T')[0],
+    paymentDate: "",
+    number: generateRandomInvoiceNumber(),
+});
+const getInitialItems = () => ([{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
+
+
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSaving, setIsSaving] = useState(false); 
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false); 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userId, setUserId] = useState(null); // Store user ID for DB calls
   
   // Usage State
   const [usageStats, setUsageStats] = useState({
@@ -54,23 +65,16 @@ const Index = () => {
     logoUrl: '',
     brandingCompanyName: '',
     brandingWebsite: '',
+    address: '',
+    phone: '',
   });
 
   const [selectedCurrency, setSelectedCurrency] = useState("INR");
   const [billTo, setBillTo] = useState({ name: "", address: "", phone: "" });
   const [shipTo, setShipTo] = useState({ name: "", address: "", phone: "" });
-  const [invoice, setInvoice] = useState({
-    date: new Date().toISOString().split('T')[0],
-    paymentDate: "",
-    number: generateRandomInvoiceNumber(),
-  });
-  const [yourCompany, setYourCompany] = useState({
-    name: "",
-    address: "",
-    phone: "",
-    website: "",
-  });
-  const [items, setItems] = useState([]);
+  const [invoice, setInvoice] = useState(getInitialInvoice());
+  const [yourCompany, setYourCompany] = useState(getInitialCompany());
+  const [items, setItems] = useState(getInitialItems());
   
   // --- STATE FOR TAX & ROUNDING ---
   const [taxPercentage, setTaxPercentage] = useState(0);
@@ -96,6 +100,7 @@ const Index = () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
+            setUserId(user.id);
 
             let adminStatus = false;
             const adminEmails = ['nssoftwaresolutions1@gmail.com', 'admin@invoiceport.com'];
@@ -112,24 +117,16 @@ const Index = () => {
             if (branding) {
                 const fetchedCompanyName = branding.company_name || '';
                 const fetchedWebsite = branding.website || '';
+                const fetchedAddress = branding.address || '';
+                const fetchedPhone = branding.phone || '';
 
                 setBrandingSettings({
                     logoUrl: branding.logo_url || '',
                     brandingCompanyName: fetchedCompanyName,
                     brandingWebsite: fetchedWebsite,
+                    address: fetchedAddress,
+                    phone: fetchedPhone,
                 });
-                
-                // FIX: If there's no saved draft in localStorage AND we got non-empty branding data, 
-                // set the company info based on what the user saved in branding settings.
-                const savedFormData = localStorage.getItem("formData");
-                
-                if (!savedFormData && (fetchedCompanyName || fetchedWebsite)) {
-                    setYourCompany(prev => ({
-                        ...prev,
-                        name: fetchedCompanyName,
-                        website: fetchedWebsite,
-                    }));
-                }
             }
 
             // C. Fetch Usage & Subscription (Rest of the logic)
@@ -143,12 +140,9 @@ const Index = () => {
                 daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
             }
 
-            const currentCount = sub?.invoice_usage_count || 0;
-            const limit = sub?.subscription_plans?.slug === 'trial' ? 10 : 10000;
-
             setUsageStats({
-                count: currentCount,
-                limit: limit,
+                count: sub?.invoice_usage_count || 0,
+                limit: sub?.subscription_plans?.slug === 'trial' ? 10 : 10000,
                 planName: sub?.subscription_plans?.name || 'Free Trial',
                 daysLeft: daysLeft > 0 ? daysLeft : 0
             });
@@ -158,63 +152,96 @@ const Index = () => {
         }
     };
     initData();
-  }, []); // Empty dependency array is intentional to run once
+  }, []);
 
-  // 2. LOAD FORM DATA (History OR Draft)
+  // 2. LOAD FORM DATA (History OR DB Draft)
   useEffect(() => {
-    // Option A: Load from History (passed via navigation state)
-    if (location.state && location.state.invoiceData) {
-        const data = location.state.invoiceData;
-        setBillTo(data.billTo || { name: "", address: "", phone: "" });
-        setShipTo(data.shipTo || { name: "", address: "", phone: "" });
-        setInvoice(data.invoice ? { ...data.invoice, number: generateRandomInvoiceNumber() } : { date: new Date().toISOString().split('T')[0], paymentDate: "", number: generateRandomInvoiceNumber() });
-        setYourCompany(data.yourCompany || { name: "", address: "", phone: "", website: "" });
-        setItems(data.items || []);
-        
-        setTaxPercentage(data.taxPercentage || 0);
-        setTaxType(data.taxType || "IGST");
-        setEnableRoundOff(data.enableRoundOff || false);
-        
-        setNotes(data.notes || "");
-        setSelectedCurrency(data.selectedCurrency || "INR");
-        toast.info("Invoice details loaded.");
-    } 
-    // Option B: Load from Local Storage (Draft) - This runs only if no history data is present
-    else {
-        const savedFormData = localStorage.getItem("formData");
-        if (savedFormData) {
-            const parsedData = JSON.parse(savedFormData);
-            setBillTo(parsedData.billTo || { name: "", address: "", phone: "" });
-            setShipTo(parsedData.shipTo || { name: "", address: "", phone: "" });
-            setInvoice(parsedData.invoice || { date: new Date().toISOString().split('T')[0], paymentDate: "", number: generateRandomInvoiceNumber() });
-            
-            // FIX: Ensure if local storage is blank, we don't accidentally load old state values.
-            const initialYourCompany = parsedData.yourCompany || { name: "", address: "", phone: "", website: "" };
-            setYourCompany(initialYourCompany);
+    const loadFormData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      // Option A: Load from History (passed via navigation state) - Highest Priority
+      if (location.state && location.state.invoiceData) {
+          const data = location.state.invoiceData;
+          setBillTo(data.billTo || getInitialCompany());
+          setShipTo(data.shipTo || getInitialCompany());
+          setInvoice(data.invoice ? { ...data.invoice, number: generateRandomInvoiceNumber() } : getInitialInvoice());
+          setYourCompany(data.yourCompany || getInitialCompany());
+          setItems(data.items || getInitialItems());
+          setTaxPercentage(data.taxPercentage || 0);
+          setTaxType(data.taxType || "IGST");
+          setEnableRoundOff(data.enableRoundOff || false);
+          setNotes(data.notes || "");
+          setSelectedCurrency(data.selectedCurrency || "INR");
+          toast.info("Invoice details loaded from history.");
+          return;
+      } 
+      
+      // Option B: Load Draft from Database
+      const { data: draftData } = await supabase
+        .from('user_drafts')
+        .select('form_data')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-            setItems(parsedData.items || []);
-            
-            setTaxPercentage(parsedData.taxPercentage || 0);
-            setTaxType(parsedData.taxType || "IGST");
-            setEnableRoundOff(parsedData.enableRoundOff || false);
+      if (draftData?.form_data) {
+          const parsedData = draftData.form_data;
+          setBillTo(parsedData.billTo || getInitialCompany());
+          setShipTo(parsedData.shipTo || getInitialCompany());
+          setInvoice(parsedData.invoice || getInitialInvoice());
+          setItems(parsedData.items || getInitialItems());
+          setTaxPercentage(parsedData.taxPercentage || 0);
+          setTaxType(parsedData.taxType || "IGST");
+          setEnableRoundOff(parsedData.enableRoundOff || false);
+          setNotes(parsedData.notes || "");
+          setSelectedCurrency(parsedData.selectedCurrency || "INR"); 
+          
+          // Load YourCompany from DB draft
+          setYourCompany(parsedData.yourCompany || getInitialCompany());
 
-            setNotes(parsedData.notes || "");
-            setSelectedCurrency(parsedData.selectedCurrency || "INR"); 
-        } else {
-            // If no local storage data exists, ensure all sender fields are truly empty
-            setYourCompany({ name: "", address: "", phone: "", website: "" });
-            setItems([]);
-        }
-    }
+      } else {
+          // If no draft exists, initialize clean fields.
+          setYourCompany(getInitialCompany());
+          setItems(getInitialItems());
+      }
+    };
+    loadFormData();
   }, [location.state]);
 
-  // 3. SAVE DRAFT
+
+  // 3. APPLY BRANDING & DRAFT MERGE (Ensures Branding is applied over blank or initial draft)
   useEffect(() => {
-    const formData = {
-      billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, taxAmount, subTotal, grandTotal, notes, selectedCurrency,
+    // Check if branding data has loaded AND if the core fields are currently empty in the form state.
+    if (yourCompany.name === "" || yourCompany.website === "" || yourCompany.address === "" || yourCompany.phone === "") {
+        setYourCompany(prev => ({
+            ...prev,
+            // Apply branding only if the current field is empty
+            name: prev.name || brandingSettings.brandingCompanyName || "", 
+            website: prev.website || brandingSettings.brandingWebsite || "",
+            address: prev.address || brandingSettings.address || "",
+            phone: prev.phone || brandingSettings.phone || "",
+        }));
+    }
+  }, [brandingSettings, yourCompany.name, yourCompany.website, yourCompany.address, yourCompany.phone]); 
+
+
+  // 4. SAVE DRAFT TO DATABASE ON STATE CHANGE
+  useEffect(() => {
+    const saveDraft = async () => {
+      if (!userId) return;
+
+      const formData = {
+        billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, taxAmount, subTotal, grandTotal, notes, selectedCurrency,
+      };
+
+      await supabase
+        .from('user_drafts')
+        .upsert({ user_id: userId, form_data: formData }, { onConflict: 'user_id' });
     };
-    localStorage.setItem("formData", JSON.stringify(formData));
-  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, notes, taxAmount, subTotal, grandTotal, selectedCurrency]);
+
+    // Debounce this function if performance becomes an issue, but run it frequently for safety
+    saveDraft();
+  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, notes, taxAmount, subTotal, grandTotal, selectedCurrency, userId]);
 
   // --- HANDLERS ---
   const handleInputChange = (setter) => (e) => {
@@ -281,16 +308,22 @@ const Index = () => {
         invoice_number: invoice.number,
         bill_to: billTo,
         ship_to: shipTo,
-        invoice_details: invoice,
-        from_details: { ...yourCompany, logo_url: brandingSettings.logoUrl },
-        items: items,
-        tax: taxPercentage,
+        // Combine all invoice metadata into one JSONB field
         invoice_details: { 
             ...invoice, 
             taxType, 
             enableRoundOff, 
             roundOffAmount 
         },
+        from_details: { 
+            name: yourCompany.name, 
+            address: yourCompany.address, 
+            phone: yourCompany.phone, 
+            website: yourCompany.website,
+            logo_url: brandingSettings.logoUrl 
+        },
+        items: items,
+        tax: taxPercentage,
         subtotal: subTotal,
         grand_total: grandTotal,
         notes: notes,
@@ -323,7 +356,22 @@ const Index = () => {
   const fillDummyData = () => {
     setBillTo({ name: "John Doe", address: "123 Main St, Anytown, USA", phone: "(555) 123-4567" });
     setShipTo({ name: "Jane Smith", address: "456 Elm St, Othertown, USA", phone: "(555) 987-6543" });
-    setItems([{ name: "Product A", description: "High-quality item", quantity: 2, amount: 50, total: 100 }]);
+    setInvoice(prev => ({
+      ...prev,
+      date: new Date().toISOString().split("T")[0],
+      paymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    }));
+    setYourCompany(prev => ({
+      ...prev,
+      name: brandingSettings.brandingCompanyName || "Your Business Name",
+      address: brandingSettings.address || "101 Main St, Tech City",
+      phone: brandingSettings.phone || "+91 999 888 7777",
+      website: brandingSettings.brandingWebsite || "example.com"
+    }));
+    setItems([
+      { name: "Website Design", description: "Homepage and 3 interior pages.", quantity: 1, amount: 5000, total: 5000, },
+      { name: "SEO Optimization", description: "Initial keyword research and setup.", quantity: 10, amount: 50, total: 500, },
+    ]);
     setTaxPercentage(18);
     setNotes("Thank you for your business!");
   };
@@ -337,69 +385,25 @@ const Index = () => {
       number: generateRandomInvoiceNumber(),
     });
     
-    // Resetting yourCompany to empty strings, respecting branding only if non-empty
-    setYourCompany(prev => ({ 
+    // Resetting yourCompany to only contain branding defaults if they exist
+    setYourCompany({ 
         name: brandingSettings.brandingCompanyName || "", 
-        address: "", 
-        phone: "", 
+        address: brandingSettings.address || "", 
+        phone: brandingSettings.phone || "", 
         website: brandingSettings.brandingWebsite || "" 
-    }));
+    });
     
-    setItems([{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
+    setItems(getInitialItems()); // Reset items to the initial single blank row
     setTaxPercentage(0);
     setNotes("");
-    localStorage.removeItem("formData");
   };
   
   // --- SIDEBAR COMPONENT ---
   const TotalsSummary = () => (
-    <div className="w-full space-y-6 sticky top-24">
+    <div className="w-full space-y-6">
         
-        {/* USAGE CARD */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-             <div className="bg-indigo-50/50 p-4 border-b border-indigo-50 flex justify-between items-center">
-                <h4 className="font-semibold text-indigo-900 text-sm flex items-center gap-2">
-                    {isAdmin ? <ShieldCheck className="w-4 h-4 text-indigo-600" /> : <Clock className="w-4 h-4 text-indigo-600" />}
-                    {isAdmin ? "Admin Access" : "Account Status"}
-                </h4>
-                {!isAdmin && (
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${usageStats.daysLeft <= 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                        {usageStats.daysLeft} Days Left
-                    </span>
-                )}
-             </div>
-             
-             {!isAdmin && (
-                 <div className="p-4 space-y-3">
-                    <div className="flex justify-between text-xs font-medium text-gray-500 mb-1">
-                        <span>Invoices Created</span>
-                        <span className={usageStats.count >= usageStats.limit ? "text-red-600 font-bold" : "text-gray-700"}>
-                            {usageStats.count} / {usageStats.limit}
-                        </span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div 
-                            className={`h-2 rounded-full transition-all duration-500 ${usageStats.count >= usageStats.limit ? 'bg-red-500' : 'bg-indigo-500'}`} 
-                            style={{ width: `${Math.min((usageStats.count / usageStats.limit) * 100, 100)}%` }}
-                        ></div>
-                    </div>
-                    
-                    {usageStats.count >= usageStats.limit && (
-                        <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 p-2 rounded mt-2">
-                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                            <span>Limit reached.</span>
-                        </div>
-                    )}
-                 </div>
-             )}
-             
-             {isAdmin && (
-                 <div className="p-4 text-xs text-gray-500 flex items-center gap-2">
-                     <ShieldCheck className="w-4 h-4 text-green-500" /> Unlimited creation enabled.
-                 </div>
-             )}
-        </div>
-
+        {/* USAGE CARD - Extracted and placed in main render */}
+        
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
             <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-5 border-b border-indigo-100">
                 <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
@@ -512,7 +516,7 @@ const Index = () => {
                 </div>
             </div>
         </div>
-    </div>
+</div>
   );
 
   return (
@@ -520,18 +524,64 @@ const Index = () => {
       <Navigation /> 
       <div className="bg-slate-50 min-h-screen font-sans text-gray-900 pb-20">
         <div className="container mx-auto px-4 py-8 max-w-7xl">          
+          
+          {/* HEADER ROW */}
           <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+            
+            {/* Title */}
             <div>
                 <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">New Invoice</h1>
                 <p className="text-gray-500 mt-1 text-sm">Create and manage your financial documents.</p>
             </div>
-            <div className="mt-4 md:mt-0 px-3 py-1 bg-white border border-gray-200 rounded-full text-sm font-mono text-gray-600 shadow-sm">
-                ID: <span className="font-bold text-indigo-600">{invoice.number}</span>
+            
+            {/* RIGHT SIDE: ID & STATUS CARD */}
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 mt-4 md:mt-0">
+                {/* 1. Invoice ID Badge */}
+                <div className="px-3 py-1 bg-white border border-gray-200 rounded-full text-sm font-mono text-gray-600 shadow-sm">
+                    ID: <span className="font-bold text-indigo-600">{invoice.number}</span>
+                </div>
+
+                {/* 2. USAGE/STATUS CARD (Moved here) */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden w-full sm:w-auto">
+                    <div className="bg-indigo-50/50 p-3 flex justify-between items-center">
+                        <h4 className="font-semibold text-indigo-900 text-xs flex items-center gap-1">
+                            {isAdmin ? <ShieldCheck className="w-4 h-4 text-indigo-600" /> : <Clock className="w-4 h-4 text-indigo-600" />}
+                            {isAdmin ? "ADMIN ACCESS" : "ACCOUNT STATUS"}
+                        </h4>
+                        {!isAdmin && (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${usageStats.daysLeft <= 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                {usageStats.daysLeft} Days Left
+                            </span>
+                        )}
+                    </div>
+                    
+                    {!isAdmin && (
+                        <div className="px-3 py-2 space-y-1">
+                            <div className="flex justify-between text-xs font-medium text-gray-500">
+                                <span>Invoices Created</span>
+                                <span className={usageStats.count >= usageStats.limit ? "text-red-600 font-bold" : "text-gray-700"}>
+                                    {usageStats.count} / {usageStats.limit}
+                                </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                <div 
+                                    className={`h-1.5 rounded-full transition-all duration-500 ${usageStats.count >= usageStats.limit ? 'bg-red-500' : 'bg-indigo-500'}`} 
+                                    style={{ width: `${Math.min((usageStats.count / usageStats.limit) * 100, 100)}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+                     {isAdmin && (
+                         <div className="p-3 text-xs text-gray-500 flex items-center gap-2">
+                             <ShieldCheck className="w-4 h-4 text-green-500" /> Unlimited creation enabled.
+                         </div>
+                     )}
+                </div>
             </div>
           </div>
 
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* 1. MAIN FORM */}
+            {/* 1. MAIN FORM CONTENT */}
             <div className="w-full lg:w-3/4 space-y-6">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <form onSubmit={(e) => e.preventDefault()}>
@@ -559,15 +609,20 @@ const Index = () => {
                                 <div>
                                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Sender Info</h3>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {/* Company Name */}
                                         <FloatingLabelInput id="yourCompanyName" label="Company Name" value={yourCompany.name} onChange={handleInputChange(setYourCompany)} name="name" />
+                                        {/* Phone Number */}
                                         <FloatingLabelInput id="yourCompanyPhone" label="Phone Number" value={yourCompany.phone} onChange={handleInputChange(setYourCompany)} name="phone" />
+                                        {/* Address */}
                                         <FloatingLabelInput id="yourCompanyAddress" label="Address" value={yourCompany.address} onChange={handleInputChange(setYourCompany)} name="address" className="sm:col-span-2" />
+                                        {/* Website */}
                                         <FloatingLabelInput id="yourCompanyWebsite" label="Website" value={yourCompany.website} onChange={handleInputChange(setYourCompany)} name="website" type="url" className="sm:col-span-2" />
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Items */}
                         <div className="p-6 md:p-8 border-b border-gray-100">
                             <div className="mb-6 flex justify-between items-center">
                                 <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><div className="p-1.5 bg-green-50 rounded text-green-600"><ShoppingBag className="w-4 h-4" /></div> Line Items</h2>
@@ -576,6 +631,7 @@ const Index = () => {
                             <ItemDetails items={items} handleItemChange={handleItemChange} removeItem={removeItem} addItem={addItem} currencyCode={selectedCurrency} />
                         </div>
 
+                        {/* Notes */}
                         <div className="p-6 md:p-8 bg-gray-50/50">
                             <div className="flex items-center justify-between mb-3">
                                 <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2"><div className="p-1.5 bg-orange-50 rounded text-orange-600"><StickyNote className="w-4 h-4" /></div> Terms & Notes</h2>
@@ -587,7 +643,7 @@ const Index = () => {
                 </div>
             </div>
             
-            <div className="w-full lg:w-1/4 min-w-[300px]">
+            <div className="w-full lg:w-1/4 min-w-[300px] sticky top-24 self-start"> 
                 <TotalsSummary />
             </div>
           </div>

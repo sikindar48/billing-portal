@@ -97,18 +97,14 @@ const ItemDetails = ({ items, handleItemChange, addItem, removeItem, currencyCod
   };
 
   return (
-    <div className="space-y-2">
-        {/* Section Header */}
-        <div className="flex items-center justify-between px-1 pb-2">
-             <div className="flex items-center gap-2">
-                   </div>     
-        </div>
+    <div className="space-y-6">
+      
       
       <div className="space-y-4">
         {items.map((item, index) => (
             <div 
                 key={index} 
-                className="group relative bg-white p-4 sm:p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:border-indigo-200"
+                className="group relative bg-white p-4 sm:p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 hover:border-indigo-200"
             >
                 {/* Inventory Selector (Stacked on mobile) */}
                 <div className="mb-5 flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-gray-50 pb-4 gap-3">

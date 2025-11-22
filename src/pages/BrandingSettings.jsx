@@ -6,15 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Upload, ArrowLeft, Building2, Globe, ImageIcon, Save } from 'lucide-react';
+import { Loader2, Upload, ArrowLeft, Building2, Globe, ImageIcon, Save, Phone, MapPin } from 'lucide-react';
 import Navigation from '@/components/Navigation'; 
 
 const BrandingSettings = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  
+  // ADDED: Address and Phone fields
   const [companyName, setCompanyName] = useState('');
   const [website, setWebsite] = useState('');
+  const [address, setAddress] = useState(''); 
+  const [phone, setPhone] = useState('');
+  
   const [logoUrl, setLogoUrl] = useState('');
   const [userId, setUserId] = useState(null);
 
@@ -40,6 +45,8 @@ const BrandingSettings = () => {
       if (data) {
         setCompanyName(data.company_name || '');
         setWebsite(data.website || '');
+        setAddress(data.address || ''); // Load Address
+        setPhone(data.phone || '');     // Load Phone
         setLogoUrl(data.logo_url || '');
       }
     } catch (error) {
@@ -56,14 +63,12 @@ const BrandingSettings = () => {
           return;
       }
 
-      // 1. Validate File Type
       if (!file.type.startsWith('image/')) {
           toast.error("Invalid file type. Please upload an image (PNG, JPG).");
           setUploading(false);
           return;
       }
 
-      // 2. Validate File Size (Max 200KB)
       const LIMIT_KB = 200;
       if (file.size > LIMIT_KB * 1024) {
           toast.error(`File is too large. Maximum size is ${LIMIT_KB}KB.`);
@@ -72,17 +77,14 @@ const BrandingSettings = () => {
       }
 
       const fileExt = file.name.split('.').pop();
-      // Use timestamp to ensure uniqueness and avoid browser caching of old images
       const fileName = `${userId}-${Date.now()}.${fileExt}`; 
       
-      // 3. Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('logos')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 4. Get Public URL
       const { data: { publicUrl } } = supabase.storage
         .from('logos')
         .getPublicUrl(fileName);
@@ -91,7 +93,7 @@ const BrandingSettings = () => {
       toast.success('Logo uploaded successfully!');
     } catch (error) {
       console.error(error);
-      toast.error('Failed to upload logo. Please check if the "logos" bucket exists in Supabase.');
+      toast.error('Failed to upload logo. Check if the "logos" bucket exists.');
     } finally {
       setUploading(false);
     }
@@ -101,12 +103,15 @@ const BrandingSettings = () => {
     try {
       setLoading(true);
 
+      // Save all fields, including new Address and Phone
       const { error } = await supabase
         .from('branding_settings')
         .upsert({
           user_id: userId,
           company_name: companyName,
           website: website,
+          address: address, // Save Address
+          phone: phone,     // Save Phone
           logo_url: logoUrl,
         }, {
           onConflict: 'user_id'
@@ -175,6 +180,36 @@ const BrandingSettings = () => {
                                 value={website}
                                 onChange={(e) => setWebsite(e.target.value)}
                                 placeholder="https://www.example.com"
+                                className="pl-10"
+                            />
+                        </div>
+                    </div>
+
+                    {/* NEW: Phone Number */}
+                    <div className="space-y-2">
+                        <Label htmlFor="phone" className="text-gray-700">Phone Number</Label>
+                        <div className="relative">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Phone className="h-4 w-4" /></div>
+                            <Input
+                                id="phone"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                placeholder="+91 98765 43210"
+                                className="pl-10"
+                            />
+                        </div>
+                    </div>
+
+                    {/* NEW: Address - Full width on desktop */}
+                    <div className="space-y-2 md:col-span-">
+                        <Label htmlFor="address" className="text-gray-700">Address / City</Label>
+                        <div className="relative">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><MapPin className="h-4 w-4" /></div>
+                            <Input
+                                id="address"
+                                value={address}
+                                onChange={(e) => setAddress(e.target.value)}
+                                placeholder="Street, City, State, ZIP Code"
                                 className="pl-10"
                             />
                         </div>
