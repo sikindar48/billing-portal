@@ -8,6 +8,7 @@ import BillToSection from '../components/BillToSection';
 import ShipToSection from '../components/ShipToSection';
 import ItemDetails from "../components/ItemDetails";
 import { templates } from "../utils/templateRegistry";
+import TemplatePreview from '../components/TemplatePreview';
 import { FiEdit, FiTrash2, FiLayers } from "react-icons/fi"; 
 import { RefreshCw, Save, Loader2, DollarSign, User, FileText, ShoppingBag, StickyNote, Clock, AlertCircle, ShieldCheck, ToggleRight, ToggleLeft } from "lucide-react"; 
 import Navigation from '../components/Navigation';
@@ -659,13 +660,11 @@ const Index = () => {
             </DialogHeader>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-6 max-h-[60vh] overflow-y-auto p-2">
                 {templates.map((template, index) => (
-                    <div key={index} className="group relative bg-white rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-indigo-500" onClick={() => handleTemplateSelect(index + 1)}>
-                        <div className="aspect-[210/297] w-full bg-gray-100 relative overflow-hidden">
-                             <img src={`/assets/template${index + 1}-preview.png`} alt={template.name} className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
-                        </div>
-                        <div className="p-3 text-center bg-white border-t border-gray-100"><p className="font-semibold text-sm text-gray-700 group-hover:text-indigo-600 transition-colors">{template.name}</p></div>
-                    </div>
+                    <TemplatePreview
+                        key={index}
+                        templateIndex={index}
+                        onClick={() => handleTemplateSelect(index + 1)}
+                    />
                 ))}
             </div>
         </DialogContent>

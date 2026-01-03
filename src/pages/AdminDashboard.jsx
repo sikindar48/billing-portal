@@ -42,32 +42,108 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const { data: userData, error: userError } = await supabase.rpc('get_admin_dashboard_data');
-      if (userError) throw userError;
-      setUsers(userData || []);
+      // 1. First, let's fetch users and their subscriptions separately to avoid relationship issues
+      
+      // Get all profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, created_at')
+        .order('created_at', { ascending: false });
+      
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+        throw profilesError;
+      }
 
-      // 2. Fetch Pending Requests
-      const { data: reqData, error: reqError } = await supabase
+      // Get all subscriptions
+      const { data: subscriptionsData, error: subscriptionsError } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          user_id,
+          plan_id,
+          status,
+          current_period_start,
+          current_period_end,
+          invoice_usage_count,
+          subscription_plans (
+            name
+          )
+        `);
+      
+      if (subscriptionsError) {
+        console.error("Error fetching subscriptions:", subscriptionsError);
+        // Don't throw here, just log the error and continue with empty subscriptions
+      }
+
+      // Combine the data manually
+      const transformedUsers = (profilesData || []).map(profile => {
+        const subscription = (subscriptionsData || []).find(sub => sub.user_id === profile.id);
+        
+        return {
+          user_id: profile.id,
+          email: profile.email,
+          full_name: profile.full_name,
+          plan_id: subscription?.plan_id || null,
+          plan_name: subscription?.subscription_plans?.name || 'No Plan',
+          status: subscription?.status || 'none',
+          period_start: subscription?.current_period_start || null,
+          period_end: subscription?.current_period_end || null,
+          invoice_usage_count: subscription?.invoice_usage_count || 0,
+          created_at: profile.created_at
+        };
+      });
+
+      setUsers(transformedUsers);
+
+      // 2. Fetch Pending Requests (also fetch separately to avoid relationship issues)
+      const { data: requestsData, error: requestsError } = await supabase
         .from('subscription_requests')
-        // Select profile (for email, name) and the plan name
-        .select('*, profiles(email, full_name), subscription_plans(name)') 
+        .select('*')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
         
-      if (reqError) console.warn("Error fetching requests:", reqError);
-      
-      const validRequests = (reqData || []).filter(req => req.profiles); 
-      setRequests(validRequests);
+      if (requestsError) {
+        console.warn("Error fetching requests:", requestsError);
+        setRequests([]);
+      } else {
+        // Get profiles for the requests separately
+        const userIds = (requestsData || []).map(req => req.user_id);
+        const { data: requestProfilesData } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .in('id', userIds);
+
+        // Get plan names separately
+        const planIds = (requestsData || []).map(req => req.plan_id);
+        const { data: plansData } = await supabase
+          .from('subscription_plans')
+          .select('id, name')
+          .in('id', planIds);
+
+        // Combine request data manually
+        const enrichedRequests = (requestsData || []).map(request => {
+          const profile = (requestProfilesData || []).find(p => p.id === request.user_id);
+          const plan = (plansData || []).find(p => p.id === request.plan_id);
+          
+          return {
+            ...request,
+            profiles: profile ? { email: profile.email, full_name: profile.full_name } : null,
+            subscription_plans: plan ? { name: plan.name } : null
+          };
+        }).filter(req => req.profiles); // Only include requests with valid profiles
+
+        setRequests(enrichedRequests);
+      }
 
       // Calculate stats
-      const total = userData.length;
-      const active = userData.filter(u => u.status === 'active').length;
-      const trialing = userData.filter(u => u.status === 'trialing').length;
+      const total = transformedUsers.length;
+      const active = transformedUsers.filter(u => u.status === 'active').length;
+      const trialing = transformedUsers.filter(u => u.status === 'trialing').length;
       setStats({ total, active, trialing });
 
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast.error("Failed to load dashboard data");
+      toast.error(`Failed to load dashboard data: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -166,13 +242,34 @@ const AdminDashboard = () => {
 
   const handleDeleteUser = async (userId) => {
     if (!window.confirm("Delete this user? This cannot be undone.")) return;
+    setProcessingId(userId);
     try {
-      const { error } = await supabase.rpc('delete_user_by_admin', { target_user_id: userId });
-      if (error) throw error;
-      toast.success("User deleted");
+      // Check if trying to delete another admin
+      const { data: roleCheck } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .single();
+      
+      if (roleCheck) {
+        toast.error("Cannot delete admin users");
+        return;
+      }
+
+      // Delete user subscriptions first (due to foreign key constraints)
+      await supabase.from('user_subscriptions').delete().eq('user_id', userId);
+      await supabase.from('user_roles').delete().eq('user_id', userId);
+      await supabase.from('profiles').delete().eq('id', userId);
+      
+      toast.success("User deleted successfully");
       fetchData();
-    } catch (error) { toast.error(error.message); }
-    finally { setProcessingId(null); }
+    } catch (error) { 
+      console.error("Delete error:", error);
+      toast.error(`Failed to delete user: ${error.message}`); 
+    } finally { 
+      setProcessingId(null); 
+    }
   };
 
   const getStatusBadge = (status) => {

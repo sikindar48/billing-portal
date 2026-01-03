@@ -1,70 +1,70 @@
-# Welcome to your GPT Engineer project
+# Invoice Bill Generator
 
-## Project info
+A modern, professional invoice generation application built with React, Vite, and Supabase.
 
-**URL**: https://run.gptengineer.app/projects/1340b42f-5412-43e0-b239-b5fdabd2feb7/improve
+## Features
 
-## How can I edit this code?
+- 🧾 Create professional invoices with multiple templates
+- 💾 Save and manage invoice history
+- 🎨 Customizable branding settings
+- 📊 Tax calculations (IGST, CGST+SGST, Standard)
+- 💰 Multiple currency support (INR, USD, EUR)
+- 📱 Responsive design
+- 🔐 User authentication and subscription management
+- 📄 PDF export functionality
+- 👨‍💼 Admin dashboard for user management
 
-There are several ways of editing your application.
+## Quick Start
 
-**Use GPT Engineer**
+1. **Install dependencies:**
 
-Simply visit the GPT Engineer project at [GPT Engineer](https://gptengineer.app/projects/1340b42f-5412-43e0-b239-b5fdabd2feb7/improve) and start prompting.
+   ```bash
+   npm install
+   ```
 
-Changes made via gptengineer.app will be committed automatically to this repo.
+2. **Start the development server:**
 
-**Use your preferred IDE**
+   ```bash
+   npm run dev
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in the GPT Engineer UI.
+3. **Open your browser:**
+   Navigate to `http://localhost:8080`
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Database Setup
 
-Follow these steps:
+1. **Run the main database setup:**
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+   - Copy contents of `database-setup.sql`
+   - Paste in Supabase SQL Editor
+   - Click "Run"
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. **Fix admin policies (if needed):**
+   - Copy contents of `fix-recursion.sql`
+   - Paste in Supabase SQL Editor
+   - Click "Run"
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Admin Access
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+**Admin Email**: `nssoftwaresolutions1@gmail.com`  
+**Password**: `Sikku2731#`
 
-**Edit a file directly in GitHub**
+## Test User
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+**Email**: `testuser@demo.com`  
+**Password**: `TestUser123!`
 
-**Use GitHub Codespaces**
+## Available Scripts
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
 
-## What technologies are used for this project?
+## Technologies Used
 
-This project is built with .
-
-- Vite
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-All GPT Engineer projects can be deployed directly via the GPT Engineer app.
-
-Simply visit your project at [GPT Engineer](https://gptengineer.app/projects/1340b42f-5412-43e0-b239-b5fdabd2feb7/improve) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.gptengineer.app/tips-tricks/custom-domain/)
+- **Frontend:** React 18, Vite, TailwindCSS
+- **UI Components:** Radix UI, Lucide React
+- **Backend:** Supabase (Database, Auth)
+- **PDF Generation:** jsPDF, html2canvas
+- **State Management:** React Query
+- **Routing:** React Router DOM
