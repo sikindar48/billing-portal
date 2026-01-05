@@ -50,7 +50,7 @@ const BrandingSettings = () => {
         setLogoUrl(data.logo_url || '');
       }
     } catch (error) {
-      toast.error('Failed to load branding settings');
+      toast.error('Failed to load branding settings', { duration: 2000 });
     }
   };
 
@@ -64,14 +64,14 @@ const BrandingSettings = () => {
       }
 
       if (!file.type.startsWith('image/')) {
-          toast.error("Invalid file type. Please upload an image (PNG, JPG).");
+          toast.error("Invalid file type. Please upload an image (PNG, JPG).", { duration: 2500 });
           setUploading(false);
           return;
       }
 
       const LIMIT_KB = 200;
       if (file.size > LIMIT_KB * 1024) {
-          toast.error(`File is too large. Maximum size is ${LIMIT_KB}KB.`);
+          toast.error(`File is too large. Maximum size is ${LIMIT_KB}KB.`, { duration: 2500 });
           setUploading(false);
           return;
       }
@@ -90,10 +90,10 @@ const BrandingSettings = () => {
         .getPublicUrl(fileName);
 
       setLogoUrl(publicUrl);
-      toast.success('Logo uploaded successfully!');
+      toast.success('Logo uploaded successfully!', { duration: 2000 });
     } catch (error) {
       console.error(error);
-      toast.error('Failed to upload logo. Check if the "logos" bucket exists.');
+      toast.error('Failed to upload logo. Check if the "logos" bucket exists.', { duration: 2500 });
     } finally {
       setUploading(false);
     }
@@ -119,9 +119,9 @@ const BrandingSettings = () => {
 
       if (error) throw error;
 
-      toast.success('Branding settings saved successfully!');
+      toast.success('Branding settings saved successfully!', { duration: 2000 });
     } catch (error) {
-      toast.error('Failed to save branding settings');
+      toast.error('Failed to save branding settings', { duration: 2000 });
     } finally {
       setLoading(false);
     }

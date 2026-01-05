@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { 
-  LogOut, Settings, History, Crown, Home, Menu, X, Shield, 
+  LogOut, Settings, History, Crown, Menu, X, Shield, 
   Package, LayoutDashboard, BarChart3, User, ChevronDown 
 } from 'lucide-react'; 
 import {
@@ -17,9 +17,35 @@ import {
 
 const Navigation = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Helper function to check if a path is active
+  const isActivePath = (path) => {
+    if (path === '/') {
+      return location.pathname === '/';
+    }
+    return location.pathname.startsWith(path);
+  };
+
+  // Helper function to get button classes with active state
+  const getNavButtonClass = (path) => {
+    const baseClass = "text-white rounded-full transition-all duration-200";
+    const activeClass = "bg-indigo-800/70 shadow-lg border border-indigo-400/50";
+    const inactiveClass = "hover:bg-indigo-500/50";
+    
+    return `${baseClass} ${isActivePath(path) ? activeClass : inactiveClass}`;
+  };
+
+  const getMobileNavButtonClass = (path) => {
+    const baseClass = "w-full justify-start text-white text-left transition-all duration-200";
+    const activeClass = "bg-indigo-800/70 shadow-lg border border-indigo-400/30";
+    const inactiveClass = "hover:bg-indigo-600/50";
+    
+    return `${baseClass} ${isActivePath(path) ? activeClass : inactiveClass}`;
+  };
 
   useEffect(() => {
     const checkUser = async () => {
@@ -77,7 +103,11 @@ const Navigation = () => {
           
           {/* Logo/App Title */}
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => handleNavigation('/')}>
-            <Home className="h-6 w-6 text-white" />
+            <img 
+              src="https://twfoqvxlhxhdulqchjbq.supabase.co/storage/v1/object/public/icon/invoice_logo.webp" 
+              alt="InvoicePort Logo" 
+              className="h-6 w-auto"
+            />
             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide">Invoice Port</h1>
           </div>
           
@@ -88,25 +118,25 @@ const Navigation = () => {
                 <Button
                     variant="ghost"
                     onClick={() => navigate('/admin')}
-                    className="text-white bg-indigo-800/50 hover:bg-indigo-800 rounded-full border border-indigo-400/30 mr-2"
+                    className={`${getNavButtonClass('/admin')} mr-2`}
                 >
                     <Shield className="mr-2 h-4 w-4" /> Admin
                 </Button>
             )}
             
-            <Button variant="ghost" onClick={() => navigate('/')} className="text-white hover:bg-indigo-500/50 rounded-full" title="Dashboard">
+            <Button variant="ghost" onClick={() => navigate('/')} className={getNavButtonClass('/')} title="Dashboard">
               <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
             </Button>
 
-            <Button variant="ghost" onClick={() => navigate('/inventory')} className="text-white hover:bg-indigo-500/50 rounded-full" title="Product Inventory">
+            <Button variant="ghost" onClick={() => navigate('/inventory')} className={getNavButtonClass('/inventory')} title="Product Inventory">
               <Package className="mr-2 h-4 w-4" /> Inventory
             </Button>
 
-            <Button variant="ghost" onClick={() => navigate('/statistics')} className="text-white hover:bg-indigo-500/50 rounded-full" title="Statistics">
+            <Button variant="ghost" onClick={() => navigate('/statistics')} className={getNavButtonClass('/statistics')} title="Statistics">
               <BarChart3 className="mr-2 h-4 w-4" /> Stats
             </Button>
             
-            <Button variant="ghost" onClick={() => navigate('/branding')} className="text-white hover:bg-indigo-500/50 rounded-full" title="Branding Settings">
+            <Button variant="ghost" onClick={() => navigate('/branding')} className={getNavButtonClass('/branding')} title="Branding Settings">
               <Settings className="mr-2 h-4 w-4" /> Branding
             </Button>
 
@@ -160,24 +190,24 @@ const Navigation = () => {
       {isMenuOpen && (
         <div className="md:hidden bg-indigo-700 border-t border-indigo-500/30 px-4 pt-2 pb-4 space-y-2 shadow-lg">
           {isAdmin && (
-            <Button variant="ghost" onClick={() => handleNavigation('/admin')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left bg-indigo-800/30 mb-2">
+            <Button variant="ghost" onClick={() => handleNavigation('/admin')} className={`${getMobileNavButtonClass('/admin')} mb-2`}>
                 <Shield className="mr-3 h-5 w-5" /> Admin Dashboard
             </Button>
           )}
 
-          <Button variant="ghost" onClick={() => handleNavigation('/')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
+          <Button variant="ghost" onClick={() => handleNavigation('/')} className={getMobileNavButtonClass('/')}>
             <LayoutDashboard className="mr-3 h-5 w-5" /> Dashboard
           </Button>
 
-          <Button variant="ghost" onClick={() => handleNavigation('/inventory')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
+          <Button variant="ghost" onClick={() => handleNavigation('/inventory')} className={getMobileNavButtonClass('/inventory')}>
             <Package className="mr-3 h-5 w-5" /> Inventory
           </Button>
 
-          <Button variant="ghost" onClick={() => handleNavigation('/statistics')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
+          <Button variant="ghost" onClick={() => handleNavigation('/statistics')} className={getMobileNavButtonClass('/statistics')}>
             <BarChart3 className="mr-3 h-5 w-5" /> Stats
           </Button>
           
-          <Button variant="ghost" onClick={() => handleNavigation('/branding')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
+          <Button variant="ghost" onClick={() => handleNavigation('/branding')} className={getMobileNavButtonClass('/branding')}>
             <Settings className="mr-3 h-5 w-5" /> Branding
           </Button>
 

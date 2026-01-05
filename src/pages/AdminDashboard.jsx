@@ -244,6 +244,27 @@ const AdminDashboard = () => {
     if (!window.confirm("Delete this user? This cannot be undone.")) return;
     setProcessingId(userId);
     try {
+      console.log('Attempting to delete user:', userId);
+      
+      // First try the RPC function (if it exists)
+      try {
+        const { data, error } = await supabase.rpc('admin_delete_user', {
+          target_user_id: userId
+        });
+        
+        if (!error && data && data.success) {
+          toast.success("User deleted successfully", { duration: 2000 });
+          setUsers(prevUsers => prevUsers.filter(user => user.user_id !== userId));
+          setTimeout(() => fetchData(), 1000);
+          return;
+        }
+      } catch (rpcError) {
+        console.log('RPC function not available, using fallback method');
+      }
+      
+      // Fallback: Delete what we can from client side
+      console.log('Using fallback deletion method');
+      
       // Check if trying to delete another admin
       const { data: roleCheck } = await supabase
         .from('user_roles')
@@ -253,20 +274,32 @@ const AdminDashboard = () => {
         .single();
       
       if (roleCheck) {
-        toast.error("Cannot delete admin users");
+        toast.error("Cannot delete admin users", { duration: 2000 });
         return;
       }
 
-      // Delete user subscriptions first (due to foreign key constraints)
-      await supabase.from('user_subscriptions').delete().eq('user_id', userId);
-      await supabase.from('user_roles').delete().eq('user_id', userId);
-      await supabase.from('profiles').delete().eq('id', userId);
+      // Delete related data (what we can access)
+      const deletePromises = [
+        supabase.from('subscription_requests').delete().eq('user_id', userId),
+        supabase.from('user_subscriptions').delete().eq('user_id', userId),
+        supabase.from('user_roles').delete().eq('user_id', userId),
+        supabase.from('invoices').delete().eq('user_id', userId),
+        supabase.from('profiles').delete().eq('id', userId)
+      ];
       
-      toast.success("User deleted successfully");
-      fetchData();
+      await Promise.all(deletePromises);
+      
+      toast.success("User data deleted (Note: Run the SQL script for complete deletion)", { duration: 3000 });
+      
+      // Update local state immediately
+      setUsers(prevUsers => prevUsers.filter(user => user.user_id !== userId));
+      
+      // Refresh data
+      setTimeout(() => fetchData(), 1000);
+      
     } catch (error) { 
       console.error("Delete error:", error);
-      toast.error(`Failed to delete user: ${error.message}`); 
+      toast.error(`Failed to delete user: ${error.message}`, { duration: 2500 }); 
     } finally { 
       setProcessingId(null); 
     }

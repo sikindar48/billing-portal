@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { sendWelcomeEmail } from '@/utils/emailService';
 import { 
   Loader2, Mail, Lock, ArrowRight, LayoutDashboard, CheckCircle2, 
   Zap, ShieldCheck, Smartphone, Globe, BarChart3, FileText, Box, 
@@ -86,34 +87,28 @@ const AuthPage = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        toast.success('Welcome back!');
+        toast.success('Welcome back!', { duration: 1500 });
         navigate('/', { replace: true });
       } else {
+        // Use Supabase default email confirmation (reliable)
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { 
-            emailRedirectTo: `${window.location.origin}/`,
-            data: { full_name: name } 
+            emailRedirectTo: `https://invoiceport.live/`,
+            data: { full_name: name }
           },
         });
         if (error) throw error;
 
-        if (data?.user) {
-            const trialEndDate = new Date();
-            trialEndDate.setDate(trialEndDate.getDate() + 3);
-            await supabase.from('user_subscriptions').insert({
-                user_id: data.user.id,
-                plan_id: 1, 
-                status: 'trialing',
-                current_period_end: trialEndDate.toISOString()
-            });
-        }
-        toast.success('Account created! Starting trial...');
-        navigate('/', { replace: true });
+        // Show success message - user needs to confirm email
+        toast.success('Account created! Please check your email to confirm your account.', { duration: 4000 });
+        
+        // Don't navigate yet - user needs to confirm email first
+        // Welcome email will be sent via EmailJS after email confirmation
       }
     } catch (error) {
-      toast.error(error.message || "Authentication failed");
+      toast.error(error.message || "Authentication failed", { duration: 2500 });
     } finally {
       setLoading(false);
     }
@@ -121,18 +116,18 @@ const AuthPage = () => {
 
   const handleForgotPassword = async () => {
     if (!email) {
-        toast.error("Please enter your email address first.");
+        toast.error("Please enter your email address first.", { duration: 2000 });
         return;
     }
     setLoading(true);
     try {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/reset-password`,
+            redirectTo: `https://invoiceport.live/reset-password`,
         });
         if (error) throw error;
-        toast.success("Password reset link sent to your email!");
+        toast.success("Password reset link sent to your email!", { duration: 2500 });
     } catch (error) {
-        toast.error(error.message || "Failed to send reset link");
+        toast.error(error.message || "Failed to send reset link", { duration: 2500 });
     } finally {
         setLoading(false);
     }
@@ -168,9 +163,11 @@ const AuthPage = () => {
       {/* --- NAVBAR --- */}
       <nav className="relative z-50 w-full max-w-7xl mx-auto px-6 py-6 flex justify-between items-center backdrop-blur-sm">
           <div className="flex items-center gap-2">
-              <div className="bg-indigo-600 p-1.5 rounded-lg shadow-lg shadow-indigo-500/20">
-                  <Box className="h-5 w-5 text-white" />
-              </div>
+              <img 
+                src="https://twfoqvxlhxhdulqchjbq.supabase.co/storage/v1/object/public/icon/invoice_logo.webp" 
+                alt="InvoicePort Logo" 
+                className="h-10 w-auto"
+              />
               <span className="text-xl font-bold tracking-tight">InvoicePort</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
@@ -430,7 +427,11 @@ const AuthPage = () => {
       <footer className="py-12 border-t border-white/5 bg-[#05080F]">
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex items-center gap-2 text-white">
-                  <Box className="h-5 w-5 text-indigo-500" />
+                  <img 
+                    src="https://twfoqvxlhxhdulqchjbq.supabase.co/storage/v1/object/public/icon/invoice_logo.webp" 
+                    alt="InvoicePort Logo" 
+                    className="h-5 w-auto"
+                  />
                   <span className="text-lg font-bold tracking-tight">InvoicePort</span>
               </div>
               <div className="text-sm text-slate-600">

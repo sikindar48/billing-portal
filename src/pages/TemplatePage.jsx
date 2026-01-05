@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Download, Layout, CheckCircle, Lock } from 'lucide-react';
+import { ArrowLeft, Loader2, Download, Layout, CheckCircle, Lock, CreditCard } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { supabase } from '../integrations/supabase/client';
@@ -83,7 +83,8 @@ const TemplatePage = () => {
             <div className="flex flex-col">
                 <span className="font-bold">Download Limit Reached</span>
                 <span className="text-xs">Free trial allows 5 downloads. Please upgrade.</span>
-            </div>
+            </div>,
+            { duration: 3000 }
         );
         return;
     }
@@ -99,10 +100,10 @@ const TemplatePage = () => {
           localStorage.setItem('pdf_download_count', newCount.toString());
       }
       
-      toast.success("PDF Downloaded Successfully!");
+      toast.success("PDF Downloaded Successfully!", { duration: 1500 });
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error("Failed to generate PDF.");
+      toast.error("Failed to generate PDF.", { duration: 2000 });
     } finally {
       setIsDownloading(false);
     }

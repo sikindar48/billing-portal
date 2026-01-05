@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 // Pages
 import Index from "./pages/Index";
@@ -26,10 +27,31 @@ import { navItems } from "./nav-items";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
+const App = () => {
+  // Handle auth state changes and redirects
+  useEffect(() => {
+    const handleAuthStateChange = async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        console.log('User signed in:', session.user.email);
+        // Redirect will be handled by ProtectedRoute
+      }
+    };
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster position="top-center" />
+      <Toaster 
+        position="top-center" 
+        duration={2000}
+        closeButton={true}
+        richColors={true}
+      />
       <BrowserRouter>
         <Routes>
           {/* --- Public Routes --- */}
@@ -90,5 +112,6 @@ const App = () => (
     </TooltipProvider>
   </QueryClientProvider>
 );
+};
 
 export default App;

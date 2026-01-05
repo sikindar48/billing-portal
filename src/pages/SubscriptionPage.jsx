@@ -100,7 +100,7 @@ const SubscriptionPage = () => {
 
         } catch (e) {
             console.error("Error loading subscription data:", e);
-            toast.error("Could not load plan details.");
+            toast.error("Could not load plan details.", { duration: 2000 });
         } finally {
             setLoading(false);
         }
@@ -110,7 +110,7 @@ const SubscriptionPage = () => {
 
   const handlePlanSelect = (plan) => {
     if (plan.slug === 'trial') {
-      toast.info('You are already on the free tier.');
+      toast.info('You are already on the free tier.', { duration: 1500 });
       return;
     }
     const planWithCycle = { ...plan, selectedCycle: billingCycle };
@@ -120,7 +120,7 @@ const SubscriptionPage = () => {
 
   const submitSubscriptionRequest = async () => {
       if (!requestMessage.trim()) {
-        toast.error("Please enter a brief note.");
+        toast.error("Please enter a brief note.", { duration: 2000 });
         return;
       }
       try {
@@ -138,12 +138,12 @@ const SubscriptionPage = () => {
                 status: 'pending'
              });
         }
-        toast.success("Request submitted! We'll contact you shortly.");
+        toast.success("Request submitted! We'll contact you shortly.", { duration: 2500 });
         setShowRequestDialog(false);
         setRequestMessage("");
       } catch(e) {
         console.error(e);
-        toast.success("Request received! We will contact you."); 
+        toast.success("Request received! We will contact you.", { duration: 2500 }); 
         setShowRequestDialog(false);
       }
   };

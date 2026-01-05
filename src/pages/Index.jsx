@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { sendWelcomeEmail } from '@/utils/emailService';
 import { formatCurrency } from '../utils/formatCurrency'; 
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import BillToSection from '../components/BillToSection';
@@ -134,19 +135,74 @@ const Index = () => {
             const { data: sub } = await supabase.from('user_subscriptions').select('*, subscription_plans(*)')
                 .eq('user_id', user.id).maybeSingle();
 
-            let daysLeft = 0;
-            if (sub?.current_period_end) {
-                const end = new Date(sub.current_period_end);
-                const now = new Date();
-                daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-            }
+            // D. Check if this is a newly confirmed user (no subscription yet)
+            if (!sub && user.email_confirmed_at) {
+                console.log('New user confirmed, creating trial subscription and sending welcome email...');
+                
+                // Create trial subscription for newly confirmed user
+                const trialEndDate = new Date();
+                trialEndDate.setDate(trialEndDate.getDate() + 3);
+                
+                const { error: subError } = await supabase.from('user_subscriptions').insert({
+                    user_id: user.id,
+                    plan_id: 1, 
+                    status: 'trialing',
+                    current_period_end: trialEndDate.toISOString()
+                });
 
-            setUsageStats({
-                count: sub?.invoice_usage_count || 0,
-                limit: sub?.subscription_plans?.slug === 'trial' ? 10 : 10000,
-                planName: sub?.subscription_plans?.name || 'Free Trial',
-                daysLeft: daysLeft > 0 ? daysLeft : 0
-            });
+                if (subError) {
+                    console.error('Failed to create trial subscription:', subError);
+                } else {
+                    console.log('Trial subscription created successfully');
+                    
+                    // Send welcome email via EmailJS
+                    try {
+                        const userName = user.user_metadata?.full_name || 'User';
+                        const emailResult = await sendWelcomeEmail(user.email, userName);
+                        
+                        if (emailResult.success) {
+                            console.log('✅ Welcome email sent successfully');
+                            toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
+                        } else {
+                            console.warn('❌ Welcome email failed:', emailResult.error);
+                        }
+                    } catch (emailError) {
+                        console.warn('❌ Welcome email error:', emailError);
+                    }
+                }
+                
+                // Refresh subscription data after creation
+                const { data: newSub } = await supabase.from('user_subscriptions').select('*, subscription_plans(*)')
+                    .eq('user_id', user.id).maybeSingle();
+                
+                if (newSub) {
+                    const end = new Date(newSub.current_period_end);
+                    const now = new Date();
+                    const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+                    
+                    setUsageStats({
+                        count: newSub.invoice_usage_count || 0,
+                        limit: 10,
+                        planName: 'Free Trial',
+                        daysLeft: daysLeft > 0 ? daysLeft : 0
+                    });
+                }
+            } else if (sub) {
+                // Existing user with subscription
+                let daysLeft = 0;
+                if (sub.current_period_end) {
+                    const end = new Date(sub.current_period_end);
+                    const now = new Date();
+                    daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+                }
+
+                setUsageStats({
+                    count: sub.invoice_usage_count || 0,
+                    limit: sub.subscription_plans?.slug === 'trial' ? 10 : 10000,
+                    planName: sub.subscription_plans?.name || 'Free Trial',
+                    daysLeft: daysLeft > 0 ? daysLeft : 0
+                });
+            }
 
         } catch (error) {
             console.error("Error initializing data:", error);
@@ -174,7 +230,7 @@ const Index = () => {
           setEnableRoundOff(data.enableRoundOff || false);
           setNotes(data.notes || "");
           setSelectedCurrency(data.selectedCurrency || "INR");
-          toast.info("Invoice details loaded from history.");
+          toast.info("Invoice details loaded from history.", { duration: 1500 });
           return;
       } 
       
@@ -291,7 +347,7 @@ const Index = () => {
     setIsSaving(true);
     
     if (!isAdmin && usageStats.count >= usageStats.limit) {
-        toast.error(<div className="flex flex-col gap-1"><span className="font-bold">Limit Reached (10/10)</span><span className="text-xs">Upgrade to create more.</span></div>);
+        toast.error(<div className="flex flex-col gap-1"><span className="font-bold">Limit Reached (10/10)</span><span className="text-xs">Upgrade to create more.</span></div>, { duration: 3000 });
         setIsSaving(false);
         return;
     }
@@ -299,7 +355,7 @@ const Index = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        toast.error('Please sign in to save invoices.');
+        toast.error('Please sign in to save invoices.', { duration: 2000 });
         setIsSaving(false);
         return;
       }
@@ -335,10 +391,10 @@ const Index = () => {
 
       await supabase.rpc('increment_invoice_usage');
       setUsageStats(prev => ({ ...prev, count: prev.count + 1 }));
-      toast.success('Invoice saved successfully!');
+      toast.success('Invoice saved successfully!', { duration: 2000 });
     } catch (error) {
       console.error("Error saving invoice:", error);
-      toast.error('Failed to save invoice');
+      toast.error('Failed to save invoice', { duration: 2000 });
     } finally {
       setIsSaving(false);
     }
