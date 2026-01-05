@@ -32,7 +32,7 @@ const App = () => (
       <Toaster position="top-center" />
       <BrowserRouter>
         <Routes>
-          {/* --- Public Route --- */}
+          {/* --- Public Routes --- */}
           <Route path="/auth" element={<AuthPage />} />
 
           {/* --- CORE FEATURES (Require Active Subscription) --- */}
