@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import Navigation from '@/components/Navigation';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, Users, TrendingUp, AlertCircle, Trash2, Inbox, Check, X, Settings, Calendar, Mail, Send } from 'lucide-react';
+import { Loader2, Users, AlertCircle, Trash2, Inbox, Check, X, Settings } from 'lucide-react';
 import { format, addMonths, addYears } from 'date-fns';
 import { toast } from 'sonner';
 import { sendOrderConfirmationEmail } from '@/utils/emailService';
@@ -182,13 +182,25 @@ const AdminDashboard = () => {
 
             // Only send emails for paid plans (plan_id > 1, assuming 1 is free trial)
             if (userEmail && request.plan_id > 1) {
+              // Determine pricing based on plan and billing cycle
+              let amountPaid = 'Custom Pricing';
+              let billingCycle = 'Custom';
+              
+              if (request.plan_id === 2) { // Pro plan
+                amountPaid = isYearly ? '₹1499' : '₹149';
+                billingCycle = isYearly ? 'Yearly' : 'Monthly';
+              } else if (request.plan_id === 3) { // Enterprise plan
+                amountPaid = 'Custom Pricing';
+                billingCycle = 'Custom';
+              }
+
               const orderDetails = {
                 orderNumber: `ORD-${Date.now()}`,
                 orderDate: new Date().toLocaleDateString(),
                 planName: request.subscription_plans.name,
-                amountPaid: isYearly ? '₹999' : '₹99',
+                amountPaid: amountPaid,
                 paymentMethod: 'Admin Approved',
-                billingCycle: isYearly ? 'Yearly' : 'Monthly',
+                billingCycle: billingCycle,
                 nextBillingDate: endDate.toLocaleDateString()
               };
               
@@ -256,13 +268,25 @@ const AdminDashboard = () => {
             if (userEmail && newDuration !== 'trial_reset' && parseInt(newPlan) > 1) {
               const newPlanName = getPlanNameById(newPlan);
               
+              // Determine pricing based on plan and billing cycle
+              let amountPaid = 'Custom Pricing';
+              let billingCycle = 'Custom';
+              
+              if (parseInt(newPlan) === 2) { // Pro plan
+                amountPaid = newDuration === 'monthly' ? '₹149' : '₹1499';
+                billingCycle = newDuration === 'monthly' ? 'Monthly' : 'Yearly';
+              } else if (parseInt(newPlan) === 3) { // Enterprise plan
+                amountPaid = 'Custom Pricing';
+                billingCycle = 'Custom';
+              }
+              
               const orderDetails = {
                 orderNumber: `UPG-${Date.now()}`,
                 orderDate: new Date().toLocaleDateString(),
                 planName: newPlanName,
-                amountPaid: newDuration === 'monthly' ? '₹99' : '₹999',
+                amountPaid: amountPaid,
                 paymentMethod: 'Admin Upgrade',
-                billingCycle: newDuration === 'monthly' ? 'Monthly' : 'Yearly',
+                billingCycle: billingCycle,
                 nextBillingDate: endDate.toLocaleDateString()
               };
               
