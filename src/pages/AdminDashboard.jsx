@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, Users, TrendingUp, AlertCircle, Trash2, Inbox, Check, X, Settings, Calendar } from 'lucide-react';
+import { Loader2, Users, TrendingUp, AlertCircle, Trash2, Inbox, Check, X, Settings, Calendar, Mail, Send } from 'lucide-react';
 import { format, addMonths, addYears } from 'date-fns';
 import { toast } from 'sonner';
+import { sendOrderConfirmationEmail } from '@/utils/emailService';
 
 const PLAN_OPTIONS = [
     { id: 1, name: 'Starter', slug: 'trial' },
@@ -102,6 +103,8 @@ const AdminDashboard = () => {
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
         
+      console.log('Fetched subscription requests:', { requestsData, requestsError });
+        
       if (requestsError) {
         console.warn("Error fetching requests:", requestsError);
         setRequests([]);
@@ -172,6 +175,31 @@ const AdminDashboard = () => {
           if (subError) throw subError;
           await supabase.from('subscription_requests').update({ status: 'approved' }).eq('id', request.id);
 
+          // Send order confirmation email only for paid plans
+          try {
+            const userName = request.profiles?.full_name || request.profiles?.email?.split('@')[0] || 'User';
+            const userEmail = request.profiles?.email;
+
+            // Only send emails for paid plans (plan_id > 1, assuming 1 is free trial)
+            if (userEmail && request.plan_id > 1) {
+              const orderDetails = {
+                orderNumber: `ORD-${Date.now()}`,
+                orderDate: new Date().toLocaleDateString(),
+                planName: request.subscription_plans.name,
+                amountPaid: isYearly ? '₹999' : '₹99',
+                paymentMethod: 'Admin Approved',
+                billingCycle: isYearly ? 'Yearly' : 'Monthly',
+                nextBillingDate: endDate.toLocaleDateString()
+              };
+              
+              await sendOrderConfirmationEmail(userEmail, userName, orderDetails);
+              console.log('Order confirmation email sent successfully');
+            }
+          } catch (emailError) {
+            console.warn('Failed to send order confirmation email:', emailError);
+            // Don't fail the approval if email fails
+          }
+
           toast.success(`Plan activated (${request.subscription_plans.name})`);
           fetchData();
       } catch (error) {
@@ -218,6 +246,34 @@ const AdminDashboard = () => {
 
           if (error) throw error;
 
+          // Send order confirmation email only for paid plan upgrades
+          try {
+            const userProfile = users.find(u => u.user_id === manageDialog.user.user_id);
+            const userName = userProfile?.full_name || userProfile?.email?.split('@')[0] || 'User';
+            const userEmail = userProfile?.email;
+
+            // Only send emails for paid plan upgrades (not free plans or trial resets)
+            if (userEmail && newDuration !== 'trial_reset' && parseInt(newPlan) > 1) {
+              const newPlanName = getPlanNameById(newPlan);
+              
+              const orderDetails = {
+                orderNumber: `UPG-${Date.now()}`,
+                orderDate: new Date().toLocaleDateString(),
+                planName: newPlanName,
+                amountPaid: newDuration === 'monthly' ? '₹99' : '₹999',
+                paymentMethod: 'Admin Upgrade',
+                billingCycle: newDuration === 'monthly' ? 'Monthly' : 'Yearly',
+                nextBillingDate: endDate.toLocaleDateString()
+              };
+              
+              await sendOrderConfirmationEmail(userEmail, userName, orderDetails);
+              console.log('Order confirmation email sent successfully');
+            }
+          } catch (emailError) {
+            console.warn('Failed to send email notification:', emailError);
+            // Don't fail the subscription update if email fails
+          }
+
           toast.success("Subscription updated successfully!");
           setManageDialog({ open: false, user: null });
           fetchData();
@@ -247,7 +303,6 @@ const AdminDashboard = () => {
       console.log('Attempting to delete user:', userId);
       
       // First try the RPC function (if it exists)
-      try {
         const { data, error } = await supabase.rpc('admin_delete_user', {
           target_user_id: userId
         });
@@ -258,12 +313,9 @@ const AdminDashboard = () => {
           setTimeout(() => fetchData(), 1000);
           return;
         }
-      } catch (rpcError) {
-        console.log('RPC function not available, using fallback method');
-      }
       
-      // Fallback: Delete what we can from client side
-      console.log('Using fallback deletion method');
+      // If RPC function doesn't work or doesn't exist, use fallback method
+      console.log('RPC function not available or failed, using fallback method');
       
       // Check if trying to delete another admin
       const { data: roleCheck } = await supabase
@@ -297,11 +349,11 @@ const AdminDashboard = () => {
       // Refresh data
       setTimeout(() => fetchData(), 1000);
       
-    } catch (error) { 
-      console.error("Delete error:", error);
-      toast.error(`Failed to delete user: ${error.message}`, { duration: 2500 }); 
-    } finally { 
-      setProcessingId(null); 
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast.error("Failed to delete user", { duration: 2000 });
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -355,6 +407,7 @@ const AdminDashboard = () => {
                             <tr>
                                 <th className="px-6 py-3">User</th>
                                 <th className="px-6 py-3">Requested Plan</th>
+                                <th className="px-6 py-3">Transaction ID</th>
                                 <th className="px-6 py-3">Notes</th>
                                 <th className="px-6 py-3">Date</th>
                                 <th className="px-6 py-3 text-right">Actions</th>
@@ -370,9 +423,28 @@ const AdminDashboard = () => {
                                     <td className="px-6 py-4 font-semibold text-indigo-600">
                                         {req.subscription_plans?.name || getPlanNameById(req.plan_id)}
                                     </td>
+                                    <td className="px-6 py-4">
+                                        {req.transaction_id ? (
+                                            <div className="flex items-center gap-2">
+                                                <code className="bg-green-50 text-green-800 px-2 py-1 rounded text-xs font-mono border border-green-200">
+                                                    {req.transaction_id}
+                                                </code>
+                                                <div className="w-2 h-2 bg-green-500 rounded-full" title="Payment Made"></div>
+                                            </div>
+                                        ) : req.message && req.message.includes('Transaction ID:') ? (
+                                            <div className="flex items-center gap-2">
+                                                <code className="bg-green-50 text-green-800 px-2 py-1 rounded text-xs font-mono border border-green-200">
+                                                    {req.message.match(/Transaction ID: ([^.]+)/)?.[1] || 'Found in message'}
+                                                </code>
+                                                <div className="w-2 h-2 bg-green-500 rounded-full" title="Payment Made"></div>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400 text-xs italic">No payment</span>
+                                        )}
+                                    </td>
                                     <td className="px-6 py-4 text-gray-600 max-w-xs truncate" title={req.message}>
                                         {/* Clean up message prefix */}
-                                        {req.message.replace(/Requesting Pro Plan \(.+\). Note: /, '') || 'No Message'}
+                                        {req.message.replace(/Requesting Pro Plan \(.+\). Note: /, '').replace(/Payment made for .+ Plan \(.+\)\. Amount: .+\. UPI ID: .+/, 'Payment verification request') || 'No Message'}
                                     </td>
                                     <td className="px-6 py-4 text-gray-500">{format(new Date(req.created_at), 'MMM dd')}</td>
                                     <td className="px-6 py-4 text-right">

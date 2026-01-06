@@ -1,10 +1,5 @@
 import emailjs from '@emailjs/browser';
 
-// Check if EmailJS is properly loaded
-if (!emailjs) {
-  console.error('EmailJS not loaded! Make sure @emailjs/browser is installed.');
-}
-
 // Initialize EmailJS with multiple template support
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
@@ -14,8 +9,18 @@ console.log('=== EMAILJS ENV VARS DEBUG ===');
 console.log('VITE_EMAILJS_SERVICE_ID:', import.meta.env.VITE_EMAILJS_SERVICE_ID);
 console.log('VITE_EMAILJS_PUBLIC_KEY:', import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
 console.log('VITE_EMAILJS_WELCOME_TEMPLATE_ID:', import.meta.env.VITE_EMAILJS_WELCOME_TEMPLATE_ID);
+console.log('VITE_EMAILJS_INVOICE_TEMPLATE_ID:', import.meta.env.VITE_EMAILJS_INVOICE_TEMPLATE_ID);
 console.log('Loaded Service ID:', EMAILJS_SERVICE_ID);
 console.log('Loaded Public Key:', EMAILJS_PUBLIC_KEY);
+
+// Check if EmailJS is properly loaded and initialize
+if (!emailjs) {
+  console.error('EmailJS not loaded! Make sure @emailjs/browser is installed.');
+} else {
+  // Initialize EmailJS with public key
+  emailjs.init(EMAILJS_PUBLIC_KEY);
+  console.log('EmailJS initialized with public key:', EMAILJS_PUBLIC_KEY);
+}
 
 // Multiple Template IDs for different email types
 const TEMPLATES = {
@@ -23,7 +28,7 @@ const TEMPLATES = {
   CONFIRMATION: import.meta.env.VITE_EMAILJS_CONFIRMATION_TEMPLATE_ID,
   PASSWORD_RESET: import.meta.env.VITE_EMAILJS_PASSWORD_RESET_TEMPLATE_ID,
   SUBSCRIPTION: import.meta.env.VITE_EMAILJS_SUBSCRIPTION_TEMPLATE_ID,
-  INVOICE: import.meta.env.VITE_EMAILJS_INVOICE_TEMPLATE_ID,
+  ORDER_CONFIRMATION: import.meta.env.VITE_EMAILJS_ORDER_CONFIRMATION_TEMPLATE_ID,
   PAYMENT_CONFIRMATION: import.meta.env.VITE_EMAILJS_PAYMENT_CONFIRMATION_TEMPLATE_ID
 };
 
@@ -73,8 +78,7 @@ const sendEmail = async (templateType, templateParams) => {
     const result = await emailjs.send(
       EMAILJS_SERVICE_ID,
       TEMPLATES[templateType],
-      templateParams,
-      EMAILJS_PUBLIC_KEY
+      templateParams
     );
 
     console.log(`${templateType} email SUCCESS:`, result);
@@ -114,20 +118,27 @@ export const testEmailJSConnection = async () => {
       return { success: false, error: 'Welcome template ID not configured' };
     }
 
+    // Re-initialize EmailJS to be sure
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+
     // Test with minimal template parameters
     const testParams = {
       to_email: 'test@example.com',
       to_name: 'Test User',
-      company_name: 'InvoicePort'
+      company_name: 'InvoicePort',
+      app_url: window.location.origin,
+      support_email: 'support.invoiceport@gmail.com',
+      current_year: new Date().getFullYear()
     };
 
     console.log('Sending test email with params:', testParams);
+    console.log('Using service:', EMAILJS_SERVICE_ID);
+    console.log('Using template:', TEMPLATES.WELCOME);
 
     const result = await emailjs.send(
       EMAILJS_SERVICE_ID,
       TEMPLATES.WELCOME,
-      testParams,
-      EMAILJS_PUBLIC_KEY
+      testParams
     );
 
     console.log('EmailJS test SUCCESS:', result);
@@ -210,20 +221,34 @@ export const sendSubscriptionConfirmationEmail = async (userEmail, userName, pla
   return await sendEmail('SUBSCRIPTION', templateParams);
 };
 
-export const sendInvoiceEmail = async (userEmail, userName, invoiceNumber, amount, invoiceUrl) => {
-  const templateParams = {
-    to_email: userEmail,
-    to_name: userName,
-    invoice_number: invoiceNumber,
-    amount: amount,
-    invoice_url: invoiceUrl,
-    company_name: 'InvoicePort',
-    app_url: window.location.origin,
-    support_email: 'support.invoiceport@gmail.com',
-    current_year: new Date().getFullYear()
-  };
+export const sendOrderConfirmationEmail = async (userEmail, userName, orderDetails) => {
+  try {
+    console.log('=== SENDING ORDER CONFIRMATION EMAIL ===');
+    console.log('Customer Email:', userEmail);
+    console.log('Order Details:', orderDetails);
 
-  return await sendEmail('INVOICE', templateParams);
+    const templateParams = {
+      to_email: userEmail,
+      to_name: userName,
+      order_number: orderDetails.orderNumber,
+      order_date: orderDetails.orderDate,
+      plan_name: orderDetails.planName,
+      amount_paid: orderDetails.amountPaid,
+      payment_method: orderDetails.paymentMethod || 'UPI',
+      billing_cycle: orderDetails.billingCycle || 'Monthly',
+      next_billing_date: orderDetails.nextBillingDate,
+      company_name: 'InvoicePort',
+      company_email: 'support.invoiceport@gmail.com',
+      current_year: new Date().getFullYear()
+    };
+
+    console.log('Sending order confirmation email with template params:', templateParams);
+
+    return await sendEmail('ORDER_CONFIRMATION', templateParams);
+  } catch (error) {
+    console.error('Error sending order confirmation email:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 export const sendPaymentConfirmationEmail = async (userEmail, userName, planName, amount, paymentMethod = 'UPI') => {

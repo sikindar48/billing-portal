@@ -79,21 +79,83 @@ const BrandingSettings = () => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}-${Date.now()}.${fileExt}`; 
       
-      const { error: uploadError } = await supabase.storage
-        .from('logos')
+      // First, try to upload to the icon bucket
+      let uploadError = null;
+      let { error } = await supabase.storage
+        .from('icon')
         .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
+      
+      uploadError = error;
+      
+      // If bucket doesn't exist, try to create it
+      if (uploadError && uploadError.message && uploadError.message.includes('not found')) {
+        console.log('Icon bucket not found, attempting to create it...');
+        
+        try {
+          // Try to create the bucket
+          const { error: bucketError } = await supabase.storage.createBucket('icon', {
+            public: true,
+            allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
+            fileSizeLimit: 1024 * 1024 // 1MB limit
+          });
+          
+          if (bucketError) {
+            console.warn('Could not create bucket:', bucketError);
+            // If we can't create the bucket, try alternative bucket names
+            const alternativeBuckets = ['logos', 'images', 'uploads'];
+            
+            for (const bucketName of alternativeBuckets) {
+              console.log(`Trying alternative bucket: ${bucketName}`);
+              const { error: altError } = await supabase.storage
+                .from(bucketName)
+                .upload(fileName, file, { upsert: true });
+              
+              if (!altError) {
+                const { data: { publicUrl } } = supabase.storage
+                  .from(bucketName)
+                  .getPublicUrl(fileName);
+                
+                setLogoUrl(publicUrl);
+                toast.success(`Logo uploaded successfully to ${bucketName} bucket!`, { duration: 2000 });
+                return;
+              }
+            }
+            
+            // If all alternatives fail, throw the original error
+            throw new Error('No available storage bucket found. Please create an "icon" bucket in Supabase Storage.');
+          } else {
+            console.log('Icon bucket created successfully, retrying upload...');
+            // Retry upload after creating bucket
+            const { error: retryError } = await supabase.storage
+              .from('icon')
+              .upload(fileName, file, { upsert: true });
+            
+            if (retryError) throw retryError;
+          }
+        } catch (bucketCreationError) {
+          console.error('Bucket creation failed:', bucketCreationError);
+          throw new Error('Failed to create storage bucket. Please create an "icon" bucket manually in Supabase Storage.');
+        }
+      } else if (uploadError) {
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
-        .from('logos')
+        .from('icon')
         .getPublicUrl(fileName);
 
       setLogoUrl(publicUrl);
       toast.success('Logo uploaded successfully!', { duration: 2000 });
     } catch (error) {
-      console.error(error);
-      toast.error('Failed to upload logo. Check if the "logos" bucket exists.', { duration: 2500 });
+      console.error('Logo upload error:', error);
+      
+      if (error.message && error.message.includes('bucket')) {
+        toast.error('Storage bucket not found. Please create an "icon" bucket in Supabase Storage.', { duration: 4000 });
+      } else if (error.message && error.message.includes('permission')) {
+        toast.error('Permission denied. Please check your Supabase storage policies.', { duration: 4000 });
+      } else {
+        toast.error(`Failed to upload logo: ${error.message}`, { duration: 3000 });
+      }
     } finally {
       setUploading(false);
     }

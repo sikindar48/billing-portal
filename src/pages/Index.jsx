@@ -49,7 +49,7 @@ const getInitialItems = () => ([{ name: "", description: "", quantity: 0, amount
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSaving, setIsSaving] = useState(false); 
+  const [isSaving, setIsSaving] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false); 
   const [isAdmin, setIsAdmin] = useState(false);
   const [userId, setUserId] = useState(null); // Store user ID for DB calls

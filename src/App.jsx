@@ -5,25 +5,20 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-// Pages
-import Index from "./pages/Index";
+// Import components
 import AuthPage from "./pages/AuthPage";
-import TemplatePage from "./pages/TemplatePage";
-import BrandingSettings from "./pages/BrandingSettings";
-import InvoiceHistory from "./pages/InvoiceHistory";
-import SubscriptionPage from "./pages/SubscriptionPage";
+import Index from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
-import ProductInventory from "./pages/ProductInventory"; 
-import Statistics from "./pages/Statistics"; 
+import BrandingSettings from "./pages/BrandingSettings";
+import ConfirmEmail from "./pages/ConfirmEmail";
+import InvoiceHistory from "./pages/InvoiceHistory";
+import ProductInventory from "./pages/ProductInventory";
 import Profile from "./pages/Profile";
-
-// Components
+import Statistics from "./pages/Statistics";
+import SubscriptionPage from "./pages/SubscriptionPage";
+import TemplatePage from "./pages/TemplatePage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SubscriptionGuard from "./components/SubscriptionGuard";
-import AdminGuard from "./components/AdminGuard";
-
-// Navigation Items (Optional fallback)
-import { navItems } from "./nav-items"; 
 
 const queryClient = new QueryClient();
 
@@ -33,85 +28,133 @@ const App = () => {
     const handleAuthStateChange = async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         console.log('User signed in:', session.user.email);
-        // Redirect will be handled by ProtectedRoute
       }
     };
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-
-    return () => subscription?.unsubscribe();
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+      return () => subscription?.unsubscribe();
+    } catch (error) {
+      console.error('Error setting up auth listener:', error);
+    }
   }, []);
+
+  console.log('App component rendering...');
 
   return (
     <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster 
-        position="top-center" 
-        duration={2000}
-        closeButton={true}
-        richColors={true}
-      />
-      <BrowserRouter>
-        <Routes>
-          {/* --- Public Routes --- */}
-          <Route path="/auth" element={<AuthPage />} />
-
-          {/* --- CORE FEATURES (Require Active Subscription) --- */}
-          <Route 
-            path="/" 
-            element={
-              <ProtectedRoute>
-                <SubscriptionGuard>
-                  <Index />
-                </SubscriptionGuard>
-              </ProtectedRoute>
-            } 
-          />
-          
-          <Route 
-            path="/template" 
-            element={
-              <ProtectedRoute>
-                <SubscriptionGuard>
-                  <TemplatePage />
-                </SubscriptionGuard>
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* --- ADMIN ROUTE --- */}
-          <Route 
-            path="/admin" 
-            element={
-              <ProtectedRoute>
-                <AdminGuard>
+      <TooltipProvider>
+        <Toaster 
+          position="top-center" 
+          duration={2000}
+          closeButton={true}
+          richColors={true}
+        />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/confirm-email" element={<ConfirmEmail />} />
+            
+            {/* Protected Routes */}
+            <Route 
+              path="/" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <Index />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
                   <AdminDashboard />
-                </AdminGuard>
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* --- SETTINGS & UTILITY (Accessible to all logged-in users) --- */}
-          <Route path="/inventory" element={<ProtectedRoute><ProductInventory /></ProtectedRoute>} />
-          <Route path="/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
-          <Route path="/branding" element={<ProtectedRoute><BrandingSettings /></ProtectedRoute>} />
-          <Route path="/invoice-history" element={<ProtectedRoute><InvoiceHistory /></ProtectedRoute>} />
-          <Route path="/subscription" element={<ProtectedRoute><SubscriptionPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-
-          {/* Dynamic Routes from navItems */}
-          {navItems.map(({ to, page }) => (
-            <Route key={to} path={to} element={<ProtectedRoute>{page}</ProtectedRoute>} />
-          ))}
-
-          {/* Catch-all Redirect */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/branding" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <BrandingSettings />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/inventory" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <ProductInventory />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/statistics" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <Statistics />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/profile" 
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/subscription" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/invoice-history" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <InvoiceHistory />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/template" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <TemplatePage />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
 };
 
 export default App;

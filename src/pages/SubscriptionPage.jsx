@@ -4,11 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Check, Sparkles, Crown, Zap, Loader2, ChevronLeft, Star, AlertTriangle, ShieldCheck, Mail, Info, CalendarClock } from 'lucide-react';
+import { Check, Sparkles, Crown, Zap, Loader2, ChevronLeft, Star, AlertTriangle, ShieldCheck, Mail, Info, CalendarClock, QrCode, Copy, CreditCard, Smartphone } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 
 const SubscriptionSkeleton = () => (
   <div className="min-h-screen bg-slate-50">
@@ -42,7 +45,11 @@ const SubscriptionPage = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [requestMessage, setRequestMessage] = useState('');
   const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly'); 
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [transactionId, setTransactionId] = useState('');
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   
   const [hoveredPlanId, setHoveredPlanId] = useState(null);
 
@@ -108,14 +115,50 @@ const SubscriptionPage = () => {
     fetchData();
   }, [billingCycle]);
 
-  const handlePlanSelect = (plan) => {
+  const handlePlanSelect = async (plan) => {
     if (plan.slug === 'trial') {
       toast.info('You are already on the free tier.', { duration: 1500 });
       return;
     }
+    
+    if (plan.id === 'enterprise') {
+      // For enterprise, show the request dialog
+      const planWithCycle = { ...plan, selectedCycle: billingCycle };
+      setSelectedPlan(planWithCycle);
+      setShowRequestDialog(true);
+      return;
+    }
+    
+    // For Pro plan, show payment dialog with QR code
     const planWithCycle = { ...plan, selectedCycle: billingCycle };
     setSelectedPlan(planWithCycle);
-    setShowRequestDialog(true);
+    
+    // Generate UPI QR code
+    try {
+      const amount = plan.price;
+      const upiId = 'invoiceport@ybl';
+      const merchantName = 'InvoicePort';
+      const transactionNote = `${plan.name} Plan - ${billingCycle}`;
+      
+      // UPI URL format
+      const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+      
+      // Generate QR code
+      const qrDataUrl = await QRCode.toDataURL(upiUrl, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      
+      setQrCodeUrl(qrDataUrl);
+      setShowPaymentDialog(true);
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      toast.error('Failed to generate payment QR code', { duration: 2000 });
+    }
   };
 
   const submitSubscriptionRequest = async () => {
@@ -146,6 +189,76 @@ const SubscriptionPage = () => {
         toast.success("Request received! We will contact you.", { duration: 2500 }); 
         setShowRequestDialog(false);
       }
+  };
+
+  const submitPaymentVerification = async () => {
+    if (!transactionId.trim()) {
+      toast.error("Please enter your transaction ID.", { duration: 2000 });
+      return;
+    }
+    
+    setIsSubmittingPayment(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Map UI IDs to DB IDs
+        let dbPlanId = 2; // Pro plan
+        
+        const message = `Payment made for ${selectedPlan.name} Plan (${billingCycle}). Amount: ₹${selectedPlan.price}. Transaction ID: ${transactionId.trim()}. UPI ID: invoiceport@ybl`;
+        
+        console.log('Submitting payment verification:', {
+          user_id: user.id,
+          plan_id: dbPlanId,
+          message: message,
+          status: 'pending'
+        });
+        
+        // Try with transaction_id column first, fallback to message only
+        let insertData = {
+          user_id: user.id,
+          plan_id: dbPlanId,
+          message: message,
+          status: 'pending'
+        };
+        
+        // Try to add transaction_id if column exists
+        try {
+          insertData.transaction_id = transactionId.trim();
+          const { data, error } = await supabase.from('subscription_requests').insert(insertData);
+          
+          if (error) throw error;
+          console.log('Payment verification submitted successfully with transaction_id:', data);
+        } catch (dbError) {
+          // If transaction_id column doesn't exist, try without it
+          if (dbError.message && dbError.message.includes('transaction_id')) {
+            console.log('transaction_id column not found, submitting without it');
+            delete insertData.transaction_id;
+            const { data, error } = await supabase.from('subscription_requests').insert(insertData);
+            
+            if (error) throw error;
+            console.log('Payment verification submitted successfully without transaction_id:', data);
+          } else {
+            throw dbError;
+          }
+        }
+        
+        toast.success("Payment verification submitted! We'll activate your plan within 24 hours.", { duration: 4000 });
+        setShowPaymentDialog(false);
+        setTransactionId("");
+        setQrCodeUrl("");
+      }
+    } catch (error) {
+      console.error('Error submitting payment verification:', error);
+      toast.error("Failed to submit payment verification. Please try again.", { duration: 3000 });
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  const copyUpiId = () => {
+    navigator.clipboard.writeText('invoiceport@ybl');
+    toast.success('UPI ID copied to clipboard!', { duration: 1500 });
   };
 
   const getIconBgClass = (color, isActive, isEnterprise) => {
@@ -414,6 +527,124 @@ const SubscriptionPage = () => {
                 <Button variant="ghost" onClick={() => setShowRequestDialog(false)} className="w-full sm:w-auto text-slate-500 hover:text-slate-800 hover:bg-slate-100 h-10">Cancel</Button>
                 <Button onClick={submitSubscriptionRequest} className={`w-full sm:w-auto text-white font-semibold shadow-lg ${selectedPlan?.id === 'enterprise' ? 'bg-slate-800 hover:bg-slate-700' : 'bg-indigo-600 hover:bg-indigo-700'} h-10`}>
                     Send Request
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- PAYMENT DIALOG WITH QR CODE --- */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-md bg-white p-0 overflow-hidden rounded-2xl gap-0 border-0 shadow-2xl">
+            <div className="p-4 text-center bg-green-600">
+                <div className="mx-auto bg-white/20 h-10 w-10 rounded-full flex items-center justify-center mb-2 backdrop-blur-sm">
+                    <QrCode className="h-5 w-5 text-white" />
+                </div>
+                <DialogTitle className="text-base text-white mb-0.5">
+                    Complete Payment
+                </DialogTitle>
+                <DialogDescription className="text-green-100 text-xs">
+                    Scan QR code or pay using UPI ID
+                </DialogDescription>
+            </div>
+            
+            <div className="p-4 space-y-4">
+                {/* Plan Details - Compact */}
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex justify-between items-center">
+                    <div>
+                        <p className="text-xs font-medium text-slate-500">{selectedPlan?.name}</p>
+                        <p className="text-xs text-slate-400">{billingCycle === 'monthly' ? 'Monthly' : 'Yearly'}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-lg font-bold text-green-600">₹{selectedPlan?.price}</p>
+                    </div>
+                </div>
+
+                {/* QR Code Section - Reduced Size */}
+                <div className="text-center space-y-3">
+                    <div className="flex items-center justify-center">
+                        <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                            {qrCodeUrl && (
+                              <img 
+                                src={qrCodeUrl} 
+                                alt="UPI Payment QR Code" 
+                                className="w-32 h-32"
+                              />
+                            )}
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <p className="text-xs font-medium text-slate-600">Or pay using UPI ID:</p>
+                        <div className="flex items-center justify-center gap-2 bg-slate-50 p-2 rounded-lg border">
+                            <Smartphone className="w-3 h-3 text-slate-500" />
+                            <code className="font-mono text-xs font-bold text-slate-900">invoiceport@ybl</code>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={copyUpiId}
+                              className="h-5 w-5 p-0 hover:bg-slate-200"
+                            >
+                              <Copy className="w-2.5 h-2.5" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Transaction ID Input - Compact */}
+                <div className="space-y-2 border-t pt-3">
+                    <div className="bg-blue-50 p-2 rounded-lg border border-blue-200">
+                        <div className="flex items-start gap-2">
+                            <Info className="w-3 h-3 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-xs text-blue-800">
+                                <p className="font-medium">After payment, enter your transaction ID for verification.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                        <Label htmlFor="transactionId" className="text-xs font-semibold text-slate-700">
+                            Transaction ID *
+                        </Label>
+                        <Input
+                            id="transactionId"
+                            value={transactionId}
+                            onChange={(e) => setTransactionId(e.target.value)}
+                            placeholder="Enter UPI transaction ID"
+                            className="h-8 text-sm border-slate-200 focus:border-green-500 focus:ring-green-500"
+                        />
+                    </div>
+                </div>
+            </div>
+            
+            <DialogFooter className="p-4 pt-0 sm:justify-between gap-2 bg-white">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => {
+                    setShowPaymentDialog(false);
+                    setTransactionId('');
+                    setQrCodeUrl('');
+                  }} 
+                  className="w-full sm:w-auto text-slate-500 hover:text-slate-800 hover:bg-slate-100 h-8 text-xs"
+                  disabled={isSubmittingPayment}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={submitPaymentVerification} 
+                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold shadow-lg h-8 text-xs"
+                  disabled={isSubmittingPayment || !transactionId.trim()}
+                >
+                  {isSubmittingPayment ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-3 h-3 mr-1" />
+                      Verify Payment
+                    </>
+                  )}
                 </Button>
             </DialogFooter>
         </DialogContent>
