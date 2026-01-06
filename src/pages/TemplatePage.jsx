@@ -8,6 +8,7 @@ import InvoiceTemplate from '../components/InvoiceTemplate';
 import { generatePDF } from '../utils/pdfGenerator';
 import { templates } from '../utils/templateRegistry';
 import Navigation from '../components/Navigation';
+import SEO from '../components/SEO';
 
 const TemplatePage = () => {
   const location = useLocation();
@@ -122,7 +123,15 @@ const TemplatePage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <>
+      <SEO 
+        title="Invoice Templates - Professional Designs | Invoice Port"
+        description="Choose from professional invoice templates designed for Indian businesses. Customizable layouts with GST support, branding options, and PDF export. Preview and download instantly."
+        keywords="invoice templates, professional invoice designs, GST invoice templates, customizable invoices, invoice layouts, PDF invoice templates"
+        canonicalUrl="/template"
+        noIndex={true}
+      />
+      <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navigation />
       
       <div className="flex-1 container mx-auto px-4 py-8 max-w-7xl h-[calc(100vh-80px)]">
@@ -246,6 +255,7 @@ const TemplatePage = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

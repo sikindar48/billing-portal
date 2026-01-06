@@ -10,6 +10,7 @@ import ShipToSection from '../components/ShipToSection';
 import ItemDetails from "../components/ItemDetails";
 import { templates } from "../utils/templateRegistry";
 import TemplatePreview from '../components/TemplatePreview';
+import SEO from '../components/SEO';
 import { FiEdit, FiTrash2, FiLayers } from "react-icons/fi"; 
 import { RefreshCw, Save, Loader2, DollarSign, User, FileText, ShoppingBag, StickyNote, Clock, AlertCircle, ShieldCheck, ToggleRight, ToggleLeft } from "lucide-react"; 
 import Navigation from '../components/Navigation';
@@ -578,6 +579,36 @@ const Index = () => {
 
   return (
     <>
+      <SEO 
+        title="Invoice Port - Create Professional Invoices Online | Free Invoice Generator"
+        description="Generate professional invoices instantly with Invoice Port. Free invoice maker with customizable templates, PDF export, tax calculations, and client management. Perfect for freelancers and small businesses."
+        keywords="invoice generator, free invoice maker, professional invoices, PDF invoice, billing software, freelancer invoicing, business invoicing, invoice templates, online billing, tax calculator"
+        canonicalUrl="/"
+        structuredData={{
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "Invoice Port",
+          "description": "Professional invoice generator for freelancers and businesses",
+          "url": "https://invoiceport.netlify.app",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web Browser",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR",
+            "description": "Free trial with premium plans starting at ₹149/month"
+          },
+          "featureList": [
+            "Professional invoice templates",
+            "PDF export and download",
+            "Client and billing management",
+            "Tax calculations (GST, IGST, CGST+SGST)",
+            "Multi-currency support",
+            "Invoice history and tracking",
+            "Custom branding and logos"
+          ]
+        }}
+      />
       <Navigation /> 
       <div className="bg-slate-50 min-h-screen font-sans text-gray-900 pb-20">
         <div className="container mx-auto px-4 py-8 max-w-7xl">          

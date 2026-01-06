@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Check, Sparkles, Crown, Zap, Loader2, ChevronLeft, Star, AlertTriangle, ShieldCheck, Mail, Info, CalendarClock, QrCode, Copy, CreditCard, Smartphone } from 'lucide-react';
 import Navigation from '@/components/Navigation';
+import SEO from '@/components/SEO';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
@@ -296,7 +297,36 @@ const SubscriptionPage = () => {
   const statusText = isExpired ? 'Expired' : currentSubscription?.status || 'Inactive';
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 selection:bg-indigo-100">
+    <>
+      <SEO 
+        title="Subscription Plans - Invoice Port | Choose Your Billing Plan"
+        description="Choose the perfect Invoice Port subscription plan for your business. Free trial, Pro monthly (₹149), Pro yearly (₹1499), and Enterprise plans available. Upgrade your invoicing today."
+        keywords="invoice port pricing, subscription plans, billing plans, pro plan, enterprise invoicing, invoice software pricing, monthly billing, yearly billing"
+        canonicalUrl="/subscription"
+        structuredData={{
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": "Invoice Port Subscription Plans",
+          "description": "Professional invoicing software with flexible pricing plans",
+          "offers": [
+            {
+              "@type": "Offer",
+              "name": "Pro Monthly",
+              "price": "149",
+              "priceCurrency": "INR",
+              "billingIncrement": "P1M"
+            },
+            {
+              "@type": "Offer", 
+              "name": "Pro Yearly",
+              "price": "1499",
+              "priceCurrency": "INR",
+              "billingIncrement": "P1Y"
+            }
+          ]
+        }}
+      />
+      <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 selection:bg-indigo-100">
       <Navigation />
       
       <div className="container mx-auto px-4 py-12 max-w-7xl">
@@ -658,6 +688,7 @@ const SubscriptionPage = () => {
         .animate-fade-in-down { animation: fadeInDown 0.6s ease-out forwards; }
       `}</style>
     </div>
+    </>
   );
 };
 

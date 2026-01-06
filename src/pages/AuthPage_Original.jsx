@@ -10,8 +10,7 @@ import SEO from '@/components/SEO';
 import { 
   Loader2, Mail, Lock, ArrowRight, LayoutDashboard, CheckCircle2, 
   Zap, ShieldCheck, Smartphone, Globe, BarChart3, FileText, Box, 
-  Star, Check, Layers, Repeat, CreditCard, User, Eye, EyeOff,
-  Clock, Rocket, Palette, Settings, Users
+  Star, Check, Layers, Repeat, CreditCard, User, Eye, EyeOff
 } from 'lucide-react';
 
 // --- 3D TILT COMPONENT ---
@@ -51,28 +50,6 @@ const TiltCard = ({ children, className = "" }) => {
       {children}
     </div>
   );
-};
-
-// Helper for Feature Cards
-const FeatureCard = ({ icon, title, desc, color }) => {
-    const colorMap = {
-        indigo: "text-indigo-400 bg-indigo-500/10",
-        emerald: "text-emerald-400 bg-emerald-500/10",
-        blue: "text-blue-400 bg-blue-500/10",
-        purple: "text-purple-400 bg-purple-500/10",
-        orange: "text-orange-400 bg-orange-500/10",
-        pink: "text-pink-400 bg-pink-500/10"
-    };
-
-    return (
-        <div className="group p-6 rounded-3xl border border-white/5 bg-slate-900/50 hover:bg-slate-800/50 hover:border-white/10 transition-all duration-300">
-            <div className={`mb-4 inline-flex items-center justify-center p-3 rounded-xl ${colorMap[color]} transition-transform duration-300 group-hover:scale-110`}>
-                {icon}
-            </div>
-            <h4 className="text-lg font-bold text-white mb-3">{title}</h4>
-            <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
-        </div>
-    );
 };
 
 const AuthPage = () => {
@@ -204,7 +181,6 @@ const AuthPage = () => {
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
               <button onClick={() => scrollToSection('features')} className="hover:text-white transition-colors">Features</button>
-              <button onClick={() => scrollToSection('how-it-works')} className="hover:text-white transition-colors">How It Works</button>
               <button onClick={() => scrollToSection('pricing')} className="hover:text-white transition-colors">Pricing</button>
               <Button 
                   variant="ghost" 
@@ -342,7 +318,7 @@ const AuthPage = () => {
           </div>
       </div>
 
-      {/* --- FEATURES SECTION --- */}
+      {/* --- FEATURES SECTION (Unchanged) --- */}
       <section id="features" className="py-32 relative">
           <div className="max-w-7xl mx-auto px-6">
               <div className="text-center mb-24">
@@ -364,133 +340,8 @@ const AuthPage = () => {
           </div>
       </section>
 
-      {/* --- HOW IT WORKS SECTION --- */}
-      <section id="how-it-works" className="py-32 relative bg-gradient-to-b from-[#0B0F19] to-slate-900/50">
-          <div className="max-w-7xl mx-auto px-6">
-              <div className="text-center mb-20">
-                  <h2 className="text-indigo-400 font-semibold tracking-widest uppercase text-sm mb-3">Simple Process</h2>
-                  <h3 className="text-3xl md:text-5xl font-bold text-white mb-6">Set up once, use forever.</h3>
-                  <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                      Our smart system learns your business preferences and automates everything for you.
-                  </p>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-16">
-                  {/* Step 1 */}
-                  <div className="relative group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-blue-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-indigo-500/30 transition-all">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center">
-                                  <Settings className="w-6 h-6 text-white" />
-                              </div>
-                              <h4 className="text-xl font-bold text-white">Brand Setup</h4>
-                          </div>
-                          <div className="space-y-4 text-slate-300">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Upload your company logo</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Add business contact details</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Choose your preferred template</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Set payment terms & methods</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div className="relative group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-purple-500/30 transition-all">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                                  <Users className="w-6 h-6 text-white" />
-                              </div>
-                              <h4 className="text-xl font-bold text-white">Client & Service Management</h4>
-                          </div>
-                          <div className="space-y-4 text-slate-300">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Add client information once</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Create product/service catalog</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Set standard pricing & rates</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Configure tax settings</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="relative group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-emerald-500/30 transition-all">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-                                  <Rocket className="w-6 h-6 text-white" />
-                              </div>
-                              <h4 className="text-xl font-bold text-white">Generate & Send</h4>
-                          </div>
-                          <div className="space-y-4 text-slate-300">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Select client & services</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Add items - prices auto-populate</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Review & send via email</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Download PDF instantly</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-
-              {/* Call to Action */}
-              <div className="text-center mt-20">
-                  <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-gradient-to-r from-indigo-950/80 to-purple-950/80 border border-indigo-500/30 mb-6">
-                      <Clock className="w-5 h-5 text-indigo-400" />
-                      <span className="text-indigo-300 font-medium">Save 5+ hours per week</span>
-                  </div>
-                  <p className="text-slate-400 text-lg mb-8">
-                      Stop manually creating invoices. Let our system handle the repetitive work while you focus on growing your business.
-                  </p>
-                  <Button 
-                      onClick={focusSignup}
-                      className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all"
-                  >
-                      <span className="mr-2">Start Your Free Trial</span>
-                      <ArrowRight className="w-5 h-5" />
-                  </Button>
-              </div>
-          </div>
-      </section>
-
-      {/* --- PRICING SECTION --- */}
+      {/* --- REDESIGNED PRICING SECTION --- */}
       <section id="pricing" className="py-32 relative bg-gradient-to-b from-[#0B0F19] to-black">
           <div className="max-w-7xl mx-auto px-6">
               <div className="text-center mb-20">
@@ -580,7 +431,8 @@ const AuthPage = () => {
           </div>
       </section>
 
-      {/* --- FOOTER --- */}
+
+      {/* --- FOOTER (Unchanged) --- */}
       <footer className="py-12 border-t border-white/5 bg-[#05080F]">
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex items-center gap-2 text-white">
@@ -599,6 +451,28 @@ const AuthPage = () => {
     </div>
     </>
   );
+};
+
+// Helper for Feature Cards (Unchanged)
+const FeatureCard = ({ icon, title, desc, color }) => {
+    const colorMap = {
+        indigo: "text-indigo-400 bg-indigo-500/10",
+        emerald: "text-emerald-400 bg-emerald-500/10",
+        blue: "text-blue-400 bg-blue-500/10",
+        purple: "text-purple-400 bg-purple-500/10",
+        orange: "text-orange-400 bg-orange-500/10",
+        pink: "text-pink-400 bg-pink-500/10"
+    };
+
+    return (
+        <div className="group p-6 rounded-3xl border border-white/5 bg-slate-900/50 hover:bg-slate-800/50 hover:border-white/10 transition-all duration-300">
+            <div className={`mb-4 inline-flex items-center justify-center p-3 rounded-xl ${colorMap[color]} transition-transform duration-300 group-hover:scale-110`}>
+                {icon}
+            </div>
+            <h4 className="text-lg font-bold text-white mb-3">{title}</h4>
+            <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
+        </div>
+    );
 };
 
 export default AuthPage;

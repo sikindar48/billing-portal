@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HelmetProvider } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
 
 // Import components
@@ -42,15 +43,16 @@ const App = () => {
   console.log('App component rendering...');
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster 
-          position="top-center" 
-          duration={2000}
-          closeButton={true}
-          richColors={true}
-        />
-        <BrowserRouter>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster 
+            position="top-center" 
+            duration={2000}
+            closeButton={true}
+            richColors={true}
+          />
+          <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/confirm-email" element={<ConfirmEmail />} />
@@ -154,6 +156,7 @@ const App = () => {
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
+    </HelmetProvider>
   );
 };
 
