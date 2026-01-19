@@ -75,7 +75,7 @@ const Navigation = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (event === 'SIGNED_OUT') {
-        navigate('/auth');
+        navigate('/');
         setIsAdmin(false);
       }
     });
@@ -124,7 +124,7 @@ const Navigation = () => {
                 </Button>
             )}
             
-            <Button variant="ghost" onClick={() => navigate('/')} className={getNavButtonClass('/')} title="Dashboard">
+            <Button variant="ghost" onClick={() => navigate('/dashboard')} className={getNavButtonClass('/dashboard')} title="Dashboard">
               <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
             </Button>
 

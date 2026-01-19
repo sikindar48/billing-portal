@@ -70,6 +70,7 @@ const Template1 = ({ data }) => {
             <p className="font-medium">{billTo.name}</p>
             <p className="text-sm">{billTo.address}</p>
             <p className="text-sm">{billTo.phone}</p>
+            {billTo.email && <p className="text-sm">{billTo.email}</p>}
           </div>
           <div>
             <h3 className="font-semibold text-lg text-gray-700 mb-1">Ship To:</h3>

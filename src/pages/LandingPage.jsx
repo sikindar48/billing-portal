@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { sendOTP } from '@/utils/otpService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,8 @@ import SEO from '@/components/SEO';
 import { 
   Loader2, Mail, Lock, ArrowRight, LayoutDashboard, CheckCircle2, 
   Zap, ShieldCheck, Smartphone, Globe, BarChart3, FileText, Box, 
-  Star, Check, Layers, Repeat, CreditCard, User, Eye, EyeOff
+  Star, Check, Layers, Repeat, CreditCard, User, Eye, EyeOff,
+  Clock, Rocket, Palette, Settings, Users
 } from 'lucide-react';
 
 // --- 3D TILT COMPONENT ---
@@ -52,7 +54,29 @@ const TiltCard = ({ children, className = "" }) => {
   );
 };
 
-const AuthPage = () => {
+// Helper for Feature Cards
+const FeatureCard = ({ icon, title, desc, color }) => {
+    const colorMap = {
+        indigo: "text-indigo-400 bg-indigo-500/10",
+        emerald: "text-emerald-400 bg-emerald-500/10",
+        blue: "text-blue-400 bg-blue-500/10",
+        purple: "text-purple-400 bg-purple-500/10",
+        orange: "text-orange-400 bg-orange-500/10",
+        pink: "text-pink-400 bg-pink-500/10"
+    };
+
+    return (
+        <div className="group p-6 rounded-3xl border border-white/5 bg-slate-900/50 hover:bg-slate-800/50 hover:border-white/10 transition-all duration-300">
+            <div className={`mb-4 inline-flex items-center justify-center p-3 rounded-xl ${colorMap[color]} transition-transform duration-300 group-hover:scale-110`}>
+                {icon}
+            </div>
+            <h4 className="text-lg font-bold text-white mb-3">{title}</h4>
+            <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
+        </div>
+    );
+};
+
+const LandingPage = () => {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -69,7 +93,7 @@ const AuthPage = () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          navigate('/', { replace: true }); 
+          navigate('/dashboard', { replace: true }); 
         } else {
           setVerifyingSession(false);
         }
@@ -89,7 +113,7 @@ const AuthPage = () => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success('Welcome back!', { duration: 1500 });
-        navigate('/', { replace: true });
+        navigate('/dashboard', { replace: true });
       } else {
         // Use Supabase default email confirmation (reliable)
         const { data, error } = await supabase.auth.signUp({
@@ -122,13 +146,17 @@ const AuthPage = () => {
     }
     setLoading(true);
     try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `https://invoiceport.live/reset-password`,
-        });
-        if (error) throw error;
-        toast.success("Password reset link sent to your email!", { duration: 2500 });
+        // Use OTP system for password reset
+        const result = await sendOTP(email, 'password_reset');
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to send OTP');
+        }
+        toast.success("OTP sent to your email!", { duration: 2500 });
+        
+        // Navigate to OTP verification page
+        navigate(`/otp-verification?email=${encodeURIComponent(email)}&purpose=password_reset`);
     } catch (error) {
-        toast.error(error.message || "Failed to send reset link", { duration: 2500 });
+        toast.error(error.message || "Failed to send OTP", { duration: 2500 });
     } finally {
         setLoading(false);
     }
@@ -155,11 +183,45 @@ const AuthPage = () => {
   return (
     <>
       <SEO 
-        title="Sign In to Invoice Port | Professional Invoice Generator"
-        description="Sign in to Invoice Port to access your professional invoice generator. Create, customize, and manage invoices with ease. Free trial available for new users."
-        keywords="invoice port login, sign in, invoice generator login, billing software access, professional invoicing"
-        canonicalUrl="/auth"
-        noIndex={false}
+        title="Invoice Port – Professional Invoice Generator & GST Billing Software"
+        description="Create professional GST-compliant invoices instantly with Invoice Port. Free invoice generator for Indian businesses, freelancers & startups. Customizable templates, PDF export, client management & automated billing. Start free today!"
+        keywords="invoice generator India, GST invoice software, professional billing software, free invoice maker, business invoicing India, freelancer billing, invoice templates, online invoicing, GST compliant invoices, Indian invoice generator, startup billing software, small business invoicing"
+        canonicalUrl="/"
+        isHomepage={true}
+        structuredData={{
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "Invoice Port",
+          "alternateName": "InvoicePort",
+          "description": "Professional GST-compliant invoice generator and billing software for Indian businesses, freelancers, and startups",
+          "url": "https://invoiceport.live",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web Browser",
+          "browserRequirements": "Requires JavaScript. Requires HTML5.",
+          "softwareVersion": "2.0",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR",
+            "description": "Free plan available with premium plans starting at ₹149/month",
+            "availability": "https://schema.org/InStock"
+          },
+          "creator": {
+            "@type": "Organization",
+            "name": "Invoice Port",
+            "url": "https://invoiceport.live",
+            "logo": "https://invoiceport.live/logo.svg"
+          },
+          "featureList": [
+            "GST-compliant invoice templates",
+            "PDF export and download",
+            "Client and billing management",
+            "Tax calculations (GST, IGST, CGST+SGST)",
+            "Multi-currency support",
+            "Invoice history and tracking",
+            "Custom branding and logos"
+          ]
+        }}
       />
       <div className="min-h-screen bg-[#0B0F19] text-white font-sans selection:bg-indigo-500/30 overflow-x-hidden">
       
@@ -181,6 +243,7 @@ const AuthPage = () => {
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
               <button onClick={() => scrollToSection('features')} className="hover:text-white transition-colors">Features</button>
+              <button onClick={() => scrollToSection('how-it-works')} className="hover:text-white transition-colors">How It Works</button>
               <button onClick={() => scrollToSection('pricing')} className="hover:text-white transition-colors">Pricing</button>
               <Button 
                   variant="ghost" 
@@ -204,13 +267,13 @@ const AuthPage = () => {
                   Automated Financial Suite v2.0
               </div>
               <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
-                  Billing made <br/>
+                  Invoice Port – <br/>
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-                      Effortless.
+                      Professional Invoice Generator
                   </span>
               </h1>
               <p className="text-lg text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                  Stop wrestling with spreadsheets. Generate professional invoices, track payments, and manage clients in seconds.
+                  Create professional GST-compliant invoices instantly. Perfect for Indian businesses, freelancers & startups. Free templates, automated billing & client management.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
                   <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 px-4 py-2 rounded-full border border-white/10">
@@ -318,7 +381,7 @@ const AuthPage = () => {
           </div>
       </div>
 
-      {/* --- FEATURES SECTION (Unchanged) --- */}
+      {/* --- FEATURES SECTION --- */}
       <section id="features" className="py-32 relative">
           <div className="max-w-7xl mx-auto px-6">
               <div className="text-center mb-24">
@@ -340,8 +403,133 @@ const AuthPage = () => {
           </div>
       </section>
 
+      {/* --- HOW IT WORKS SECTION --- */}
+      <section id="how-it-works" className="py-32 relative bg-gradient-to-b from-[#0B0F19] to-slate-900/50">
+          <div className="max-w-7xl mx-auto px-6">
+              <div className="text-center mb-20">
+                  <h2 className="text-indigo-400 font-semibold tracking-widest uppercase text-sm mb-3">Simple Process</h2>
+                  <h3 className="text-3xl md:text-5xl font-bold text-white mb-6">Set up once, use forever.</h3>
+                  <p className="text-slate-400 max-w-2xl mx-auto text-lg">
+                      Each user gets their own branded experience. Your clients will see YOUR company name, logo, and contact details on every invoice and email.
+                  </p>
+              </div>
 
-      {/* --- REDESIGNED PRICING SECTION --- */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-16">
+                  {/* Step 1 */}
+                  <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-blue-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-indigo-500/30 transition-all">
+                          <div className="flex items-center gap-4 mb-6">
+                              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center">
+                                  <Settings className="w-6 h-6 text-white" />
+                              </div>
+                              <h4 className="text-xl font-bold text-white">Brand Setup</h4>
+                          </div>
+                          <div className="space-y-4 text-slate-300">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
+                                  <span className="text-sm">Upload YOUR company logo</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
+                                  <span className="text-sm">Add YOUR business contact details</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
+                                  <span className="text-sm">Choose YOUR preferred template</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
+                                  <span className="text-sm">Set YOUR payment terms & methods</span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-purple-500/30 transition-all">
+                          <div className="flex items-center gap-4 mb-6">
+                              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                                  <Users className="w-6 h-6 text-white" />
+                              </div>
+                              <h4 className="text-xl font-bold text-white">Client & Service Management</h4>
+                          </div>
+                          <div className="space-y-4 text-slate-300">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                                  <span className="text-sm">Add client information once</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                                  <span className="text-sm">Create product/service catalog</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                                  <span className="text-sm">Set standard pricing & rates</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                                  <span className="text-sm">Configure tax settings</span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-emerald-500/30 transition-all">
+                          <div className="flex items-center gap-4 mb-6">
+                              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+                                  <Rocket className="w-6 h-6 text-white" />
+                              </div>
+                              <h4 className="text-xl font-bold text-white">Generate & Send</h4>
+                          </div>
+                          <div className="space-y-4 text-slate-300">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                                  <span className="text-sm">Select client & services</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                                  <span className="text-sm">Add items - prices auto-populate</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                                  <span className="text-sm">Review & send via email</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                                  <span className="text-sm">Download PDF instantly</span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              {/* Call to Action */}
+              <div className="text-center mt-20">
+                  <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-gradient-to-r from-indigo-950/80 to-purple-950/80 border border-indigo-500/30 mb-6">
+                      <Clock className="w-5 h-5 text-indigo-400" />
+                      <span className="text-indigo-300 font-medium">Save 5+ hours per week</span>
+                  </div>
+                  <p className="text-slate-400 text-lg mb-8">
+                      Every invoice and email will have YOUR branding. Your clients will never see "InvoicePort" - only YOUR business information.
+                  </p>
+                  <Button 
+                      onClick={focusSignup}
+                      className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all"
+                  >
+                      <span className="mr-2">Start Your Free Trial</span>
+                      <ArrowRight className="w-5 h-5" />
+                  </Button>
+              </div>
+          </div>
+      </section>
+
+      {/* --- PRICING SECTION --- */}
       <section id="pricing" className="py-32 relative bg-gradient-to-b from-[#0B0F19] to-black">
           <div className="max-w-7xl mx-auto px-6">
               <div className="text-center mb-20">
@@ -431,8 +619,7 @@ const AuthPage = () => {
           </div>
       </section>
 
-
-      {/* --- FOOTER (Unchanged) --- */}
+      {/* --- FOOTER --- */}
       <footer className="py-12 border-t border-white/5 bg-[#05080F]">
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex items-center gap-2 text-white">
@@ -453,26 +640,4 @@ const AuthPage = () => {
   );
 };
 
-// Helper for Feature Cards (Unchanged)
-const FeatureCard = ({ icon, title, desc, color }) => {
-    const colorMap = {
-        indigo: "text-indigo-400 bg-indigo-500/10",
-        emerald: "text-emerald-400 bg-emerald-500/10",
-        blue: "text-blue-400 bg-blue-500/10",
-        purple: "text-purple-400 bg-purple-500/10",
-        orange: "text-orange-400 bg-orange-500/10",
-        pink: "text-pink-400 bg-pink-500/10"
-    };
-
-    return (
-        <div className="group p-6 rounded-3xl border border-white/5 bg-slate-900/50 hover:bg-slate-800/50 hover:border-white/10 transition-all duration-300">
-            <div className={`mb-4 inline-flex items-center justify-center p-3 rounded-xl ${colorMap[color]} transition-transform duration-300 group-hover:scale-110`}>
-                {icon}
-            </div>
-            <h4 className="text-lg font-bold text-white mb-3">{title}</h4>
-            <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
-        </div>
-    );
-};
-
-export default AuthPage;
+export default LandingPage;

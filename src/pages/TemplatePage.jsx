@@ -111,7 +111,7 @@ const TemplatePage = () => {
   };
 
   const handleBack = () => {
-    navigate('/');
+    navigate('/dashboard');
   };
 
   if (!formData) {

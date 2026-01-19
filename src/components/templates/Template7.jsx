@@ -71,6 +71,7 @@ const Template7 = ({ data }) => {
                 <p className="font-medium">{billTo.name || "Client Name"}</p>
                 <p className="text-sm">{billTo.address || "Client Address"}</p>
                 <p className="text-sm">{billTo.phone || "Client Phone"}</p>
+                {billTo.email && <p className="text-sm">{billTo.email}</p>}
             </div>
 
              {/* Ship To (keeping structure consistent) */}

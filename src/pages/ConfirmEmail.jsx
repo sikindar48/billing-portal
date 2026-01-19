@@ -45,7 +45,7 @@ const ConfirmEmail = () => {
         if (user.email_confirmed_at) {
           setStatus('success');
           setMessage('Email already confirmed! Redirecting to dashboard...');
-          setTimeout(() => navigate('/'), 2000);
+          setTimeout(() => navigate('/dashboard'), 2000);
           return;
         }
 
@@ -84,7 +84,7 @@ const ConfirmEmail = () => {
         
         // Redirect after 3 seconds
         setTimeout(() => {
-          navigate('/', { replace: true });
+          navigate('/dashboard', { replace: true });
         }, 3000);
 
       } catch (error) {
@@ -128,9 +128,9 @@ const ConfirmEmail = () => {
     const email = searchParams.get('email');
     if (email) {
       // Redirect back to signup with email prefilled
-      navigate(`/auth?email=${encodeURIComponent(email)}&resend=true`);
+      navigate(`/?email=${encodeURIComponent(email)}&resend=true`);
     } else {
-      navigate('/auth');
+      navigate('/');
     }
   };
 
@@ -177,7 +177,7 @@ const ConfirmEmail = () => {
               Redirecting to dashboard in 3 seconds...
             </div>
             <button 
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/dashboard')}
               className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-colors"
             >
               Go to Dashboard Now
@@ -195,7 +195,7 @@ const ConfirmEmail = () => {
               Resend Confirmation
             </button>
             <button 
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/')}
               className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-xl transition-colors"
             >
               Back to Sign Up

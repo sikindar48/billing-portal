@@ -130,7 +130,7 @@ const Statistics = () => {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
-                 <Button variant="ghost" onClick={() => navigate('/')} className="mb-2 pl-0 hover:bg-transparent hover:text-indigo-600">
+                 <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-2 pl-0 hover:bg-transparent hover:text-indigo-600">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
                  </Button>
                 <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Business Insights</h1>

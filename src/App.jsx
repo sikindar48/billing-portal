@@ -8,10 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Import components
 import AuthPage from "./pages/AuthPage";
-import Index from "./pages/Index";
+import Index from "./pages/Index"; // Now the landing page
+import Dashboard from "./pages/Dashboard"; // The invoice creation form
 import AdminDashboard from "./pages/AdminDashboard";
 import BrandingSettings from "./pages/BrandingSettings";
 import ConfirmEmail from "./pages/ConfirmEmail";
+import GmailCallback from "./pages/GmailCallback";
+import OTPVerification from "./pages/OTPVerification";
 import InvoiceHistory from "./pages/InvoiceHistory";
 import ProductInventory from "./pages/ProductInventory";
 import Profile from "./pages/Profile";
@@ -54,16 +57,20 @@ const App = () => {
           />
           <BrowserRouter>
           <Routes>
-            <Route path="/auth" element={<AuthPage />} />
+            {/* Public Routes */}
+            <Route path="/" element={<Index />} /> {/* Landing page with auth form */}
+            <Route path="/auth" element={<AuthPage />} /> {/* Keep for backward compatibility */}
             <Route path="/confirm-email" element={<ConfirmEmail />} />
+            <Route path="/gmail-callback" element={<GmailCallback />} /> {/* Gmail OAuth callback */}
+            <Route path="/otp-verification" element={<OTPVerification />} /> {/* OTP verification */}
             
             {/* Protected Routes */}
             <Route 
-              path="/" 
+              path="/dashboard" 
               element={
                 <ProtectedRoute>
                   <SubscriptionGuard>
-                    <Index />
+                    <Dashboard />
                   </SubscriptionGuard>
                 </ProtectedRoute>
               } 
@@ -80,6 +87,17 @@ const App = () => {
             
             <Route 
               path="/branding" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <BrandingSettings />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/dashboard/settings" 
               element={
                 <ProtectedRoute>
                   <SubscriptionGuard>

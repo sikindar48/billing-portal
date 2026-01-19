@@ -68,6 +68,7 @@ const Template5 = ({ data = {} }) => {
                 <p className="font-bold">{billTo.name || "Client Name"}</p>
                 <p>{billTo.address || "Client Address"}</p>
                 <p>{billTo.phone || "Client Phone"}</p>
+                {billTo.email && <p>{billTo.email}</p>}
             </div>
             <div className="bg-gray-50 p-4 rounded-lg border-l-4 border-green-600">
                 <h3 className="text-lg font-semibold text-green-600 mb-2">Ship To</h3>

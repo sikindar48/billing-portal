@@ -78,7 +78,7 @@ const InvoiceHistory = () => {
     };
     
     // Navigate to Index with state
-    navigate('/', { state: { invoiceData } });
+    navigate('/dashboard', { state: { invoiceData } });
   };
 
   const handleDownload = async (invoice) => {
@@ -131,7 +131,7 @@ const InvoiceHistory = () => {
              <div>
                 <Button
                     variant="ghost"
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/dashboard')}
                     className="text-gray-500 hover:text-gray-800 pl-0 hover:bg-transparent mb-2"
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
@@ -163,7 +163,7 @@ const InvoiceHistory = () => {
                     </div>
                     <h3 className="text-lg font-medium text-gray-900">No invoices found</h3>
                     <p className="text-gray-500 mt-1 mb-6 max-w-sm">You haven't created any invoices yet, or no invoices match your search.</p>
-                    <Button onClick={() => navigate('/')} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                    <Button onClick={() => navigate('/dashboard')} className="bg-indigo-600 hover:bg-indigo-700 text-white">
                         Create First Invoice
                     </Button>
                 </div>

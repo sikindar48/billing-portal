@@ -18,6 +18,7 @@ const ShipToSection = ({ shipTo, handleInputChange, billTo }) => {
       handleInputChange({ target: { name: 'name', value: billTo.name } });
       handleInputChange({ target: { name: 'address', value: billTo.address } });
       handleInputChange({ target: { name: 'phone', value: billTo.phone } });
+      // Note: Email is not copied to shipping address as it's not typically needed for shipping
     }
   };
 

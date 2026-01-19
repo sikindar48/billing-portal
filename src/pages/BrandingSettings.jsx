@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Upload, ArrowLeft, Building2, Globe, ImageIcon, Save, Phone, MapPin } from 'lucide-react';
+import { Loader2, Upload, ArrowLeft, Building2, Globe, ImageIcon, Save, Phone, MapPin, Mail } from 'lucide-react';
 import Navigation from '@/components/Navigation'; 
 
 const BrandingSettings = () => {
@@ -14,12 +14,17 @@ const BrandingSettings = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  // ADDED: Address and Phone fields
+  // Complete sender information fields
   const [companyName, setCompanyName] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
   const [website, setWebsite] = useState('');
-  const [address, setAddress] = useState(''); 
-  const [phone, setPhone] = useState('');
   
+  // Address field (simplified)
+  const [addressLine1, setAddressLine1] = useState('');
+  
+  // Other settings
+  const [preferredEmailMethod, setPreferredEmailMethod] = useState('emailjs');
   const [logoUrl, setLogoUrl] = useState('');
   const [userId, setUserId] = useState(null);
 
@@ -35,7 +40,7 @@ const BrandingSettings = () => {
       setUserId(user.id);
 
       const { data, error } = await supabase
-        .from('branding_settings')
+        .from('business_settings')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
@@ -43,13 +48,21 @@ const BrandingSettings = () => {
       if (error && error.code !== 'PGRST116') throw error;
 
       if (data) {
+        // Company information
         setCompanyName(data.company_name || '');
-        setWebsite(data.website || '');
-        setAddress(data.address || ''); // Load Address
-        setPhone(data.phone || '');     // Load Phone
+        setCompanyEmail(data.company_email || '');
+        setCompanyPhone(data.company_phone || '');
+        setWebsite(data.company_website || '');
+        
+        // Address information (simplified)
+        setAddressLine1(data.address_line1 || '');
+        
+        // Other settings
         setLogoUrl(data.logo_url || '');
+        setPreferredEmailMethod(data.preferred_email_method || 'emailjs');
       }
     } catch (error) {
+      console.error('Error loading branding settings:', error);
       toast.error('Failed to load branding settings', { duration: 2000 });
     }
   };
@@ -165,25 +178,39 @@ const BrandingSettings = () => {
     try {
       setLoading(true);
 
-      // Save all fields, including new Address and Phone
+      // Validate required fields
+      if (!companyName.trim()) {
+        toast.error('Company name is required', { duration: 2000 });
+        return;
+      }
+
+      // Save simplified business settings
       const { error } = await supabase
-        .from('branding_settings')
+        .from('business_settings')
         .upsert({
           user_id: userId,
-          company_name: companyName,
-          website: website,
-          address: address, // Save Address
-          phone: phone,     // Save Phone
+          // Company information
+          company_name: companyName.trim(),
+          company_email: companyEmail.trim(),
+          company_phone: companyPhone.trim(),
+          company_website: website.trim(),
+          
+          // Address information (simplified)
+          address_line1: addressLine1.trim(),
+          
+          // Other settings
           logo_url: logoUrl,
+          preferred_email_method: preferredEmailMethod,
         }, {
           onConflict: 'user_id'
         });
 
       if (error) throw error;
 
-      toast.success('Branding settings saved successfully!', { duration: 2000 });
+      toast.success('Business settings saved successfully!', { duration: 2000 });
     } catch (error) {
-      toast.error('Failed to save branding settings', { duration: 2000 });
+      console.error('Error saving business settings:', error);
+      toast.error('Failed to save business settings', { duration: 2000 });
     } finally {
       setLoading(false);
     }
@@ -197,14 +224,14 @@ const BrandingSettings = () => {
         <div className="mb-8">
             <Button
             variant="ghost"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             className="text-gray-500 hover:text-gray-800 pl-0 hover:bg-transparent"
             >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Dashboard
             </Button>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Branding Settings</h1>
-            <p className="text-gray-500">Customize how your business appears on invoices.</p>
+            <h1 className="text-3xl font-bold text-gray-900 mt-2">Business Settings</h1>
+            <p className="text-gray-500">Configure your business information for invoices and communications.</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
@@ -217,65 +244,152 @@ const BrandingSettings = () => {
             </div>
 
             <div className="p-8 space-y-8">
-                {/* Form Inputs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="companyName" className="text-gray-700">Company Name</Label>
-                        <div className="relative">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Building2 className="h-4 w-4" /></div>
-                            <Input
-                                id="companyName"
-                                value={companyName}
-                                onChange={(e) => setCompanyName(e.target.value)}
-                                placeholder="Acme Corp."
-                                className="pl-10"
-                            />
+                {/* Company Information Section */}
+                <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Building2 className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Company Information</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="companyName" className="text-gray-700">Company Name *</Label>
+                            <div className="relative">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Building2 className="h-4 w-4" /></div>
+                                <Input
+                                    id="companyName"
+                                    value={companyName}
+                                    onChange={(e) => setCompanyName(e.target.value)}
+                                    placeholder="Your Company Name"
+                                    className="pl-10"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="companyEmail" className="text-gray-700">Company Email</Label>
+                            <div className="relative">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Mail className="h-4 w-4" /></div>
+                                <Input
+                                    id="companyEmail"
+                                    type="email"
+                                    value={companyEmail}
+                                    onChange={(e) => setCompanyEmail(e.target.value)}
+                                    placeholder="contact@yourcompany.com"
+                                    className="pl-10"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="companyPhone" className="text-gray-700">Phone Number</Label>
+                            <div className="relative">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Phone className="h-4 w-4" /></div>
+                                <Input
+                                    id="companyPhone"
+                                    value={companyPhone}
+                                    onChange={(e) => setCompanyPhone(e.target.value)}
+                                    placeholder="+91 98765 43210"
+                                    className="pl-10"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="website" className="text-gray-700">Website</Label>
+                            <div className="relative">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Globe className="h-4 w-4" /></div>
+                                <Input
+                                    id="website"
+                                    value={website}
+                                    onChange={(e) => setWebsite(e.target.value)}
+                                    placeholder="https://www.yourcompany.com"
+                                    className="pl-10"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Address Information Section */}
+                <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <MapPin className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Business Address</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="addressLine1" className="text-gray-700">Address</Label>
+                            <div className="relative">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><MapPin className="h-4 w-4" /></div>
+                                <Input
+                                    id="addressLine1"
+                                    value={addressLine1}
+                                    onChange={(e) => setAddressLine1(e.target.value)}
+                                    placeholder="Complete business address"
+                                    className="pl-10"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Email Configuration Section */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Mail className="w-5 h-5 text-indigo-600" />
+                        <Label className="text-gray-700 text-lg font-semibold">Email Configuration</Label>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-3 mb-2">
+                                <input 
+                                    type="radio" 
+                                    name="email_method" 
+                                    value="gmail"
+                                    checked={preferredEmailMethod === 'gmail'}
+                                    onChange={(e) => setPreferredEmailMethod(e.target.value)}
+                                    className="text-indigo-500"
+                                />
+                                <h3 className="font-semibold text-gray-900">Gmail Integration</h3>
+                            </div>
+                            <p className="text-sm text-gray-600">Send emails from your Gmail account (Recommended)</p>
+                            <div className="mt-2 text-xs text-emerald-600">✅ Professional sender address</div>
+                        </div>
+                        
+                        <div className="p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-3 mb-2">
+                                <input 
+                                    type="radio" 
+                                    name="email_method" 
+                                    value="emailjs"
+                                    checked={preferredEmailMethod === 'emailjs'}
+                                    onChange={(e) => setPreferredEmailMethod(e.target.value)}
+                                    className="text-indigo-500"
+                                />
+                                <h3 className="font-semibold text-gray-900">EmailJS (Basic)</h3>
+                            </div>
+                            <p className="text-sm text-gray-600">Simple email delivery (fallback option)</p>
+                            <div className="mt-2 text-xs text-yellow-600">⚠️ Generic sender address</div>
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="website" className="text-gray-700">Website</Label>
-                        <div className="relative">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Globe className="h-4 w-4" /></div>
-                            <Input
-                                id="website"
-                                value={website}
-                                onChange={(e) => setWebsite(e.target.value)}
-                                placeholder="https://www.example.com"
-                                className="pl-10"
-                            />
+                    {/* Gmail Configuration */}
+                    {preferredEmailMethod === 'gmail' && (
+                        <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                            <h3 className="text-gray-900 font-semibold mb-3">Gmail Integration</h3>
+                            <p className="text-gray-600 text-sm">
+                                Gmail integration allows you to send invoices directly from your Gmail account. 
+                                This feature provides professional email delivery with your own email address.
+                            </p>
+                            <p className="text-gray-500 text-xs mt-2">
+                                Gmail OAuth setup is required for this feature to work properly.
+                            </p>
                         </div>
-                    </div>
-
-                    {/* NEW: Phone Number */}
-                    <div className="space-y-2">
-                        <Label htmlFor="phone" className="text-gray-700">Phone Number</Label>
-                        <div className="relative">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Phone className="h-4 w-4" /></div>
-                            <Input
-                                id="phone"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                placeholder="+91 98765 43210"
-                                className="pl-10"
-                            />
-                        </div>
-                    </div>
-
-                    {/* NEW: Address - Full width on desktop */}
-                    <div className="space-y-2 md:col-span-">
-                        <Label htmlFor="address" className="text-gray-700">Address / City</Label>
-                        <div className="relative">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><MapPin className="h-4 w-4" /></div>
-                            <Input
-                                id="address"
-                                value={address}
-                                onChange={(e) => setAddress(e.target.value)}
-                                placeholder="Street, City, State, ZIP Code"
-                                className="pl-10"
-                            />
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Logo Upload Section */}
@@ -337,7 +451,7 @@ const BrandingSettings = () => {
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 h-11 shadow-md transition-all"
                     >
                         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save Changes
+                        Save Business Settings
                     </Button>
                 </div>
             </div>

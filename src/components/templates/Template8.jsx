@@ -56,6 +56,7 @@ const Template8 = ({ data }) => {
             <p className="font-bold">{billTo.name}</p>
             <p>{billTo.address}</p>
             <p>{billTo.phone}</p>
+            {billTo.email && <p>{billTo.email}</p>}
           </div>
           
           {/* COLUMN 2: Ship To (Added for completeness, assuming relevant) */}

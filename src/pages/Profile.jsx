@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, User, Phone, Lock, Save, ShieldCheck, ArrowLeft } from 'lucide-react';
 import Navigation from '@/components/Navigation';
+import SEO from '@/components/SEO';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ const Profile = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        navigate('/auth');
+        navigate('/');
         return;
       }
 
@@ -125,14 +126,21 @@ const Profile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <>
+      <SEO 
+        title="Profile Settings"
+        description="Manage your profile settings."
+        noIndex={true}
+        noFollow={true}
+      />
+      <div className="min-h-screen bg-slate-50">
       <Navigation />
       
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
             <Button
                 variant="ghost"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/dashboard')}
                 className="text-gray-500 hover:text-gray-800 pl-0 hover:bg-transparent"
             >
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
@@ -242,7 +250,8 @@ const Profile = () => {
 
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

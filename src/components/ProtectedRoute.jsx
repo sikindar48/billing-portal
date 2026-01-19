@@ -30,7 +30,7 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!session) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;

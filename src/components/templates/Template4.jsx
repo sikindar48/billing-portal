@@ -92,6 +92,7 @@ const Template4 = ({ data }) => {
             </p>
             <p>{billTo.address || "Client Address"}</p>
             <p>{billTo.phone || "Client Phone"}</p>
+            {billTo.email && <p>{billTo.email}</p>}
           </div>
         </div>
         

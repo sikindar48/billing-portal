@@ -72,6 +72,7 @@ const Template6 = ({ data }) => {
             <p>{billTo.name || "Client Name"}</p>
             <p>{billTo.address || "Client Address"}</p>
             <p>{billTo.phone || "Client Phone"}</p>
+            {billTo.email && <p>{billTo.email}</p>}
           </div>
           <div>
             <h3 className="text-lg font-semibold mb-2" style={{ color: blueAccent }}>Ship to</h3>

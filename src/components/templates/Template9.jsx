@@ -82,7 +82,8 @@ const Template9 = ({ data }) => {
             </h3>
             <p>{billTo.name || "Client Name"}</p>
             <p>{billTo.address || "Client Address"}</p>
-            <p>{billTo.phone || "Client Phone"}</p> {/* Added phone number */}
+            <p>{billTo.phone || "Client Phone"}</p>
+            {billTo.email && <p>{billTo.email}</p>}
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { sendOTP } from '@/utils/otpService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -92,7 +93,7 @@ const AuthPage = () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          navigate('/', { replace: true }); 
+          navigate('/dashboard', { replace: true }); 
         } else {
           setVerifyingSession(false);
         }
@@ -112,7 +113,7 @@ const AuthPage = () => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success('Welcome back!', { duration: 1500 });
-        navigate('/', { replace: true });
+        navigate('/dashboard', { replace: true });
       } else {
         // Use Supabase default email confirmation (reliable)
         const { data, error } = await supabase.auth.signUp({
@@ -145,13 +146,17 @@ const AuthPage = () => {
     }
     setLoading(true);
     try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `https://invoiceport.live/reset-password`,
-        });
-        if (error) throw error;
-        toast.success("Password reset link sent to your email!", { duration: 2500 });
+        // Use OTP system for password reset
+        const result = await sendOTP(email, 'password_reset');
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to send OTP');
+        }
+        toast.success("OTP sent to your email!", { duration: 2500 });
+        
+        // Navigate to OTP verification page
+        navigate(`/otp-verification?email=${encodeURIComponent(email)}&purpose=password_reset`);
     } catch (error) {
-        toast.error(error.message || "Failed to send reset link", { duration: 2500 });
+        toast.error(error.message || "Failed to send OTP", { duration: 2500 });
     } finally {
         setLoading(false);
     }
@@ -178,11 +183,10 @@ const AuthPage = () => {
   return (
     <>
       <SEO 
-        title="Sign In to Invoice Port | Professional Invoice Generator"
-        description="Sign in to Invoice Port to access your professional invoice generator. Create, customize, and manage invoices with ease. Free trial available for new users."
-        keywords="invoice port login, sign in, invoice generator login, billing software access, professional invoicing"
-        canonicalUrl="/auth"
-        noIndex={false}
+        title="Sign In"
+        description="Sign in to access your account."
+        noIndex={true}
+        noFollow={true}
       />
       <div className="min-h-screen bg-[#0B0F19] text-white font-sans selection:bg-indigo-500/30 overflow-x-hidden">
       
@@ -371,7 +375,7 @@ const AuthPage = () => {
                   <h2 className="text-indigo-400 font-semibold tracking-widest uppercase text-sm mb-3">Simple Process</h2>
                   <h3 className="text-3xl md:text-5xl font-bold text-white mb-6">Set up once, use forever.</h3>
                   <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                      Our smart system learns your business preferences and automates everything for you.
+                      Each user gets their own branded experience. Your clients will see YOUR company name, logo, and contact details on every invoice and email.
                   </p>
               </div>
 
@@ -389,19 +393,19 @@ const AuthPage = () => {
                           <div className="space-y-4 text-slate-300">
                               <div className="flex items-center gap-3">
                                   <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Upload your company logo</span>
+                                  <span className="text-sm">Upload YOUR company logo</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Add business contact details</span>
+                                  <span className="text-sm">Add YOUR business contact details</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Choose your preferred template</span>
+                                  <span className="text-sm">Choose YOUR preferred template</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Set payment terms & methods</span>
+                                  <span className="text-sm">Set YOUR payment terms & methods</span>
                               </div>
                           </div>
                       </div>
@@ -477,7 +481,7 @@ const AuthPage = () => {
                       <span className="text-indigo-300 font-medium">Save 5+ hours per week</span>
                   </div>
                   <p className="text-slate-400 text-lg mb-8">
-                      Stop manually creating invoices. Let our system handle the repetitive work while you focus on growing your business.
+                      Every invoice and email will have YOUR branding. Your clients will never see "InvoicePort" - only YOUR business information.
                   </p>
                   <Button 
                       onClick={focusSignup}

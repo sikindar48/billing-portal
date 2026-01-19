@@ -83,6 +83,7 @@ const Template2 = ({ data = {} }) => {
                 <p className="font-bold">{billTo.name || "Client Name"}</p>
                 <p>{billTo.address || "Client Address"}</p>
                 <p>{billTo.phone || "Client Phone"}</p>
+                {billTo.email && <p>{billTo.email}</p>}
             </div>
             <div 
               className="p-4 rounded-lg border-l-4"

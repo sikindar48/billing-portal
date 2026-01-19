@@ -1,6 +1,6 @@
 document.addEventListener('alpine:init', () => {
   Alpine.data('billGenerator', () => ({
-    billTo: { name: '', address: '', phone: '' },
+    billTo: { name: '', address: '', phone: '', email: '' },
     shipTo: { name: '', address: '', phone: '' },
     invoice: { date: '', paymentDate: '' },
     from: { name: '', address: '', phone: '' },
@@ -65,7 +65,7 @@ document.addEventListener('alpine:init', () => {
     clearData() {
       if (confirm('Are you sure you want to clear all data?')) {
         localStorage.removeItem('billData');
-        this.billTo = { name: '', address: '', phone: '' };
+        this.billTo = { name: '', address: '', phone: '', email: '' };
         this.shipTo = { name: '', address: '', phone: '' };
         this.invoice = { date: '', paymentDate: '' };
         this.from = { name: '', address: '', phone: '' };

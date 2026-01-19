@@ -46,6 +46,7 @@ const Template3 = ({ data }) => {
             <p className="text-sm">{billTo.name}</p>
             <p className="text-sm">{billTo.address}</p>
             <p className="text-sm">{billTo.phone}</p>
+            {billTo.email && <p className="text-sm">{billTo.email}</p>}
           </div>
         </div>
         <div className="flex justify-between mb-8">
