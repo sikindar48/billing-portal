@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { ExternalLink, Copy } from 'lucide-react';
 
 const RedirectURITester = () => {
-  const [customRedirectUri, setCustomRedirectUri] = useState('http://localhost:8081/branding');
+  const [customRedirectUri, setCustomRedirectUri] = useState('http://localhost:8080/branding');
 
   const testRedirectUri = () => {
     const clientId = '22562132278-g25nrkac9nnp7omg16glcpuui9v6r7t4.apps.googleusercontent.com';
@@ -38,8 +38,8 @@ const RedirectURITester = () => {
   };
 
   const commonRedirectUris = [
-    'http://localhost:8081/branding',
-    'http://localhost:8081/gmail-callback',
+    'http://localhost:8080/branding',
+    'http://localhost:8080/gmail-callback',
     'http://localhost:5173/branding',
     'http://localhost:5173/gmail-callback',
     'https://invoiceport.live/branding',
@@ -57,7 +57,7 @@ const RedirectURITester = () => {
             <Input
               value={customRedirectUri}
               onChange={(e) => setCustomRedirectUri(e.target.value)}
-              placeholder="http://localhost:8081/branding"
+              placeholder="http://localhost:8080/branding"
               className="flex-1"
             />
             <Button 

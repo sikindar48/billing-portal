@@ -8,9 +8,9 @@ const GMAIL_CLIENT_SECRET = import.meta.env.VITE_GMAIL_CLIENT_SECRET;
 const getRedirectUri = () => {
   const currentOrigin = window.location.origin;
   
-  // For local development, always use localhost
-  if (currentOrigin.includes('localhost') || currentOrigin.includes('192.168') || currentOrigin.includes('127.0.0.1')) {
-    return 'http://localhost:8081/gmail-callback';
+  // For local development, use the current origin (handles both localhost and network IPs)
+  if (currentOrigin.includes('localhost') || currentOrigin.includes('192.168') || currentOrigin.includes('127.0.0.1') || currentOrigin.includes('10.0.0')) {
+    return `${currentOrigin}/gmail-callback`;
   }
   
   // For production

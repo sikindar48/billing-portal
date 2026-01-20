@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Upload, ArrowLeft, Building2, Globe, ImageIcon, Save, Phone, MapPin, Mail } from 'lucide-react';
-import Navigation from '@/components/Navigation'; 
+import { Loader2, Upload, ArrowLeft, Building2, Globe, ImageIcon, Save, Phone, MapPin, Mail, ExternalLink, TestTube, Send } from 'lucide-react';
+import Navigation from '@/components/Navigation';
+import GmailConnectionTest from '@/components/GmailConnectionTest';
+import GmailSendTest from '@/components/GmailSendTest';
+import { initiateGmailOAuth } from '@/utils/gmailOAuthService'; 
 
 const BrandingSettings = () => {
   const navigate = useNavigate();
@@ -27,6 +30,8 @@ const BrandingSettings = () => {
   const [preferredEmailMethod, setPreferredEmailMethod] = useState('emailjs');
   const [logoUrl, setLogoUrl] = useState('');
   const [userId, setUserId] = useState(null);
+  const [showConnectionTest, setShowConnectionTest] = useState(false);
+  const [showSendTest, setShowSendTest] = useState(false);
 
   useEffect(() => {
     loadBrandingSettings();
@@ -370,7 +375,7 @@ const BrandingSettings = () => {
                                     onChange={(e) => setPreferredEmailMethod(e.target.value)}
                                     className="text-indigo-500"
                                 />
-                                <h3 className="font-semibold text-gray-900">EmailJS (Basic)</h3>
+                                <h3 className="font-semibold text-gray-900">Email (Basic)</h3>
                             </div>
                             <p className="text-sm text-gray-600">Simple email delivery (fallback option)</p>
                             <div className="mt-2 text-xs text-yellow-600">⚠️ Generic sender address</div>
@@ -381,13 +386,107 @@ const BrandingSettings = () => {
                     {preferredEmailMethod === 'gmail' && (
                         <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                             <h3 className="text-gray-900 font-semibold mb-3">Gmail Integration</h3>
-                            <p className="text-gray-600 text-sm">
+                            <p className="text-gray-600 text-sm mb-4">
                                 Gmail integration allows you to send invoices directly from your Gmail account. 
                                 This feature provides professional email delivery with your own email address.
                             </p>
-                            <p className="text-gray-500 text-xs mt-2">
-                                Gmail OAuth setup is required for this feature to work properly.
+                            
+                            {/* Pro Plan Notice */}
+                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                    <span className="text-yellow-800 font-medium text-sm">Pro Feature</span>
+                                </div>
+                                <p className="text-yellow-700 text-sm">
+                                    Gmail integration is available for Pro plan users only. 
+                                    Trial users can send emails via InvoicePort mail (3 emails limit).
+                                </p>
+                            </div>
+                            
+                            {/* Gmail Connection Component */}
+                            <div className="bg-white p-4 rounded-lg border border-indigo-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="font-medium text-gray-900">Gmail Connection Status</h4>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={() => setShowSendTest(!showSendTest)}
+                                            variant="outline"
+                                            size="sm"
+                                        >
+                                            <Send className="w-4 h-4 mr-2" />
+                                            Send
+                                        </Button>
+                                        <Button
+                                            onClick={() => setShowConnectionTest(!showConnectionTest)}
+                                            variant="outline"
+                                            size="sm"
+                                        >
+                                            <TestTube className="w-4 h-4 mr-2" />
+                                            Test
+                                        </Button>
+                                        <Button
+                                            onClick={() => {
+                                                try {
+                                                    initiateGmailOAuth();
+                                                } catch (error) {
+                                                    toast.error(`OAuth Error: ${error.message}`);
+                                                }
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2"
+                                        >
+                                            <ExternalLink className="w-4 h-4 mr-2" />
+                                            Connect Gmail (Pro Only)
+                                        </Button>
+                                    </div>
+                                </div>
+                                
+                                {showSendTest && (
+                                    <div className="mb-4">
+                                        <GmailSendTest />
+                                    </div>
+                                )}
+                                
+                                {showConnectionTest && (
+                                    <div className="mb-4">
+                                        <GmailConnectionTest />
+                                    </div>
+                                )}
+                                
+                                <p className="text-sm text-gray-500">
+                                    Click "Connect Gmail" to authorize InvoicePort to send emails from your Gmail account.
+                                    <br />
+                                    <span className="text-yellow-600 font-medium">Note: This feature requires a Pro subscription.</span>
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* EmailJS Configuration */}
+                    {preferredEmailMethod === 'emailjs' && (
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <h3 className="text-gray-900 font-semibold mb-3">EmailJS Configuration</h3>
+                            <p className="text-gray-600 text-sm mb-4">
+                                EmailJS provides reliable email delivery for your invoices. 
+                                Emails are sent from InvoicePort with your company branding.
                             </p>
+                            
+                            {/* Plan-based limits */}
+                            <div className="p-3 bg-white border border-blue-200 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="font-medium text-gray-900">Email Limits</h4>
+                                    <span className="text-sm text-blue-600 font-medium">Current Plan</span>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    <div className="flex justify-between">
+                                        <span>Trial Users:</span>
+                                        <span className="font-medium">3 emails total</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Pro Users:</span>
+                                        <span className="font-medium text-emerald-600">Unlimited emails</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

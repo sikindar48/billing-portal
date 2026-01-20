@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { sendWelcomeEmail } from '@/utils/emailService';
+import { sendInvoiceEmail, validateInvoiceForEmail, getEmailCapabilities } from '@/utils/invoiceEmailService';
+import { checkEmailUsageLimit } from '@/utils/emailUsageService';
 import { formatCurrency } from '../utils/formatCurrency'; 
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import BillToSection from '../components/BillToSection';
@@ -12,7 +14,7 @@ import { templates } from "../utils/templateRegistry";
 import TemplatePreview from '../components/TemplatePreview';
 import SEO from '../components/SEO';
 import { FiEdit, FiTrash2, FiLayers } from "react-icons/fi"; 
-import { RefreshCw, Save, Loader2, DollarSign, User, FileText, ShoppingBag, StickyNote, Clock, AlertCircle, ShieldCheck, ToggleRight, ToggleLeft } from "lucide-react"; 
+import { RefreshCw, Save, Loader2, DollarSign, User, FileText, ShoppingBag, StickyNote, Clock, AlertCircle, ShieldCheck, ToggleRight, ToggleLeft, Mail } from "lucide-react"; 
 import Navigation from '../components/Navigation';
 import { Button } from '@/components/ui/button'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,6 +54,9 @@ const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailCapabilities, setEmailCapabilities] = useState(null);
+  const [emailUsageStats, setEmailUsageStats] = useState(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false); 
   const [isAdmin, setIsAdmin] = useState(false);
   const [userId, setUserId] = useState(null); // Store user ID for DB calls
@@ -127,6 +132,16 @@ const Index = () => {
                     phone: businessSettings.company_phone || '',
                 });
             }
+
+            // Load email capabilities and usage stats
+            const capabilities = await getEmailCapabilities(user.id);
+            setEmailCapabilities(capabilities);
+            
+            const emailUsage = await checkEmailUsageLimit(user.id);
+            setEmailUsageStats(emailUsage);
+            
+            console.log('Email capabilities loaded:', capabilities);
+            console.log('Email usage stats loaded:', emailUsage);
 
             // C. Fetch Usage & Subscription (Rest of the logic)
             const { data: sub } = await supabase.from('user_subscriptions').select('*, subscription_plans(*)')
@@ -397,6 +412,80 @@ const Index = () => {
     }
   };
 
+  const handleSendEmail = async () => {
+    setIsSendingEmail(true);
+    
+    try {
+      // Validate invoice data
+      const invoiceData = {
+        billTo,
+        invoice,
+        yourCompany,
+        items,
+        grandTotal,
+        selectedCurrency,
+        taxAmount,
+        subTotal,
+        notes
+      };
+
+      const validation = validateInvoiceForEmail(invoiceData);
+      if (!validation.isValid) {
+        toast.error(validation.errors[0], { duration: 3000 });
+        return;
+      }
+
+      // Send email with plan restrictions
+      const result = await sendInvoiceEmail(invoiceData, userId);
+      
+      if (result.success) {
+        toast.success(
+          `Invoice sent successfully to ${result.customerEmail}!${result.fallbackUsed ? ' (via backup method)' : ''}`, 
+          { duration: 4000 }
+        );
+        
+        // Show method used and remaining emails
+        const methodText = result.method === 'gmail' ? 'Gmail (Professional)' : 'InvoicePort Mail';
+        toast.info(`Sent via ${methodText}`, { duration: 2000 });
+        
+        if (result.remainingEmails !== 'unlimited') {
+          toast.info(`Remaining emails: ${result.remainingEmails}`, { duration: 3000 });
+        }
+        
+        // Refresh email usage stats
+        const updatedUsage = await checkEmailUsageLimit(userId);
+        setEmailUsageStats(updatedUsage);
+        console.log('Updated email usage stats:', updatedUsage);
+      } else {
+        // Handle different error types
+        if (result.reason === 'usage_limit_exceeded') {
+          toast.error(
+            <div className="flex flex-col gap-1">
+              <span className="font-bold">Email Limit Reached</span>
+              <span className="text-xs">{result.error}</span>
+            </div>, 
+            { duration: 5000 }
+          );
+        } else if (result.reason === 'method_restricted') {
+          toast.error(
+            <div className="flex flex-col gap-1">
+              <span className="font-bold">Feature Restricted</span>
+              <span className="text-xs">{result.error}</span>
+            </div>, 
+            { duration: 5000 }
+          );
+        } else {
+          toast.error(`Failed to send email: ${result.error}`, { duration: 4000 });
+        }
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      toast.error('Failed to send email. Please try again.', { duration: 3000 });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const handleTemplateSelect = (templateNumber) => {
     setIsTemplateModalOpen(false);
     const companyDataWithBranding = { ...yourCompany, logoUrl: brandingSettings.logoUrl };
@@ -471,6 +560,73 @@ const Index = () => {
                     {isSaving ? <Loader2 size={18} className="animate-spin mr-2" /> : <Save size={18} className="mr-2" />}
                     {isSaving ? 'Saving...' : 'Save Invoice'}
                 </Button>
+
+                {/* Send Mail Button */}
+                <Button 
+                    onClick={handleSendEmail} 
+                    disabled={isSendingEmail || !billTo.email || !userId || (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)}
+                    className={`w-full font-bold h-11 text-md shadow-md transition-all ${
+                        !billTo.email 
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                            : (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)
+                            ? 'bg-red-300 text-red-700 cursor-not-allowed'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-emerald-200'
+                    }`}
+                >
+                    {isSendingEmail ? (
+                        <>
+                            <Loader2 size={18} className="animate-spin mr-2" />
+                            Sending...
+                        </>
+                    ) : (
+                        <>
+                            <Mail size={18} className="mr-2" />
+                            Send Mail
+                        </>
+                    )}
+                </Button>
+
+                {/* Email Status Info */}
+                {!billTo.email && (
+                    <div className="text-xs text-gray-500 text-center">
+                        Add customer email in "Bill To" section to send invoice
+                    </div>
+                )}
+                
+                {billTo.email && emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin && (
+                    <div className="text-xs text-center">
+                        <div className="text-red-600 font-medium">
+                            Email limit reached ({emailUsageStats.currentUsage}/{emailUsageStats.emailLimit})
+                        </div>
+                        <div className="text-gray-500 mt-1">
+                            Upgrade to Pro for unlimited emails
+                        </div>
+                    </div>
+                )}
+                
+                {billTo.email && emailUsageStats && (emailUsageStats.canSendEmail || emailUsageStats.isAdmin) && (
+                    <div className="text-xs text-center">
+                        {emailUsageStats.isAdmin ? (
+                            <div className="text-emerald-600 font-medium">
+                                🛡️ Admin: Unlimited emails
+                            </div>
+                        ) : emailUsageStats.isPro ? (
+                            <div className="text-emerald-600 font-medium">
+                                ✨ Pro Plan: Unlimited emails
+                            </div>
+                        ) : (
+                            <div className="text-gray-600">
+                                Remaining: {emailUsageStats.emailLimit - emailUsageStats.currentUsage} emails
+                            </div>
+                        )}
+                        <div className="text-gray-500 mt-1">
+                            Will send via: {(emailCapabilities?.planRestrictions?.isPro || emailUsageStats?.isAdmin) ? 
+                                (emailCapabilities?.gmailConnected ? 'Gmail (Professional)' : 'InvoicePort Mail') : 
+                                'InvoicePort Mail'
+                            }
+                        </div>
+                    </div>
+                )}
 
                 {/* TAX CONFIGURATION */}
                 <div className="grid grid-cols-2 gap-3 pt-2 pb-2">

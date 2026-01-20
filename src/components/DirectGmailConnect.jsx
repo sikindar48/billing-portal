@@ -11,7 +11,7 @@ const DirectGmailConnect = () => {
       setConnecting(true);
       
       const clientId = '22562132278-g25nrkac9nnp7omg16glcpuui9v6r7t4.apps.googleusercontent.com';
-      const redirectUri = 'http://localhost:8081/branding'; // Redirect back to settings instead of callback
+      const redirectUri = 'http://localhost:8080/branding'; // Redirect back to settings instead of callback
       const scopes = [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/userinfo.email',

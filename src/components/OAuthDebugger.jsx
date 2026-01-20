@@ -31,7 +31,7 @@ const OAuthDebugger = () => {
   const testRedirectUri = () => {
     const currentOrigin = window.location.origin;
     const redirectUri = currentOrigin.includes('localhost') || currentOrigin.includes('192.168') || currentOrigin.includes('127.0.0.1')
-      ? 'http://localhost:8081/gmail-callback'
+      ? 'http://localhost:8080/gmail-callback'
       : `${currentOrigin}/gmail-callback`;
     
     console.log('=== Redirect URI Test ===');
