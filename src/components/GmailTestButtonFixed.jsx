@@ -16,7 +16,7 @@ import {
   disconnectGmail,
   sendViaGmail,
   getValidAccessToken
-} from '@/utils/gmailOAuthServiceFixed';
+} from '@/utils/gmailOAuthService';
 
 const GmailTestButtonFixed = () => {
   const [gmailStatus, setGmailStatus] = useState({ 

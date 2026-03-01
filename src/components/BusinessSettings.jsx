@@ -14,7 +14,7 @@ import {
   checkGmailConnection, 
   disconnectGmail 
 } from '../utils/gmailOAuthService';
-import GmailTestButton from '@/components/GmailTestButton';
+import GmailTestButtonFixed from '@/components/GmailTestButtonFixed';
 
 const BusinessSettings = () => {
   const [loading, setLoading] = useState(false);
@@ -570,7 +570,7 @@ const BusinessSettings = () => {
           {settings.preferred_email_method === 'gmail' && (
             <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
               <h3 className="text-white font-semibold mb-3">Gmail Setup</h3>
-              <GmailTestButton />
+              <GmailTestButtonFixed />
             </div>
           )}
 

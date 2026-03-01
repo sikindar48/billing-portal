@@ -12,7 +12,7 @@ const isAdminUser = async (userId) => {
     if (!user) return false;
 
     // Check admin emails
-    const adminEmails = ['nssoftwaresolutions1@gmail.com', 'admin@invoiceport.com'];
+    const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com', 'admin@invoiceport.com'];
     if (adminEmails.includes(user.email)) {
       return true;
     }

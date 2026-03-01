@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { 
   LogOut, Settings, History, Crown, Menu, X, Shield, 
-  Package, LayoutDashboard, BarChart3, User, ChevronDown 
+  Package, LayoutDashboard, BarChart3, User, ChevronDown, TrendingUp, FileText 
 } from 'lucide-react'; 
 import {
   DropdownMenu,
@@ -55,7 +55,8 @@ const Navigation = () => {
         setUser(session.user);
         
         // Check Admin Status
-        if (session.user.email === 'nssoftwaresolutions1@gmail.com') {
+        const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com', 'admin@invoiceport.com'];
+        if (adminEmails.includes(session.user.email)) {
             setIsAdmin(true);
         } else {
             const { data } = await supabase
@@ -132,12 +133,16 @@ const Navigation = () => {
               <Package className="mr-2 h-4 w-4" /> Inventory
             </Button>
 
-            <Button variant="ghost" onClick={() => navigate('/statistics')} className={getNavButtonClass('/statistics')} title="Statistics">
-              <BarChart3 className="mr-2 h-4 w-4" /> Stats
+            <Button variant="ghost" onClick={() => navigate('/customers')} className={getNavButtonClass('/customers')} title="Customers">
+              <User className="mr-2 h-4 w-4" /> Customers
+            </Button>
+
+            <Button variant="ghost" onClick={() => navigate('/analytics')} className={getNavButtonClass('/analytics')} title="Analytics">
+              <TrendingUp className="mr-2 h-4 w-4" /> Analytics
             </Button>
             
             <Button variant="ghost" onClick={() => navigate('/branding')} className={getNavButtonClass('/branding')} title="Branding Settings">
-              <Settings className="mr-2 h-4 w-4" /> Branding
+              <Settings className="mr-2 h-4 w-4" /> Settings
             </Button>
 
             {/* User Dropdown Menu */}
@@ -166,6 +171,12 @@ const Navigation = () => {
                         <DropdownMenuItem onClick={() => navigate('/invoice-history')} className="cursor-pointer py-2.5">
                             <History className="mr-2 h-4 w-4 text-blue-600" /> History
                         </DropdownMenuItem>
+
+                        {isAdmin && (
+                            <DropdownMenuItem onClick={() => navigate('/audit-logs')} className="cursor-pointer py-2.5">
+                                <FileText className="mr-2 h-4 w-4 text-purple-600" /> Audit Logs
+                            </DropdownMenuItem>
+                        )}
 
                         <DropdownMenuSeparator />
                         
@@ -203,12 +214,16 @@ const Navigation = () => {
             <Package className="mr-3 h-5 w-5" /> Inventory
           </Button>
 
-          <Button variant="ghost" onClick={() => handleNavigation('/statistics')} className={getMobileNavButtonClass('/statistics')}>
-            <BarChart3 className="mr-3 h-5 w-5" /> Stats
+          <Button variant="ghost" onClick={() => handleNavigation('/customers')} className={getMobileNavButtonClass('/customers')}>
+            <User className="mr-3 h-5 w-5" /> Customers
+          </Button>
+
+          <Button variant="ghost" onClick={() => handleNavigation('/analytics')} className={getMobileNavButtonClass('/analytics')}>
+            <TrendingUp className="mr-3 h-5 w-5" /> Analytics
           </Button>
           
           <Button variant="ghost" onClick={() => handleNavigation('/branding')} className={getMobileNavButtonClass('/branding')}>
-            <Settings className="mr-3 h-5 w-5" /> Branding
+            <Settings className="mr-3 h-5 w-5" /> Settings
           </Button>
 
           <div className="border-t border-indigo-500/30 my-2 pt-2">
@@ -222,6 +237,11 @@ const Navigation = () => {
               <Button variant="ghost" onClick={() => handleNavigation('/invoice-history')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
                 <History className="mr-3 h-5 w-5" /> History
               </Button>
+              {isAdmin && (
+                  <Button variant="ghost" onClick={() => handleNavigation('/audit-logs')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
+                    <FileText className="mr-3 h-5 w-5" /> Audit Logs
+                  </Button>
+              )}
           </div>
           
           <div className="border-t border-indigo-500/30 my-2"></div>

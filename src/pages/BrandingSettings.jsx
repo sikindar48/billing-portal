@@ -32,6 +32,11 @@ const BrandingSettings = () => {
   const [userId, setUserId] = useState(null);
   const [showConnectionTest, setShowConnectionTest] = useState(false);
   const [showSendTest, setShowSendTest] = useState(false);
+  
+  // Invoice settings
+  const [currency, setCurrency] = useState('INR');
+  const [taxRate, setTaxRate] = useState(18);
+  const [invoicePrefix, setInvoicePrefix] = useState('INV');
 
   useEffect(() => {
     loadBrandingSettings();
@@ -65,6 +70,11 @@ const BrandingSettings = () => {
         // Other settings
         setLogoUrl(data.logo_url || '');
         setPreferredEmailMethod(data.preferred_email_method || 'emailjs');
+        
+        // Invoice settings
+        setCurrency(data.currency || 'INR');
+        setTaxRate(data.tax_rate || 18);
+        setInvoicePrefix(data.invoice_prefix || 'INV');
       }
     } catch (error) {
       console.error('Error loading branding settings:', error);
@@ -206,6 +216,11 @@ const BrandingSettings = () => {
           // Other settings
           logo_url: logoUrl,
           preferred_email_method: preferredEmailMethod,
+          
+          // Invoice settings
+          currency: currency,
+          tax_rate: parseFloat(taxRate),
+          invoice_prefix: invoicePrefix.trim(),
         }, {
           onConflict: 'user_id'
         });
@@ -244,17 +259,13 @@ const BrandingSettings = () => {
             <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 border-b border-indigo-100">
                 <h2 className="text-lg font-semibold text-indigo-900 flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-indigo-600" />
-                    Company Details
+                    Business Settings
                 </h2>
             </div>
 
             <div className="p-8 space-y-8">
                 {/* Company Information Section */}
                 <div className="space-y-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Building2 className="w-5 h-5 text-indigo-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">Company Information</h3>
-                    </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
@@ -540,6 +551,58 @@ const BrandingSettings = () => {
                             </p>
                         </div>
                     </div>
+                </div>
+
+                {/* Invoice Settings Section */}
+                <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Building2 className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Invoice Settings</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="currency" className="text-gray-700">Default Currency</Label>
+                            <select
+                                id="currency"
+                                value={currency}
+                                onChange={(e) => setCurrency(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            >
+                                <option value="INR">INR (₹)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="GBP">GBP (£)</option>
+                            </select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <Label htmlFor="taxRate" className="text-gray-700">Default Tax Rate (%)</Label>
+                            <Input
+                                id="taxRate"
+                                type="number"
+                                step="0.01"
+                                value={taxRate}
+                                onChange={(e) => setTaxRate(e.target.value)}
+                                placeholder="18.00"
+                            />
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <Label htmlFor="invoicePrefix" className="text-gray-700">Invoice Prefix</Label>
+                            <Input
+                                id="invoicePrefix"
+                                value={invoicePrefix}
+                                onChange={(e) => setInvoicePrefix(e.target.value)}
+                                placeholder="INV"
+                                maxLength="10"
+                            />
+                        </div>
+                    </div>
+                    
+                    <p className="text-sm text-gray-500">
+                        These settings will be used as defaults when creating new invoices. Currency applies to all invoices.
+                    </p>
                 </div>
 
                 {/* Save Button */}

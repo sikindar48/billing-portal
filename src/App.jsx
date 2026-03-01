@@ -17,10 +17,14 @@ import GmailCallback from "./pages/GmailCallback";
 import OTPVerification from "./pages/OTPVerification";
 import InvoiceHistory from "./pages/InvoiceHistory";
 import ProductInventory from "./pages/ProductInventory";
+import Customers from "./pages/Customers";
 import Profile from "./pages/Profile";
-import Statistics from "./pages/Statistics";
 import SubscriptionPage from "./pages/SubscriptionPage";
 import TemplatePage from "./pages/TemplatePage";
+import Analytics from "./pages/Analytics";
+import AuditLogs from "./pages/AuditLogs";
+import InvoiceVerify from "./pages/InvoiceVerify";
+import AdminVerifyPayment from "./pages/AdminVerifyPayment";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SubscriptionGuard from "./components/SubscriptionGuard";
 
@@ -63,6 +67,7 @@ const App = () => {
             <Route path="/confirm-email" element={<ConfirmEmail />} />
             <Route path="/gmail-callback" element={<GmailCallback />} /> {/* Gmail OAuth callback */}
             <Route path="/otp-verification" element={<OTPVerification />} /> {/* OTP verification */}
+            <Route path="/verify-invoice" element={<InvoiceVerify />} /> {/* Public invoice verification */}
             
             {/* Protected Routes */}
             <Route 
@@ -81,6 +86,15 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/admin/verify-payment" 
+              element={
+                <ProtectedRoute>
+                  <AdminVerifyPayment />
                 </ProtectedRoute>
               } 
             />
@@ -119,11 +133,11 @@ const App = () => {
             />
             
             <Route 
-              path="/statistics" 
+              path="/customers" 
               element={
                 <ProtectedRoute>
                   <SubscriptionGuard>
-                    <Statistics />
+                    <Customers />
                   </SubscriptionGuard>
                 </ProtectedRoute>
               } 
@@ -165,6 +179,26 @@ const App = () => {
                   <SubscriptionGuard>
                     <TemplatePage />
                   </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/analytics" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionGuard>
+                    <Analytics />
+                  </SubscriptionGuard>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/audit-logs" 
+              element={
+                <ProtectedRoute>
+                  <AuditLogs />
                 </ProtectedRoute>
               } 
             />

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { sendWelcomeEmail } from '@/utils/emailService';
+// Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
+// import { sendWelcomeEmail } from '@/utils/emailService';
 import { sendInvoiceEmail, validateInvoiceForEmail, getEmailCapabilities } from '@/utils/invoiceEmailService';
 import { checkEmailUsageLimit } from '@/utils/emailUsageService';
 import { formatCurrency } from '../utils/formatCurrency'; 
+import { generateSecureInvoiceNumber } from '../utils/invoiceNumberGenerator';
 import FloatingLabelInput from '../components/FloatingLabelInput';
 import BillToSection from '../components/BillToSection';
 import ShipToSection from '../components/ShipToSection';
@@ -19,17 +21,6 @@ import Navigation from '../components/Navigation';
 import { Button } from '@/components/ui/button'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; 
-
-const generateRandomInvoiceNumber = () => {
-  const length = Math.floor(Math.random() * 6) + 3;
-  const alphabetCount = Math.min(Math.floor(Math.random() * 4), length);
-  let result = "";
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const numbers = "0123456789";
-  for (let i = 0; i < alphabetCount; i++) result += alphabet[Math.floor(Math.random() * alphabet.length)];
-  for (let i = alphabetCount; i < length; i++) result += numbers[Math.floor(Math.random() * numbers.length)];
-  return result;
-};
 
 const noteOptions = [
   "Thank you for choosing us today! We hope your shopping experience was pleasant.",
@@ -45,7 +36,7 @@ const getInitialBillTo = () => ({ name: "", address: "", phone: "", email: "" })
 const getInitialInvoice = () => ({
     date: new Date().toISOString().split('T')[0],
     paymentDate: "",
-    number: generateRandomInvoiceNumber(),
+    number: generateSecureInvoiceNumber('INV', 6), // Secure non-sequential number
 });
 const getInitialItems = () => ([{ name: "", description: "", quantity: 0, amount: 0, total: 0 }]);
 
@@ -76,9 +67,11 @@ const Index = () => {
     brandingWebsite: '',
     address: '',
     phone: '',
+    currency: 'INR', // Default currency from business settings
   });
 
   const [selectedCurrency, setSelectedCurrency] = useState("INR");
+  const [invoiceMode, setInvoiceMode] = useState("proforma"); // 'proforma' or 'tax_invoice'
   const [billTo, setBillTo] = useState({ name: "", address: "", phone: "", email: "" });
   const [shipTo, setShipTo] = useState({ name: "", address: "", phone: "" });
   const [invoice, setInvoice] = useState(getInitialInvoice());
@@ -112,12 +105,17 @@ const Index = () => {
             setUserId(user.id);
 
             let adminStatus = false;
-            const adminEmails = ['nssoftwaresolutions1@gmail.com', 'admin@invoiceport.com'];
+            const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com', 'admin@invoiceport.com'];
             if (adminEmails.includes(user.email)) {
                 adminStatus = true;
             } else {
-                const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
-                if (roleData) adminStatus = true;
+                try {
+                    const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+                    if (roleData) adminStatus = true;
+                } catch (roleError) {
+                    // user_roles table doesn't exist, skip role check
+                    console.warn('user_roles table not found, using email-based admin check only');
+                }
             }
             setIsAdmin(adminStatus);
 
@@ -130,7 +128,10 @@ const Index = () => {
                     brandingWebsite: businessSettings.company_website || '',
                     address: businessSettings.address_line1 || '',
                     phone: businessSettings.company_phone || '',
+                    currency: businessSettings.currency || 'INR',
                 });
+                // Set currency from business settings
+                setSelectedCurrency(businessSettings.currency || 'INR');
             }
 
             // Load email capabilities and usage stats
@@ -167,20 +168,23 @@ const Index = () => {
                 } else {
                     console.log('Trial subscription created successfully');
                     
-                    // Send welcome email via EmailJS
-                    try {
-                        const userName = user.user_metadata?.full_name || 'User';
-                        const emailResult = await sendWelcomeEmail(user.email, userName);
-                        
-                        if (emailResult.success) {
-                            console.log('✅ Welcome email sent successfully');
-                            toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
-                        } else {
-                            console.warn('❌ Welcome email failed:', emailResult.error);
-                        }
-                    } catch (emailError) {
-                        console.warn('❌ Welcome email error:', emailError);
-                    }
+                    // Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
+                    // try {
+                    //     const userName = user.user_metadata?.full_name || 'User';
+                    //     const emailResult = await sendWelcomeEmail(user.email, userName);
+                    //     
+                    //     if (emailResult.success) {
+                    //         console.log('✅ Welcome email sent successfully');
+                    //         toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
+                    //     } else {
+                    //         console.warn('❌ Welcome email failed:', emailResult.error);
+                    //     }
+                    // } catch (emailError) {
+                    //     console.warn('❌ Welcome email error:', emailError);
+                    // }
+                    
+                    // Show welcome message without email
+                    toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
                 }
                 
                 // Refresh subscription data after creation
@@ -216,67 +220,47 @@ const Index = () => {
                 });
             }
 
+            // Load form data immediately after user is fetched (combine with second useEffect)
+            // Option A: Load from History (passed via navigation state) - Highest Priority
+            if (location.state && location.state.invoiceData) {
+                const data = location.state.invoiceData;
+                setBillTo(data.billTo || getInitialBillTo());
+                setShipTo(data.shipTo || getInitialCompany());
+                setInvoice(data.invoice ? { ...data.invoice, number: generateSecureInvoiceNumber('INV', 6) } : getInitialInvoice());
+                setYourCompany(data.yourCompany || getInitialCompany());
+                setItems(data.items || getInitialItems());
+                setTaxPercentage(data.taxPercentage || 0);
+                setTaxType(data.taxType || 'exclusive');
+                setEnableRoundOff(data.enableRoundOff !== undefined ? data.enableRoundOff : true);
+                setNotes(data.notes || '');
+                setSelectedCurrency(data.selectedCurrency || 'INR');
+                setInvoiceMode(data.invoiceMode || 'proforma');
+                return; // Skip draft loading if history data exists
+            }
+
+            // Option B: Load from Database Draft (if no history data)
+            const { data: draftData } = await supabase.from('user_drafts').select('form_data').eq('user_id', user.id).maybeSingle();
+            if (draftData && draftData.form_data) {
+                const draft = draftData.form_data;
+                setBillTo(draft.billTo || getInitialBillTo());
+                setShipTo(draft.shipTo || getInitialCompany());
+                setInvoice(draft.invoice ? { ...draft.invoice, number: generateSecureInvoiceNumber('INV', 6) } : getInitialInvoice());
+                setYourCompany(draft.yourCompany || getInitialCompany());
+                setItems(draft.items || getInitialItems());
+                setTaxPercentage(draft.taxPercentage || 0);
+                setTaxType(draft.taxType || 'exclusive');
+                setEnableRoundOff(draft.enableRoundOff !== undefined ? draft.enableRoundOff : true);
+                setNotes(draft.notes || '');
+                setSelectedCurrency(draft.selectedCurrency || 'INR');
+                setInvoiceMode(draft.invoiceMode || 'proforma');
+            }
+
         } catch (error) {
             console.error("Error initializing data:", error);
         }
     };
     initData();
   }, []);
-
-  // 2. LOAD FORM DATA (History OR DB Draft)
-  useEffect(() => {
-    const loadFormData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      // Option A: Load from History (passed via navigation state) - Highest Priority
-      if (location.state && location.state.invoiceData) {
-          const data = location.state.invoiceData;
-          setBillTo(data.billTo || getInitialBillTo());
-          setShipTo(data.shipTo || getInitialCompany());
-          setInvoice(data.invoice ? { ...data.invoice, number: generateRandomInvoiceNumber() } : getInitialInvoice());
-          setYourCompany(data.yourCompany || getInitialCompany());
-          setItems(data.items || getInitialItems());
-          setTaxPercentage(data.taxPercentage || 0);
-          setTaxType(data.taxType || "IGST");
-          setEnableRoundOff(data.enableRoundOff || false);
-          setNotes(data.notes || "");
-          setSelectedCurrency(data.selectedCurrency || "INR");
-          toast.info("Invoice details loaded from history.", { duration: 1500 });
-          return;
-      } 
-      
-      // Option B: Load Draft from Database
-      const { data: draftData } = await supabase
-        .from('user_drafts')
-        .select('form_data')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (draftData?.form_data) {
-          const parsedData = draftData.form_data;
-          setBillTo(parsedData.billTo || getInitialBillTo());
-          setShipTo(parsedData.shipTo || getInitialCompany());
-          setInvoice(parsedData.invoice || getInitialInvoice());
-          setItems(parsedData.items || getInitialItems());
-          setTaxPercentage(parsedData.taxPercentage || 0);
-          setTaxType(parsedData.taxType || "IGST");
-          setEnableRoundOff(parsedData.enableRoundOff || false);
-          setNotes(parsedData.notes || "");
-          setSelectedCurrency(parsedData.selectedCurrency || "INR"); 
-          
-          // Load YourCompany from DB draft
-          setYourCompany(parsedData.yourCompany || getInitialCompany());
-
-      } else {
-          // If no draft exists, initialize clean fields.
-          setYourCompany(getInitialCompany());
-          setItems(getInitialItems());
-      }
-    };
-    loadFormData();
-  }, [location.state]);
-
 
   // 3. APPLY BRANDING & DRAFT MERGE (Ensures Branding is applied over blank or initial draft)
   useEffect(() => {
@@ -294,23 +278,27 @@ const Index = () => {
   }, [brandingSettings, yourCompany.name, yourCompany.website, yourCompany.address, yourCompany.phone]); 
 
 
-  // 4. SAVE DRAFT TO DATABASE ON STATE CHANGE
+  // 4. SAVE DRAFT TO DATABASE ON STATE CHANGE (with debouncing)
   useEffect(() => {
-    const saveDraft = async () => {
-      if (!userId) return;
+    if (!userId) return;
 
-      const formData = {
-        billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, taxAmount, subTotal, grandTotal, notes, selectedCurrency,
-      };
-
-      await supabase
-        .from('user_drafts')
-        .upsert({ user_id: userId, form_data: formData }, { onConflict: 'user_id' });
+    const formData = {
+      billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, taxAmount, subTotal, grandTotal, notes, selectedCurrency, invoiceMode,
     };
 
-    // Debounce this function if performance becomes an issue, but run it frequently for safety
-    saveDraft();
-  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, notes, taxAmount, subTotal, grandTotal, selectedCurrency, userId]);
+    // Debounce the save operation to prevent excessive API calls
+    const timeoutId = setTimeout(async () => {
+      try {
+        await supabase
+          .from('user_drafts')
+          .upsert({ user_id: userId, form_data: formData }, { onConflict: 'user_id' });
+      } catch (error) {
+        console.error('Error saving draft:', error);
+      }
+    }, 1000); // Wait 1 second after last change before saving
+
+    return () => clearTimeout(timeoutId);
+  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, notes, taxAmount, subTotal, grandTotal, selectedCurrency, invoiceMode, userId]);
 
   // --- HANDLERS ---
   const handleInputChange = (setter) => (e) => {
@@ -358,6 +346,37 @@ const Index = () => {
   const handleSaveToDatabase = async () => {
     setIsSaving(true);
     
+    // Validation
+    if (!billTo.name || !billTo.name.trim()) {
+      toast.error('Customer name is required');
+      setIsSaving(false);
+      return;
+    }
+
+    if (!billTo.email || !billTo.email.trim()) {
+      toast.error('Customer email is required');
+      setIsSaving(false);
+      return;
+    }
+
+    if (items.length === 0) {
+      toast.error('At least one item is required');
+      setIsSaving(false);
+      return;
+    }
+
+    if (items.some(item => !item.name || !item.name.trim() || item.quantity <= 0 || item.amount <= 0)) {
+      toast.error('All items must have a name, quantity, and amount');
+      setIsSaving(false);
+      return;
+    }
+
+    if (grandTotal <= 0) {
+      toast.error('Invoice total must be greater than zero');
+      setIsSaving(false);
+      return;
+    }
+    
     if (!isAdmin && usageStats.count >= usageStats.limit) {
         toast.error(<div className="flex flex-col gap-1"><span className="font-bold">Limit Reached (10/10)</span><span className="text-xs">Upgrade to create more.</span></div>, { duration: 3000 });
         setIsSaving(false);
@@ -372,12 +391,37 @@ const Index = () => {
         return;
       }
 
-      const { error } = await supabase.from('invoices').insert({
+      // Prepare invoice data for new schema
+      const invoiceData = {
         user_id: user.id,
         invoice_number: invoice.number,
+        invoice_mode: invoiceMode, // 'proforma' or 'tax_invoice'
+        status: 'draft',
+        issue_date: invoice.date,
+        due_date: invoice.paymentDate || invoice.date,
+        
+        // Customer snapshot
+        customer_name: billTo.name,
+        customer_email: billTo.email,
+        customer_address: billTo.address,
+        
+        // Amounts
+        subtotal: subTotal,
+        tax_amount: taxAmount,
+        grand_total: grandTotal,
+        
+        // Currency
+        currency: selectedCurrency,
+        currency_symbol: selectedCurrency === 'USD' ? '$' : selectedCurrency === 'EUR' ? '€' : '₹',
+        
+        // Additional info
+        notes: notes,
+        terms: notes, // Using notes as terms for now
+        template_id: 1,
+        
+        // Legacy fields for backward compatibility
         bill_to: billTo,
         ship_to: shipTo,
-        // Combine all invoice metadata into one JSONB field
         invoice_details: { 
             ...invoice, 
             taxType, 
@@ -392,21 +436,45 @@ const Index = () => {
             logo_url: brandingSettings.logoUrl 
         },
         items: items,
-        tax: taxPercentage,
-        subtotal: subTotal,
-        grand_total: grandTotal,
-        notes: notes,
-        template_name: templates[0]?.name || 'Template 1', 
-      });
+        tax: taxPercentage
+      };
 
-      if (error) throw error;
+      const { data: savedInvoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert(invoiceData)
+        .select()
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      // Save invoice items
+      if (savedInvoice && items.length > 0) {
+        const invoiceItems = items.map((item, index) => ({
+          invoice_id: savedInvoice.id,
+          name: item.name,
+          description: item.description || '',
+          quantity: item.quantity,
+          unit_price: item.amount,
+          amount: item.total,
+          sort_order: index
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('invoice_items')
+          .insert(invoiceItems);
+
+        if (itemsError) {
+          console.error('Error saving invoice items:', itemsError);
+          // Don't fail the whole operation if items fail
+        }
+      }
 
       await supabase.rpc('increment_invoice_usage');
       setUsageStats(prev => ({ ...prev, count: prev.count + 1 }));
       toast.success('Invoice saved successfully!', { duration: 2000 });
     } catch (error) {
       console.error("Error saving invoice:", error);
-      toast.error('Failed to save invoice', { duration: 2000 });
+      toast.error('Failed to save invoice: ' + (error.message || 'Unknown error'), { duration: 3000 });
     } finally {
       setIsSaving(false);
     }
@@ -525,7 +593,7 @@ const Index = () => {
     setInvoice({
       date: new Date().toISOString().split("T")[0],
       paymentDate: "",
-      number: generateRandomInvoiceNumber(),
+      number: generateSecureInvoiceNumber('INV', 6),
     });
     
     // Resetting yourCompany to only contain branding defaults if they exist
@@ -589,7 +657,7 @@ const Index = () => {
                 {/* Email Status Info */}
                 {!billTo.email && (
                     <div className="text-xs text-gray-500 text-center">
-                        Add customer email in "Bill To" section to send invoice
+                        Add customer email to send invoice
                     </div>
                 )}
                 
@@ -628,8 +696,18 @@ const Index = () => {
                     </div>
                 )}
 
-                {/* TAX CONFIGURATION */}
-                <div className="grid grid-cols-2 gap-3 pt-2 pb-2">
+                {/* INVOICE MODE & TAX CONFIGURATION */}
+                <div className="grid grid-cols-3 gap-3 pt-2 pb-2">
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Invoice Type</label>
+                        <Select value={invoiceMode} onValueChange={setInvoiceMode}>
+                            <SelectTrigger className="w-full h-8 text-xs bg-gray-50 border-gray-200"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="proforma">Proforma (Before Payment)</SelectItem>
+                                <SelectItem value="tax_invoice">Tax Invoice (After Payment)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <div>
                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Tax Type</label>
                         <Select value={taxType} onValueChange={setTaxType}>
@@ -642,11 +720,11 @@ const Index = () => {
                         </Select>
                     </div>
                     <div>
-                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Rounding</label>
-                         <div className="h-8 flex items-center px-2 bg-gray-50 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-100" onClick={() => setEnableRoundOff(!enableRoundOff)}>
-                             {enableRoundOff ? <ToggleRight className="w-5 h-5 text-indigo-600 mr-2" /> : <ToggleLeft className="w-5 h-5 text-gray-400 mr-2" />}
-                             <span className={`text-xs font-medium ${enableRoundOff ? 'text-indigo-700' : 'text-gray-500'}`}>{enableRoundOff ? 'On' : 'Off'}</span>
-                         </div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Round Off</label>
+                        <div className="h-8 flex items-center px-2 bg-gray-50 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-100" onClick={() => setEnableRoundOff(!enableRoundOff)}>
+                            {enableRoundOff ? <ToggleRight className="w-5 h-5 text-indigo-600 mr-2" /> : <ToggleLeft className="w-5 h-5 text-gray-400 mr-2" />}
+                            <span className={`text-xs font-medium ${enableRoundOff ? 'text-indigo-700' : 'text-gray-500'}`}>{enableRoundOff ? 'On' : 'Off'}</span>
+                        </div>
                     </div>
                 </div>
 
@@ -711,13 +789,6 @@ const Index = () => {
 
                 <div className="space-y-3">
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Tools & Options</div>
-                    <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-md border border-gray-200">
-                        <DollarSign size={14} className="text-gray-400 flex-shrink-0" />
-                        <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
-                            <SelectTrigger className="w-full h-8 text-xs bg-gray-50 border-gray-200"><SelectValue placeholder="Currency" /></SelectTrigger>
-                            <SelectContent><SelectItem value="INR">INR (₹)</SelectItem><SelectItem value="USD">USD ($)</SelectItem><SelectItem value="EUR">EUR (€)</SelectItem></SelectContent>
-                        </Select>
-                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <Button onClick={clearForm} variant="outline" size="sm" className="text-red-600 border-red-100 hover:bg-red-50 hover:text-red-700"><FiTrash2 className="mr-2 h-3.5 w-3.5" /> Clear</Button>
                         <Button onClick={fillDummyData} variant="outline" size="sm" className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"><FiEdit className="mr-2 h-3.5 w-3.5" /> Demo</Button>
@@ -742,28 +813,29 @@ const Index = () => {
         <div className="container mx-auto px-4 py-8 max-w-7xl">          
           
           {/* HEADER ROW */}
-          <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
-            
+          <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             {/* Title */}
             <div>
                 <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">New Invoice</h1>
                 <p className="text-gray-500 mt-1 text-sm">Create and manage your financial documents.</p>
             </div>
             
-            {/* RIGHT SIDE: ID & STATUS CARD */}
-            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 mt-4 md:mt-0">
-                {/* 1. Invoice ID Badge */}
+            {/* Invoice ID & Status Cards */}
+            <div className="flex flex-wrap items-center gap-3">
+                {/* Invoice ID Badge */}
                 <div className="px-3 py-1 bg-white border border-gray-200 rounded-full text-sm font-mono text-gray-600 shadow-sm">
                     ID: <span className="font-bold text-indigo-600">{invoice.number}</span>
                 </div>
 
-                {/* 2. USAGE/STATUS CARD (Moved here) */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden w-full sm:w-auto">
-                    <div className="bg-indigo-50/50 p-3 flex justify-between items-center">
-                        <h4 className="font-semibold text-indigo-900 text-xs flex items-center gap-1">
+                {/* Status Card */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-indigo-50/50 px-3 py-2 flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                             {isAdmin ? <ShieldCheck className="w-4 h-4 text-indigo-600" /> : <Clock className="w-4 h-4 text-indigo-600" />}
-                            {isAdmin ? "ADMIN ACCESS" : "ACCOUNT STATUS"}
-                        </h4>
+                            <span className="font-semibold text-indigo-900 text-xs">
+                                {isAdmin ? "ADMIN ACCESS" : "ACCOUNT STATUS"}
+                            </span>
+                        </div>
                         {!isAdmin && (
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${usageStats.daysLeft <= 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                                 {usageStats.daysLeft} Days Left
@@ -787,11 +859,11 @@ const Index = () => {
                             </div>
                         </div>
                     )}
-                     {isAdmin && (
-                         <div className="p-3 text-xs text-gray-500 flex items-center gap-2">
-                             <ShieldCheck className="w-4 h-4 text-green-500" /> Unlimited creation enabled.
-                         </div>
-                     )}
+                    {isAdmin && (
+                        <div className="px-3 py-2 text-xs text-gray-500 flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-green-500" /> Unlimited creation enabled
+                        </div>
+                    )}
                 </div>
             </div>
           </div>
@@ -799,6 +871,7 @@ const Index = () => {
           <div className="flex flex-col lg:flex-row gap-8">
             {/* 1. MAIN FORM CONTENT */}
             <div className="w-full lg:w-3/4 space-y-6">
+                {/* Main Form Card */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <form onSubmit={(e) => e.preventDefault()}>
                         {/* Client Details */}

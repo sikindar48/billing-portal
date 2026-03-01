@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { sendWelcomeEmail } from '@/utils/emailService';
+// Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
+// import { sendWelcomeEmail } from '@/utils/emailService';
 import { toast } from 'sonner';
 import { Loader2, CheckCircle2, XCircle, Mail } from 'lucide-react';
 
@@ -65,14 +66,14 @@ const ConfirmEmail = () => {
           // Continue anyway - user can still access the app
         }
 
-        // Send welcome email
-        try {
-          const userName = user.user_metadata?.full_name || 'User';
-          await sendWelcomeEmail(email, userName);
-        } catch (emailError) {
-          console.warn('Welcome email failed:', emailError);
-          // Don't fail confirmation for email issues
-        }
+        // Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
+        // try {
+        //   const userName = user.user_metadata?.full_name || 'User';
+        //   await sendWelcomeEmail(email, userName);
+        // } catch (emailError) {
+        //   console.warn('Welcome email failed:', emailError);
+        //   // Don't fail confirmation for email issues
+        // }
 
         // Mark as confirmed (this is a simplified approach)
         // In production, you'd want to use Supabase's proper confirmation flow

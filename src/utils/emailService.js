@@ -29,7 +29,8 @@ const TEMPLATES = {
   PASSWORD_RESET: import.meta.env.VITE_EMAILJS_PASSWORD_RESET_TEMPLATE_ID,
   SUBSCRIPTION: import.meta.env.VITE_EMAILJS_SUBSCRIPTION_TEMPLATE_ID,
   ORDER_CONFIRMATION: import.meta.env.VITE_EMAILJS_ORDER_CONFIRMATION_TEMPLATE_ID,
-  PAYMENT_CONFIRMATION: import.meta.env.VITE_EMAILJS_PAYMENT_CONFIRMATION_TEMPLATE_ID
+  PAYMENT_CONFIRMATION: import.meta.env.VITE_EMAILJS_PAYMENT_CONFIRMATION_TEMPLATE_ID,
+  PAYMENT_VERIFICATION: import.meta.env.VITE_EMAILJS_PAYMENT_VERIFICATION_TEMPLATE_ID
 };
 
 // Helper function to check if EmailJS is configured
@@ -265,4 +266,74 @@ export const sendPaymentConfirmationEmail = async (userEmail, userName, planName
   };
 
   return await sendEmail('PAYMENT_CONFIRMATION', templateParams);
+};
+
+export const sendPaymentVerificationNotification = async (userEmail, userName, planName, amount, transactionId, billingCycle, requestId, userId) => {
+  try {
+    console.log('=== SENDING PAYMENT VERIFICATION NOTIFICATION TO ADMIN ===');
+    console.log('User Email:', userEmail);
+    console.log('User Name:', userName);
+    console.log('Plan:', planName);
+    console.log('Amount:', amount);
+    console.log('Transaction ID:', transactionId);
+    console.log('Request ID:', requestId);
+
+    // Build verification URL
+    const baseUrl = window.location.origin;
+    const verificationUrl = `${baseUrl}/admin/verify-payment?request_id=${requestId}&user_id=${userId}`;
+
+    const templateParams = {
+      to_email: 'nayabsikindar48@gmail.com', // Admin email
+      admin_email: 'nayabsikindar48@gmail.com',
+      user_email: userEmail,
+      user_name: userName,
+      plan_name: planName,
+      amount: amount,
+      transaction_id: transactionId,
+      billing_cycle: billingCycle,
+      payment_method: 'UPI',
+      upi_id: 'invoiceport@ybl',
+      submission_date: new Date().toLocaleString('en-IN', { 
+        timeZone: 'Asia/Kolkata',
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      }),
+      verification_url: verificationUrl,
+      request_id: requestId,
+      user_id: userId,
+      company_name: 'InvoicePort',
+      app_url: window.location.origin,
+      current_year: new Date().getFullYear()
+    };
+
+    console.log('Sending payment verification notification with params:', templateParams);
+
+    // Use admin EmailJS service for payment verification
+    const adminServiceId = import.meta.env.VITE_EMAILJS_ADMIN_SERVICE_ID || EMAILJS_SERVICE_ID;
+    const adminPublicKey = import.meta.env.VITE_EMAILJS_ADMIN_PUBLIC_KEY || EMAILJS_PUBLIC_KEY;
+    const templateId = import.meta.env.VITE_EMAILJS_PAYMENT_VERIFICATION_TEMPLATE_ID;
+
+    console.log('Using admin service:', adminServiceId);
+    console.log('Using template:', templateId);
+
+    // Send email using admin service
+    const result = await emailjs.send(
+      adminServiceId,
+      templateId,
+      templateParams,
+      adminPublicKey
+    );
+
+    console.log('Payment verification email SUCCESS:', result);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Error sending payment verification notification:', error);
+    console.error('Error details:', {
+      message: error.message,
+      status: error.status,
+      text: error.text,
+      stack: error.stack
+    });
+    return { success: false, error: error.message };
+  }
 };

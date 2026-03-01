@@ -13,6 +13,7 @@ import SEO from '@/components/SEO';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
+import { sendPaymentVerificationNotification } from '@/utils/emailService';
 
 const SubscriptionSkeleton = () => (
   <div className="min-h-screen bg-slate-50">
@@ -46,7 +47,7 @@ const SubscriptionPage = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [requestMessage, setRequestMessage] = useState('');
   const [showRequestDialog, setShowRequestDialog] = useState(false);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showUPIDialog, setShowUPIDialog] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly'); 
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [transactionId, setTransactionId] = useState('');
@@ -130,7 +131,7 @@ const SubscriptionPage = () => {
       return;
     }
     
-    // For Pro plan, show payment dialog with QR code
+    // For Pro plan, show UPI payment dialog directly
     const planWithCycle = { ...plan, selectedCycle: billingCycle };
     setSelectedPlan(planWithCycle);
     
@@ -155,7 +156,7 @@ const SubscriptionPage = () => {
       });
       
       setQrCodeUrl(qrDataUrl);
-      setShowPaymentDialog(true);
+      setShowUPIDialog(true);
     } catch (error) {
       console.error('Error generating QR code:', error);
       toast.error('Failed to generate payment QR code', { duration: 2000 });
@@ -223,29 +224,58 @@ const SubscriptionPage = () => {
           status: 'pending'
         };
         
+        let requestId = null;
+        
         // Try to add transaction_id if column exists
         try {
           insertData.transaction_id = transactionId.trim();
-          const { data, error } = await supabase.from('subscription_requests').insert(insertData);
+          const { data, error } = await supabase.from('subscription_requests').insert(insertData).select();
           
           if (error) throw error;
           console.log('Payment verification submitted successfully with transaction_id:', data);
+          requestId = data && data[0] ? data[0].id : null;
         } catch (dbError) {
           // If transaction_id column doesn't exist, try without it
           if (dbError.message && dbError.message.includes('transaction_id')) {
             console.log('transaction_id column not found, submitting without it');
             delete insertData.transaction_id;
-            const { data, error } = await supabase.from('subscription_requests').insert(insertData);
+            const { data, error } = await supabase.from('subscription_requests').insert(insertData).select();
             
             if (error) throw error;
             console.log('Payment verification submitted successfully without transaction_id:', data);
+            requestId = data && data[0] ? data[0].id : null;
           } else {
             throw dbError;
           }
         }
         
+        // Send email notification to admin
+        try {
+          const userName = user.user_metadata?.full_name || user.email || 'User';
+          const emailResult = await sendPaymentVerificationNotification(
+            user.email,
+            userName,
+            selectedPlan.name,
+            selectedPlan.price,
+            transactionId.trim(),
+            billingCycle,
+            requestId,
+            user.id
+          );
+          
+          if (emailResult.success) {
+            console.log('Payment verification email sent to admin successfully');
+          } else {
+            console.error('Failed to send payment verification email:', emailResult.error);
+            // Don't fail the whole operation if email fails
+          }
+        } catch (emailError) {
+          console.error('Error sending payment verification email:', emailError);
+          // Don't fail the whole operation if email fails
+        }
+        
         toast.success("Payment verification submitted! We'll activate your plan within 24 hours.", { duration: 4000 });
-        setShowPaymentDialog(false);
+        setShowUPIDialog(false);
         setTransactionId("");
         setQrCodeUrl("");
       }
@@ -562,8 +592,10 @@ const SubscriptionPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* --- PAYMENT DIALOG WITH QR CODE --- */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+
+
+      {/* --- UPI QR CODE DIALOG --- */}
+      <Dialog open={showUPIDialog} onOpenChange={setShowUPIDialog}>
         <DialogContent className="sm:max-w-md bg-white p-0 overflow-hidden rounded-2xl gap-0 border-0 shadow-2xl">
             <div className="p-4 text-center bg-green-600">
                 <div className="mx-auto bg-white/20 h-10 w-10 rounded-full flex items-center justify-center mb-2 backdrop-blur-sm">
@@ -578,7 +610,7 @@ const SubscriptionPage = () => {
             </div>
             
             <div className="p-4 space-y-4">
-                {/* Plan Details - Compact */}
+                {/* Plan Details */}
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex justify-between items-center">
                     <div>
                         <p className="text-xs font-medium text-slate-500">{selectedPlan?.name}</p>
@@ -589,7 +621,7 @@ const SubscriptionPage = () => {
                     </div>
                 </div>
 
-                {/* QR Code Section - Reduced Size */}
+                {/* QR Code Section */}
                 <div className="text-center space-y-3">
                     <div className="flex items-center justify-center">
                         <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
@@ -620,7 +652,7 @@ const SubscriptionPage = () => {
                     </div>
                 </div>
 
-                {/* Transaction ID Input - Compact */}
+                {/* Transaction ID Input */}
                 <div className="space-y-2 border-t pt-3">
                     <div className="bg-blue-50 p-2 rounded-lg border border-blue-200">
                         <div className="flex items-start gap-2">
@@ -650,7 +682,7 @@ const SubscriptionPage = () => {
                 <Button 
                   variant="ghost" 
                   onClick={() => {
-                    setShowPaymentDialog(false);
+                    setShowUPIDialog(false);
                     setTransactionId('');
                     setQrCodeUrl('');
                   }} 

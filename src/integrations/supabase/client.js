@@ -20,5 +20,13 @@ export const supabase = createClient(finalUrl, finalKey, {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'x-client-info': 'supabase-js-web'
+    }
   }
 });

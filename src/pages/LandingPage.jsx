@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { sendWelcomeEmail } from '@/utils/emailService';
+// Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
+// import { sendWelcomeEmail } from '@/utils/emailService';
 import SEO from '@/components/SEO';
 import { 
   Loader2, Mail, Lock, ArrowRight, LayoutDashboard, CheckCircle2, 

@@ -19,7 +19,8 @@ const AdminGuard = ({ children }) => {
         }
 
         // 1. Hardcoded Fallback (Fastest)
-        if (user.email === 'nssoftwaresolutions1@gmail.com') {
+        const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com'];
+        if (adminEmails.includes(user.email)) {
             setIsAdmin(true);
             setIsLoading(false);
             return;

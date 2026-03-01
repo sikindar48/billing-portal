@@ -21,7 +21,7 @@ const SubscriptionGuard = ({ children }) => {
 
         // 2. --- ADMIN BYPASS ---
         // Check email OR Check DB Role
-        const adminEmails = ['admin@invoiceport.com', 'nssoftwaresolutions1@gmail.com'];
+        const adminEmails = ['admin@invoiceport.com', 'nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com'];
         
         if (adminEmails.includes(user.email)) {
             setStatus('allowed');
