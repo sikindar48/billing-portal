@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, User, Phone, Lock, Save, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Loader2, User, Lock, Save, ShieldCheck, ArrowLeft } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import SEO from '@/components/SEO';
 
@@ -17,8 +17,7 @@ const Profile = () => {
   // Profile State
   const [profile, setProfile] = useState({
     full_name: '',
-    email: '',
-    mobile: ''
+    email: '' // Read-only from auth
   });
 
   // Password State
@@ -53,8 +52,7 @@ const Profile = () => {
 
       setProfile({
         full_name: data?.full_name || '',
-        mobile: data?.mobile || '',
-        email: user.email // Email comes from Auth, read-only here usually
+        email: user.email // Email comes from Auth, read-only
       });
     } catch (error) {
       console.error(error);
@@ -69,21 +67,29 @@ const Profile = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           full_name: profile.full_name,
-          mobile: profile.mobile,
-          email: profile.email, // Keep email in sync
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Profile update error:', error);
+        throw error;
+      }
+      
       toast.success("Profile updated successfully!");
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to update profile.");
+      console.error('Error updating profile:', error);
+      toast.error(error.message || "Failed to update profile.");
     } finally {
       setSaving(false);
     }
@@ -177,20 +183,6 @@ const Profile = () => {
                                 onChange={(e) => setProfile({...profile, full_name: e.target.value})}
                                 className="pl-10"
                                 placeholder="John Doe"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="mobile">Mobile Number</Label>
-                        <div className="relative">
-                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            <Input 
-                                id="mobile"
-                                value={profile.mobile}
-                                onChange={(e) => setProfile({...profile, mobile: e.target.value})}
-                                className="pl-10"
-                                placeholder="+1 (555) 000-0000"
                             />
                         </div>
                     </div>

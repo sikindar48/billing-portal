@@ -112,7 +112,15 @@ const AuthPage = () => {
     try {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          // Provide specific error messages
+          if (error.message.includes('Email not confirmed')) {
+            throw new Error('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
+          } else if (error.message.includes('Invalid login credentials')) {
+            throw new Error('Invalid email or password. Please try again.');
+          }
+          throw error;
+        }
         toast.success('Welcome back!', { duration: 1500 });
         navigate('/dashboard', { replace: true });
       } else {
@@ -125,7 +133,13 @@ const AuthPage = () => {
             data: { full_name: name }
           },
         });
-        if (error) throw error;
+        if (error) {
+          // Handle specific signup errors
+          if (error.message.includes('already registered')) {
+            throw new Error('This email is already registered. Please log in instead.');
+          }
+          throw error;
+        }
 
         // Show success message - user needs to confirm email
         toast.success('Account created! Please check your email to confirm your account.', { duration: 4000 });

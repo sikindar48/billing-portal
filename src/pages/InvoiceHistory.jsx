@@ -14,6 +14,7 @@ import FloatingLabelInput from '@/components/FloatingLabelInput';
 const InvoiceHistory = () => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
+  const [invoiceStatuses, setInvoiceStatuses] = useState({}); // Track statuses locally
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [processingId, setProcessingId] = useState(null);
@@ -50,6 +51,18 @@ const InvoiceHistory = () => {
       if (error) throw error;
 
       setInvoices(data || []);
+      
+      // Initialize statuses from localStorage or default to 'draft'
+      const savedStatuses = localStorage.getItem(`invoice_statuses_${user.id}`);
+      if (savedStatuses) {
+        setInvoiceStatuses(JSON.parse(savedStatuses));
+      } else {
+        const defaultStatuses = {};
+        (data || []).forEach(inv => {
+          defaultStatuses[inv.id] = 'draft';
+        });
+        setInvoiceStatuses(defaultStatuses);
+      }
     } catch (error) {
       toast.error('Failed to load invoices');
     } finally {
@@ -153,26 +166,15 @@ const InvoiceHistory = () => {
         return;
       }
 
-      // Use simpler RPC function
-      const { data, error } = await supabase.rpc('change_invoice_status', {
-        invoice_id: invoiceId,
-        user_id: user.id,
-        new_status: newStatus
-      });
-
-      if (error) {
-        console.error('Status update error:', error);
-        toast.error(`Failed to update status: ${error.message}`);
-        return;
-      }
-
-      if (!data) {
-        toast.error('Invoice not found or access denied');
-        return;
-      }
+      // Update local state and localStorage
+      const updatedStatuses = {
+        ...invoiceStatuses,
+        [invoiceId]: newStatus
+      };
+      setInvoiceStatuses(updatedStatuses);
+      localStorage.setItem(`invoice_statuses_${user.id}`, JSON.stringify(updatedStatuses));
 
       toast.success(`Invoice marked as ${newStatus}`);
-      loadInvoices();
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error(`Failed to update status: ${error.message || 'Unknown error'}`);
