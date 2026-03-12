@@ -4,76 +4,14 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Check for missing environment variables
-const isMissingCredentials = !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || 
-                             SUPABASE_URL.includes('placeholder') || 
-                             SUPABASE_PUBLISHABLE_KEY.includes('placeholder');
-
-if (isMissingCredentials) {
-  console.error("⚠️ CRITICAL: Supabase credentials are missing or invalid!");
-  console.error("Current values:");
-  console.error("- VITE_SUPABASE_URL:", SUPABASE_URL || 'NOT SET');
-  console.error("- VITE_SUPABASE_PUBLISHABLE_KEY:", SUPABASE_PUBLISHABLE_KEY ? 'SET (hidden)' : 'NOT SET');
-  console.error("\nRequired environment variables:");
-  console.error("- VITE_SUPABASE_URL (your Supabase project URL)");
-  console.error("- VITE_SUPABASE_PUBLISHABLE_KEY (your Supabase anon/public key)");
-  console.error("\nFor Netlify deployment:");
-  console.error("1. Go to Site Settings → Environment Variables");
-  console.error("2. Add both variables");
-  console.error("3. Trigger a new deploy");
-  
-  // Show user-friendly error instead of blank page
-  if (typeof window !== 'undefined') {
-    const showError = () => {
-      const root = document.getElementById('root');
-      if (root && !root.innerHTML) {
-        root.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; font-family: system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-            <div style="background: white; padding: 40px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 600px;">
-              <div style="font-size: 48px; margin-bottom: 20px; text-align: center;">⚠️</div>
-              <h1 style="color: #1a202c; margin-bottom: 16px; font-size: 24px; text-align: center;">Configuration Error</h1>
-              <p style="color: #4a5568; margin-bottom: 24px; line-height: 1.6; text-align: center;">
-                The application cannot connect to the database because Supabase credentials are missing.
-              </p>
-              <div style="background: #fff5f5; padding: 20px; border-radius: 8px; border-left: 4px solid #e53e3e; margin-bottom: 20px;">
-                <p style="color: #742a2a; font-size: 14px; margin: 0 0 12px 0; font-weight: 600;">Missing Environment Variables:</p>
-                <ul style="color: #742a2a; font-size: 13px; margin: 0; padding-left: 20px; font-family: monospace;">
-                  <li>VITE_SUPABASE_URL</li>
-                  <li>VITE_SUPABASE_PUBLISHABLE_KEY</li>
-                </ul>
-              </div>
-              <div style="background: #f7fafc; padding: 20px; border-radius: 8px;">
-                <p style="color: #2d3748; font-size: 14px; margin: 0 0 12px 0; font-weight: 600;">For Administrators:</p>
-                <ol style="color: #4a5568; font-size: 13px; margin: 0; padding-left: 20px; line-height: 1.8;">
-                  <li>Go to Netlify Dashboard → Site Settings → Environment Variables</li>
-                  <li>Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY</li>
-                  <li>Get values from Supabase Dashboard → Settings → API</li>
-                  <li>Trigger a new deploy: Deploys → Clear cache and deploy site</li>
-                </ol>
-              </div>
-              <div style="text-align: center; margin-top: 24px;">
-                <a href="https://github.com/sikindar48/billing-portal/blob/main/NETLIFY_SETUP.md" 
-                   target="_blank"
-                   style="display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
-                  View Setup Guide
-                </a>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-    };
-    
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', showError);
-    } else {
-      setTimeout(showError, 100);
-    }
-  }
-}
-
+// Fallback to prevent crash if keys are missing in development
 const finalUrl = SUPABASE_URL || 'https://placeholder.supabase.co';
 const finalKey = SUPABASE_PUBLISHABLE_KEY || 'placeholder-key';
+
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.warn("⚠️ Supabase credentials are missing. Authentication will not work.");
+  console.warn("Please set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY");
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
