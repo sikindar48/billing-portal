@@ -110,9 +110,28 @@ const LandingPage = () => {
     setLoading(true);
 
     try {
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder')) {
+        toast.error('Application is not configured. Please contact the administrator.', { duration: 4000 });
+        console.error('Supabase credentials missing or invalid');
+        return;
+      }
+
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('Email not confirmed')) {
+            throw new Error('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
+          } else if (error.message.includes('Invalid login credentials')) {
+            throw new Error('Invalid email or password. Please try again.');
+          } else if (error.message.includes('fetch')) {
+            throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
+          }
+          throw error;
+        }
         toast.success('Welcome back!', { duration: 1500 });
         navigate('/dashboard', { replace: true });
       } else {
@@ -121,11 +140,18 @@ const LandingPage = () => {
           email,
           password,
           options: { 
-            emailRedirectTo: `https://invoiceport.live/`,
+            emailRedirectTo: `${window.location.origin}/`,
             data: { full_name: name }
           },
         });
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('already registered')) {
+            throw new Error('This email is already registered. Please log in instead.');
+          } else if (error.message.includes('fetch')) {
+            throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
+          }
+          throw error;
+        }
 
         // Show success message - user needs to confirm email
         toast.success('Account created! Please check your email to confirm your account.', { duration: 4000 });
@@ -134,7 +160,8 @@ const LandingPage = () => {
         // Welcome email will be sent via EmailJS after email confirmation
       }
     } catch (error) {
-      toast.error(error.message || "Authentication failed", { duration: 2500 });
+      console.error('Auth error:', error);
+      toast.error(error.message || "Authentication failed. Please try again.", { duration: 3000 });
     } finally {
       setLoading(false);
     }

@@ -110,6 +110,16 @@ const AuthPage = () => {
     setLoading(true);
 
     try {
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder')) {
+        toast.error('Application is not configured. Please contact the administrator.', { duration: 4000 });
+        console.error('Supabase credentials missing or invalid');
+        return;
+      }
+
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
@@ -118,6 +128,8 @@ const AuthPage = () => {
             throw new Error('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
           } else if (error.message.includes('Invalid login credentials')) {
             throw new Error('Invalid email or password. Please try again.');
+          } else if (error.message.includes('fetch')) {
+            throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
           }
           throw error;
         }
@@ -129,7 +141,7 @@ const AuthPage = () => {
           email,
           password,
           options: { 
-            emailRedirectTo: `https://invoiceport.live/`,
+            emailRedirectTo: `${window.location.origin}/`,
             data: { full_name: name }
           },
         });
@@ -137,6 +149,8 @@ const AuthPage = () => {
           // Handle specific signup errors
           if (error.message.includes('already registered')) {
             throw new Error('This email is already registered. Please log in instead.');
+          } else if (error.message.includes('fetch')) {
+            throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
           }
           throw error;
         }
@@ -148,7 +162,8 @@ const AuthPage = () => {
         // Welcome email will be sent via EmailJS after email confirmation
       }
     } catch (error) {
-      toast.error(error.message || "Authentication failed", { duration: 2500 });
+      console.error('Auth error:', error);
+      toast.error(error.message || "Authentication failed. Please try again.", { duration: 3000 });
     } finally {
       setLoading(false);
     }
