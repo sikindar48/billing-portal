@@ -4,13 +4,49 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Fallback to prevent crash if keys are missing in development
+// Check for missing environment variables
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.error("⚠️ CRITICAL: Supabase credentials are missing!");
+  console.error("Required environment variables:");
+  console.error("- VITE_SUPABASE_URL");
+  console.error("- VITE_SUPABASE_PUBLISHABLE_KEY");
+  console.error("Please add these to your Netlify environment variables.");
+  
+  // Show user-friendly error instead of blank page
+  if (typeof window !== 'undefined') {
+    const showError = () => {
+      const root = document.getElementById('root');
+      if (root && !root.innerHTML) {
+        root.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; font-family: system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div style="background: white; padding: 40px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 500px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+              <h1 style="color: #1a202c; margin-bottom: 16px; font-size: 24px;">Configuration Error</h1>
+              <p style="color: #4a5568; margin-bottom: 24px; line-height: 1.6;">
+                The application is missing required environment variables. 
+                Please contact the administrator to configure Supabase credentials.
+              </p>
+              <div style="background: #f7fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #e53e3e;">
+                <p style="color: #742a2a; font-size: 14px; margin: 0; font-family: monospace;">
+                  Missing: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    };
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', showError);
+    } else {
+      setTimeout(showError, 100);
+    }
+  }
+}
+
 const finalUrl = SUPABASE_URL || 'https://placeholder.supabase.co';
 const finalKey = SUPABASE_PUBLISHABLE_KEY || 'placeholder-key';
-
-if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  console.warn("Supabase keys are missing. Authentication will not work.");
-}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
