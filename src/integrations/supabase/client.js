@@ -4,6 +4,13 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Debug logging (will be visible in browser console)
+console.log('Supabase Config:', {
+  url: SUPABASE_URL ? 'SET' : 'NOT SET',
+  key: SUPABASE_PUBLISHABLE_KEY ? 'SET' : 'NOT SET',
+  urlValue: SUPABASE_URL?.substring(0, 30) + '...' // Show first 30 chars
+});
+
 // Fallback to prevent crash if keys are missing in development
 const finalUrl = SUPABASE_URL || 'https://placeholder.supabase.co';
 const finalKey = SUPABASE_PUBLISHABLE_KEY || 'placeholder-key';
