@@ -141,7 +141,11 @@ const AuthPage = () => {
           throw error;
         }
 
-        // Show success message - user needs to confirm email
+        // Supabase returns identities=[] when email already exists (unconfirmed)
+        if (data?.user && data.user.identities?.length === 0) {
+          throw new Error('This email is already registered. Please log in instead.');
+        }
+
         toast.success('Account created! Please check your email to confirm your account.', { duration: 4000 });
         
         // Don't navigate yet - user needs to confirm email first
