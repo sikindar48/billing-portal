@@ -34,6 +34,7 @@ const Template5 = ({ data = {} }) => {
               <h2 className="text-xl font-bold mt-2">
                 {yourCompany.name || "Company Name"}
               </h2>
+              {yourCompany.tagline && <p className="text-xs text-green-200 italic">{yourCompany.tagline}</p>}
               <p className="text-sm">{yourCompany.address || "Company Address"}</p>
               <p className="text-sm">{yourCompany.phone || "Company Phone"}</p>
               {yourCompany.website && <p className="text-xs text-green-200">{yourCompany.website}</p>}
@@ -167,3 +168,4 @@ const Template5 = ({ data = {} }) => {
 };
 
 export default Template5;
+

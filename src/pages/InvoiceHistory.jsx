@@ -160,24 +160,29 @@ const InvoiceHistory = () => {
         return;
       }
 
-      const invoice = invoices.find(inv => inv.id === invoiceId);
-      if (!invoice) {
-        toast.error('Invoice not found');
-        return;
-      }
+      const { error } = await supabase
+        .from('invoices')
+        .update({ status: newStatus })
+        .eq('id', invoiceId)
+        .eq('user_id', user.id);
 
-      // Update local state and localStorage
-      const updatedStatuses = {
-        ...invoiceStatuses,
-        [invoiceId]: newStatus
-      };
-      setInvoiceStatuses(updatedStatuses);
-      localStorage.setItem(`invoice_statuses_${user.id}`, JSON.stringify(updatedStatuses));
+      if (error) throw error;
 
+      setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: newStatus } : inv));
       toast.success(`Invoice marked as ${newStatus}`);
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error(`Failed to update status: ${error.message || 'Unknown error'}`);
+      // Fallback to localStorage if DB update fails
+      const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+      if (user) {
+        const updatedStatuses = { ...invoiceStatuses, [invoiceId]: newStatus };
+        setInvoiceStatuses(updatedStatuses);
+        localStorage.setItem(`invoice_statuses_${user.id}`, JSON.stringify(updatedStatuses));
+        setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: newStatus } : inv));
+        toast.success(`Invoice marked as ${newStatus}`);
+      } else {
+        toast.error(`Failed to update status: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -419,13 +424,6 @@ const InvoiceHistory = () => {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
              <div>
-                <Button
-                    variant="ghost"
-                    onClick={() => navigate('/dashboard')}
-                    className="text-gray-500 hover:text-gray-800 pl-0 hover:bg-transparent mb-2"
-                >
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-                </Button>
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Invoice History</h1>
                 <p className="text-gray-500 text-sm mt-1">Manage and track all your generated documents.</p>
              </div>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Plus, Search, Package, Edit2, Trash2, ArrowLeft } from 'lucide-react';
+import { Loader2, Plus, Search, Package, Edit2, Trash2 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
@@ -122,9 +122,6 @@ const ProductInventory = () => {
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
-                <Button variant="ghost" onClick={() => navigate('/dashboard')} className="pl-0 hover:bg-transparent mb-2">
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-                </Button>
                 <h1 className="text-3xl font-bold text-gray-900">Product Inventory</h1>
             </div>
             <Button onClick={openNew} className="bg-indigo-600 hover:bg-indigo-700 text-white">

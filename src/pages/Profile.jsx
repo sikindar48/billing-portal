@@ -144,13 +144,6 @@ const Profile = () => {
       
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
-            <Button
-                variant="ghost"
-                onClick={() => navigate('/dashboard')}
-                className="text-gray-500 hover:text-gray-800 pl-0 hover:bg-transparent"
-            >
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-            </Button>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Account Settings</h1>
             <p className="text-gray-500">Manage your personal information and security.</p>
         </div>

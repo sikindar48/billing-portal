@@ -33,6 +33,7 @@ const Template3 = ({ data }) => {
               <h1 className="text-2xl font-bold" id="company-name">
                 {yourCompany?.name || "Your Company Name"}
               </h1>
+              {yourCompany?.tagline && <p className="text-sm opacity-80 italic mt-0.5">{yourCompany.tagline}</p>}
             </div>
             <p className="mt-2 text-sm">
               {yourCompany?.address || "Your Company Address"}

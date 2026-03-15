@@ -36,6 +36,7 @@ const Template8 = ({ data }) => {
             <h2 className="text-2xl font-bold mt-2" style={{ color: blueAccent }}>
               {yourCompany.name || "Your Company Name"}
             </h2>
+            {yourCompany.tagline && <p className="text-xs text-gray-500 italic">{yourCompany.tagline}</p>}
             <p className="text-sm">{yourCompany.address || "Company Address"}</p>
             <p className="text-sm">{yourCompany.phone || "Company Phone"}</p>
             {yourCompany.website && <p className="text-xs" style={{ color: blueAccent }}>{yourCompany.website}</p>}

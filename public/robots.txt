@@ -16,7 +16,7 @@ Disallow: /statistics
 Disallow: /invoice-history
 
 # Sitemap location
-Sitemap: https://invoiceport.netlify.app/sitemap.xml
+Sitemap: https://www.invoiceport.live/sitemap.xml
 
 # Crawl delay (optional)
 Crawl-delay: 1

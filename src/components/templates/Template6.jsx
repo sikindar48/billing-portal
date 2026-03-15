@@ -36,6 +36,7 @@ const Template6 = ({ data }) => {
             <h2 className="text-2xl font-bold" style={{ color: blueAccent }}>
               {yourCompany.name || "Company Name"}
             </h2>
+            {yourCompany.tagline && <p className="text-xs text-gray-500 italic">{yourCompany.tagline}</p>}
             <p>{yourCompany.address || "Company Address"}</p>
             <p>{yourCompany.phone || "Company Phone"}</p>
             {/* --- WEBSITE INTEGRATION --- */}

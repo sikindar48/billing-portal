@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { isAdminEmail } from '@/utils/adminUtils';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -19,8 +20,7 @@ const AdminGuard = ({ children }) => {
         }
 
         // 1. Hardcoded Fallback (Fastest)
-        const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com'];
-        if (adminEmails.includes(user.email)) {
+        if (isAdminEmail(user.email)) {
             setIsAdmin(true);
             setIsLoading(false);
             return;

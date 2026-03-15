@@ -46,6 +46,7 @@ const Template1 = ({ data }) => {
                 {/* --- BRANDING INTEGRATION END --- */}
 
                 <h1 className="text-2xl font-bold">{yourCompany.name}</h1>
+                {yourCompany.tagline && <p className="text-xs text-gray-500 italic">{yourCompany.tagline}</p>}
                 <p>{yourCompany.address}</p>
                 <p>{yourCompany.phone}</p>
                 {/* --- WEBSITE INTEGRATION --- */}

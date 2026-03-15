@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, Download, Layout, CheckCircle, Lock, CreditCard } f
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { supabase } from '../integrations/supabase/client';
+import { isAdminEmail } from '../utils/adminUtils';
 import InvoiceTemplate from '../components/InvoiceTemplate';
 import { generatePDF } from '../utils/pdfGenerator';
 import { templates } from '../utils/templateRegistry';
@@ -43,8 +44,7 @@ const TemplatePage = () => {
         if (!user) return;
 
         // A. Admin Check
-        const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com', 'admin@invoiceport.com'];
-        if (adminEmails.includes(user.email)) {
+        if (isAdminEmail(user.email)) {
              setIsUnlimited(true);
              return;
         }

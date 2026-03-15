@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 // import { sendWelcomeEmail } from '@/utils/emailService';
 import { sendInvoiceEmail, validateInvoiceForEmail, getEmailCapabilities } from '@/utils/invoiceEmailService';
 import { checkEmailUsageLimit } from '@/utils/emailUsageService';
+import { isAdminEmail } from '@/utils/adminUtils';
 import { formatCurrency } from '../utils/formatCurrency'; 
 import { generateSecureInvoiceNumber } from '../utils/invoiceNumberGenerator';
 import FloatingLabelInput from '../components/FloatingLabelInput';
@@ -64,10 +65,11 @@ const Index = () => {
   const [brandingSettings, setBrandingSettings] = useState({
     logoUrl: '',
     brandingCompanyName: '',
+    brandingTagline: '',
     brandingWebsite: '',
     address: '',
     phone: '',
-    currency: 'INR', // Default currency from business settings
+    currency: 'INR',
   });
 
   const [selectedCurrency, setSelectedCurrency] = useState("INR");
@@ -105,8 +107,7 @@ const Index = () => {
             setUserId(user.id);
 
             let adminStatus = false;
-            const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com', 'admin@invoiceport.com'];
-            if (adminEmails.includes(user.email)) {
+            if (isAdminEmail(user.email)) {
                 adminStatus = true;
             } else {
                 try {
@@ -125,6 +126,7 @@ const Index = () => {
                 setBrandingSettings({
                     logoUrl: businessSettings.logo_url || '',
                     brandingCompanyName: businessSettings.company_name || '',
+                    brandingTagline: businessSettings.company_tagline || '',
                     brandingWebsite: businessSettings.company_website || '',
                     address: businessSettings.address_line1 || '',
                     phone: businessSettings.company_phone || '',
@@ -433,6 +435,7 @@ const Index = () => {
             address: yourCompany.address, 
             phone: yourCompany.phone, 
             website: yourCompany.website,
+            tagline: brandingSettings.brandingTagline,
             logo_url: brandingSettings.logoUrl 
         },
         items: items,
@@ -556,7 +559,7 @@ const Index = () => {
 
   const handleTemplateSelect = (templateNumber) => {
     setIsTemplateModalOpen(false);
-    const companyDataWithBranding = { ...yourCompany, logoUrl: brandingSettings.logoUrl };
+    const companyDataWithBranding = { ...yourCompany, logoUrl: brandingSettings.logoUrl, tagline: brandingSettings.brandingTagline };
     const formData = {
       billTo, shipTo, invoice: { ...invoice, taxType, enableRoundOff, roundOffAmount }, 
       yourCompany: companyDataWithBranding, items, taxPercentage, taxAmount, subTotal, grandTotal, notes, selectedCurrency,

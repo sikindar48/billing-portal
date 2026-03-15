@@ -38,6 +38,7 @@ const Template9 = ({ data }) => {
             <h2 className="text-xl font-bold">
               {yourCompany.name || "Your Company Name"}
             </h2>
+            {yourCompany.tagline && <p className="text-xs text-orange-500 italic">{yourCompany.tagline}</p>}
             <p>{yourCompany.address || "Company Address"}</p>
             <p>{yourCompany.phone || "Company Phone"}</p>
             {/* --- WEBSITE INTEGRATION --- */}

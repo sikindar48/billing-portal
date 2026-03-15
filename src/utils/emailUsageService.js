@@ -1,5 +1,6 @@
 // Email Usage Service - Handles plan-based email restrictions
 import { supabase } from '@/integrations/supabase/client';
+import { isAdminEmail } from '@/utils/adminUtils';
 
 /**
  * Check if user is admin (same logic as Dashboard)
@@ -12,8 +13,7 @@ const isAdminUser = async (userId) => {
     if (!user) return false;
 
     // Check admin emails
-    const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com', 'admin@invoiceport.com'];
-    if (adminEmails.includes(user.email)) {
+    if (isAdminEmail(user.email)) {
       return true;
     }
 

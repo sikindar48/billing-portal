@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { isAdminEmail } from '@/utils/adminUtils';
 import { Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -20,10 +21,7 @@ const SubscriptionGuard = ({ children }) => {
         }
 
         // 2. --- ADMIN BYPASS ---
-        // Check email OR Check DB Role
-        const adminEmails = ['admin@invoiceport.com', 'nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com'];
-        
-        if (adminEmails.includes(user.email)) {
+        if (isAdminEmail(user.email)) {
             setStatus('allowed');
             return;
         }

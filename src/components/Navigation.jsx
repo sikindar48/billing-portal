@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { isAdminEmail } from '@/utils/adminUtils';
 import { Button } from '@/components/ui/button';
 import { 
   LogOut, Settings, History, Crown, Menu, X, Shield, 
@@ -55,8 +56,7 @@ const Navigation = () => {
         setUser(session.user);
         
         // Check Admin Status
-        const adminEmails = ['nssoftwaresolutions1@gmail.com', 'nayabsikindar48@gmail.com', 'admin@invoiceport.com'];
-        if (adminEmails.includes(session.user.email)) {
+        if (isAdminEmail(session.user.email)) {
             setIsAdmin(true);
         } else {
             const { data } = await supabase

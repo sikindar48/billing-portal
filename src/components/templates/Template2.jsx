@@ -46,6 +46,7 @@ const Template2 = ({ data = {} }) => {
               <h2 className="text-xl font-bold mt-2">
                 {yourCompany.name || "Company Name"}
               </h2>
+              {yourCompany.tagline && <p className="text-xs opacity-80 italic">{yourCompany.tagline}</p>}
               <p className="text-sm">{yourCompany.address || "Company Address"}</p>
               <p className="text-sm">{yourCompany.phone || "Company Phone"}</p>
               {yourCompany.website && <p className="text-xs" style={{ color: DARK_TEXT }}>{yourCompany.website}</p>}

@@ -1,622 +1,265 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-// FIX: Use relative path to avoid build errors with alias
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Upload, ArrowLeft, Building2, Globe, ImageIcon, Save, Phone, MapPin, Mail, ExternalLink, TestTube, Send } from 'lucide-react';
+import { Loader2, Save, Building2, Mail, FileText } from 'lucide-react';
 import Navigation from '@/components/Navigation';
-import GmailConnectionTest from '@/components/GmailConnectionTest';
-import GmailSendTest from '@/components/GmailSendTest';
-import { initiateGmailOAuth } from '@/utils/gmailOAuthService'; 
+import GmailTestButtonFixed from '@/components/GmailTestButtonFixed';
 
 const BrandingSettings = () => {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  
-  // Complete sender information fields
-  const [companyName, setCompanyName] = useState('');
-  const [companyEmail, setCompanyEmail] = useState('');
-  const [companyPhone, setCompanyPhone] = useState('');
-  const [website, setWebsite] = useState('');
-  
-  // Address field (simplified)
-  const [addressLine1, setAddressLine1] = useState('');
-  
-  // Other settings
-  const [preferredEmailMethod, setPreferredEmailMethod] = useState('emailjs');
-  const [logoUrl, setLogoUrl] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState(null);
-  const [showConnectionTest, setShowConnectionTest] = useState(false);
-  const [showSendTest, setShowSendTest] = useState(false);
-  
-  // Invoice settings
-  const [currency, setCurrency] = useState('INR');
-  const [taxRate, setTaxRate] = useState(18);
-  const [invoicePrefix, setInvoicePrefix] = useState('INV');
+  const [settings, setSettings] = useState({
+    company_name: '',
+    company_tagline: '',
+    company_email: '',
+    company_phone: '',
+    company_website: '',
+    address_line1: '',
+    logo_url: '',
+    invoice_prefix: 'INV',
+    currency: 'INR',
+    tax_rate: 18,
+    preferred_email_method: 'emailjs',
+  });
 
   useEffect(() => {
-    loadBrandingSettings();
+    const fetchSettings = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        setUserId(user.id);
+        const { data } = await supabase
+          .from('business_settings')
+          .select('company_name,company_tagline,company_email,company_phone,company_website,address_line1,logo_url,invoice_prefix,currency,tax_rate,preferred_email_method')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (data) setSettings(prev => ({ ...prev, ...data }));
+      } catch (e) {
+        toast.error('Failed to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSettings();
   }, []);
 
-  const loadBrandingSettings = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      setUserId(user.id);
-
-      const { data, error } = await supabase
-        .from('business_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') throw error;
-
-      if (data) {
-        // Company information
-        setCompanyName(data.company_name || '');
-        setCompanyEmail(data.company_email || '');
-        setCompanyPhone(data.company_phone || '');
-        setWebsite(data.company_website || '');
-        
-        // Address information (simplified)
-        setAddressLine1(data.address_line1 || '');
-        
-        // Other settings
-        setLogoUrl(data.logo_url || '');
-        setPreferredEmailMethod(data.preferred_email_method || 'emailjs');
-        
-        // Invoice settings
-        setCurrency(data.currency || 'INR');
-        setTaxRate(data.tax_rate || 18);
-        setInvoicePrefix(data.invoice_prefix || 'INV');
-      }
-    } catch (error) {
-      console.error('Error loading branding settings:', error);
-      toast.error('Failed to load branding settings', { duration: 2000 });
-    }
-  };
-
-  const handleLogoUpload = async (e) => {
-    try {
-      setUploading(true);
-      const file = e.target.files[0];
-      if (!file) {
-          setUploading(false);
-          return;
-      }
-
-      if (!file.type.startsWith('image/')) {
-          toast.error("Invalid file type. Please upload an image (PNG, JPG).", { duration: 2500 });
-          setUploading(false);
-          return;
-      }
-
-      const LIMIT_KB = 200;
-      if (file.size > LIMIT_KB * 1024) {
-          toast.error(`File is too large. Maximum size is ${LIMIT_KB}KB.`, { duration: 2500 });
-          setUploading(false);
-          return;
-      }
-
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}-${Date.now()}.${fileExt}`; 
-      
-      // First, try to upload to the icon bucket
-      let uploadError = null;
-      let { error } = await supabase.storage
-        .from('icon')
-        .upload(fileName, file, { upsert: true });
-      
-      uploadError = error;
-      
-      // If bucket doesn't exist, try to create it
-      if (uploadError && uploadError.message && uploadError.message.includes('not found')) {
-        console.log('Icon bucket not found, attempting to create it...');
-        
-        try {
-          // Try to create the bucket
-          const { error: bucketError } = await supabase.storage.createBucket('icon', {
-            public: true,
-            allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
-            fileSizeLimit: 1024 * 1024 // 1MB limit
-          });
-          
-          if (bucketError) {
-            console.warn('Could not create bucket:', bucketError);
-            // If we can't create the bucket, try alternative bucket names
-            const alternativeBuckets = ['logos', 'images', 'uploads'];
-            
-            for (const bucketName of alternativeBuckets) {
-              console.log(`Trying alternative bucket: ${bucketName}`);
-              const { error: altError } = await supabase.storage
-                .from(bucketName)
-                .upload(fileName, file, { upsert: true });
-              
-              if (!altError) {
-                const { data: { publicUrl } } = supabase.storage
-                  .from(bucketName)
-                  .getPublicUrl(fileName);
-                
-                setLogoUrl(publicUrl);
-                toast.success(`Logo uploaded successfully to ${bucketName} bucket!`, { duration: 2000 });
-                return;
-              }
-            }
-            
-            // If all alternatives fail, throw the original error
-            throw new Error('No available storage bucket found. Please create an "icon" bucket in Supabase Storage.');
-          } else {
-            console.log('Icon bucket created successfully, retrying upload...');
-            // Retry upload after creating bucket
-            const { error: retryError } = await supabase.storage
-              .from('icon')
-              .upload(fileName, file, { upsert: true });
-            
-            if (retryError) throw retryError;
-          }
-        } catch (bucketCreationError) {
-          console.error('Bucket creation failed:', bucketCreationError);
-          throw new Error('Failed to create storage bucket. Please create an "icon" bucket manually in Supabase Storage.');
-        }
-      } else if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('icon')
-        .getPublicUrl(fileName);
-
-      setLogoUrl(publicUrl);
-      toast.success('Logo uploaded successfully!', { duration: 2000 });
-    } catch (error) {
-      console.error('Logo upload error:', error);
-      
-      if (error.message && error.message.includes('bucket')) {
-        toast.error('Storage bucket not found. Please create an "icon" bucket in Supabase Storage.', { duration: 4000 });
-      } else if (error.message && error.message.includes('permission')) {
-        toast.error('Permission denied. Please check your Supabase storage policies.', { duration: 4000 });
-      } else {
-        toast.error(`Failed to upload logo: ${error.message}`, { duration: 3000 });
-      }
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleSave = async () => {
+    if (!userId) return;
+    setSaving(true);
     try {
-      setLoading(true);
-
-      // Validate required fields
-      if (!companyName.trim()) {
-        toast.error('Company name is required', { duration: 2000 });
-        return;
-      }
-
-      // Save simplified business settings
       const { error } = await supabase
         .from('business_settings')
         .upsert({
           user_id: userId,
-          // Company information
-          company_name: companyName.trim(),
-          company_email: companyEmail.trim(),
-          company_phone: companyPhone.trim(),
-          company_website: website.trim(),
-          
-          // Address information (simplified)
-          address_line1: addressLine1.trim(),
-          
-          // Other settings
-          logo_url: logoUrl,
-          preferred_email_method: preferredEmailMethod,
-          
-          // Invoice settings
-          currency: currency,
-          tax_rate: parseFloat(taxRate),
-          invoice_prefix: invoicePrefix.trim(),
-        }, {
-          onConflict: 'user_id'
-        });
-
+          company_name: settings.company_name,
+          company_tagline: settings.company_tagline,
+          company_email: settings.company_email,
+          company_phone: settings.company_phone,
+          company_website: settings.company_website,
+          address_line1: settings.address_line1,
+          logo_url: settings.logo_url,
+          invoice_prefix: settings.invoice_prefix,
+          currency: settings.currency,
+          tax_rate: settings.tax_rate,
+          preferred_email_method: settings.preferred_email_method,
+        }, { onConflict: 'user_id' });
       if (error) throw error;
-
-      toast.success('Business settings saved successfully!', { duration: 2000 });
-    } catch (error) {
-      console.error('Error saving business settings:', error);
-      toast.error('Failed to save business settings', { duration: 2000 });
+      toast.success('Settings saved');
+    } catch (e) {
+      console.error('Save error:', e);
+      toast.error('Failed to save: ' + (e.message || 'Unknown error'));
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  const set = (field, value) => setSettings(prev => ({ ...prev, [field]: value }));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navigation />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
       <Navigation />
-      
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+
         <div className="mb-8">
-            <Button
-            variant="ghost"
-            onClick={() => navigate('/dashboard')}
-            className="text-gray-500 hover:text-gray-800 pl-0 hover:bg-transparent"
-            >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-            </Button>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Business Settings</h1>
-            <p className="text-gray-500">Configure your business information for invoices and communications.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Branding & Settings</h1>
+          <p className="text-gray-500 mt-1 text-sm">Manage your company info, invoice defaults, and email configuration.</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 border-b border-indigo-100">
-                <h2 className="text-lg font-semibold text-indigo-900 flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-indigo-600" />
-                    Business Settings
-                </h2>
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+          {/* SIDEBAR */}
+          <div className="xl:col-span-1 space-y-6">
+
+            {/* Logo Preview */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Logo Preview</h3>
+              <div className="flex flex-col items-center gap-3 mb-4">
+                {settings.logo_url ? (
+                  <img
+                    src={settings.logo_url}
+                    alt="Logo"
+                    className="h-16 w-auto object-contain rounded"
+                    onError={e => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-xl bg-indigo-50 flex items-center justify-center">
+                    <Building2 className="h-8 w-8 text-indigo-300" />
+                  </div>
+                )}
+                <div className="text-center">
+                  <p className="font-semibold text-gray-800 text-sm">{settings.company_name || 'Your Company'}</p>
+                  {settings.company_tagline && (
+                    <p className="text-xs text-gray-400 italic mt-0.5">{settings.company_tagline}</p>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">Logo URL</Label>
+                <Input
+                  value={settings.logo_url || ''}
+                  onChange={e => set('logo_url', e.target.value)}
+                  placeholder="https://..."
+                  className="text-sm"
+                />
+              </div>
             </div>
 
-            <div className="p-8 space-y-8">
-                {/* Company Information Section */}
-                <div className="space-y-6">
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="companyName" className="text-gray-700">Company Name *</Label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Building2 className="h-4 w-4" /></div>
-                                <Input
-                                    id="companyName"
-                                    value={companyName}
-                                    onChange={(e) => setCompanyName(e.target.value)}
-                                    placeholder="Your Company Name"
-                                    className="pl-10"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="companyEmail" className="text-gray-700">Company Email</Label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Mail className="h-4 w-4" /></div>
-                                <Input
-                                    id="companyEmail"
-                                    type="email"
-                                    value={companyEmail}
-                                    onChange={(e) => setCompanyEmail(e.target.value)}
-                                    placeholder="contact@yourcompany.com"
-                                    className="pl-10"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="companyPhone" className="text-gray-700">Phone Number</Label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Phone className="h-4 w-4" /></div>
-                                <Input
-                                    id="companyPhone"
-                                    value={companyPhone}
-                                    onChange={(e) => setCompanyPhone(e.target.value)}
-                                    placeholder="+91 98765 43210"
-                                    className="pl-10"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="website" className="text-gray-700">Website</Label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Globe className="h-4 w-4" /></div>
-                                <Input
-                                    id="website"
-                                    value={website}
-                                    onChange={(e) => setWebsite(e.target.value)}
-                                    placeholder="https://www.yourcompany.com"
-                                    className="pl-10"
-                                />
-                            </div>
-                        </div>
-                    </div>
+            {/* Invoice Defaults */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <FileText className="h-3.5 w-3.5" /> Invoice Defaults
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs text-gray-500">Invoice Prefix</Label>
+                  <Input
+                    value={settings.invoice_prefix || 'INV'}
+                    onChange={e => set('invoice_prefix', e.target.value)}
+                    placeholder="INV"
+                    className="text-sm mt-1"
+                  />
                 </div>
-
-                {/* Address Information Section */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <MapPin className="w-5 h-5 text-indigo-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">Business Address</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 gap-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="addressLine1" className="text-gray-700">Address</Label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><MapPin className="h-4 w-4" /></div>
-                                <Input
-                                    id="addressLine1"
-                                    value={addressLine1}
-                                    onChange={(e) => setAddressLine1(e.target.value)}
-                                    placeholder="Complete business address"
-                                    className="pl-10"
-                                />
-                            </div>
-                        </div>
-                    </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Currency</Label>
+                  <select
+                    value={settings.currency || 'INR'}
+                    onChange={e => set('currency', e.target.value)}
+                    className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="INR">INR (₹)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                  </select>
                 </div>
-
-                {/* Email Configuration Section */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Mail className="w-5 h-5 text-indigo-600" />
-                        <Label className="text-gray-700 text-lg font-semibold">Email Configuration</Label>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors cursor-pointer">
-                            <div className="flex items-center gap-3 mb-2">
-                                <input 
-                                    type="radio" 
-                                    name="email_method" 
-                                    value="gmail"
-                                    checked={preferredEmailMethod === 'gmail'}
-                                    onChange={(e) => setPreferredEmailMethod(e.target.value)}
-                                    className="text-indigo-500"
-                                />
-                                <h3 className="font-semibold text-gray-900">Gmail Integration</h3>
-                            </div>
-                            <p className="text-sm text-gray-600">Send emails from your Gmail account (Recommended)</p>
-                            <div className="mt-2 text-xs text-emerald-600">✅ Professional sender address</div>
-                        </div>
-                        
-                        <div className="p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors cursor-pointer">
-                            <div className="flex items-center gap-3 mb-2">
-                                <input 
-                                    type="radio" 
-                                    name="email_method" 
-                                    value="emailjs"
-                                    checked={preferredEmailMethod === 'emailjs'}
-                                    onChange={(e) => setPreferredEmailMethod(e.target.value)}
-                                    className="text-indigo-500"
-                                />
-                                <h3 className="font-semibold text-gray-900">Email (Basic)</h3>
-                            </div>
-                            <p className="text-sm text-gray-600">Simple email delivery (fallback option)</p>
-                            <div className="mt-2 text-xs text-yellow-600">⚠️ Generic sender address</div>
-                        </div>
-                    </div>
-
-                    {/* Gmail Configuration */}
-                    {preferredEmailMethod === 'gmail' && (
-                        <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                            <h3 className="text-gray-900 font-semibold mb-3">Gmail Integration</h3>
-                            <p className="text-gray-600 text-sm mb-4">
-                                Gmail integration allows you to send invoices directly from your Gmail account. 
-                                This feature provides professional email delivery with your own email address.
-                            </p>
-                            
-                            {/* Pro Plan Notice */}
-                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                    <span className="text-yellow-800 font-medium text-sm">Pro Feature</span>
-                                </div>
-                                <p className="text-yellow-700 text-sm">
-                                    Gmail integration is available for Pro plan users only. 
-                                    Trial users can send emails via InvoicePort mail (3 emails limit).
-                                </p>
-                            </div>
-                            
-                            {/* Gmail Connection Component */}
-                            <div className="bg-white p-4 rounded-lg border border-indigo-200">
-                                <div className="flex items-center justify-between mb-3">
-                                    <h4 className="font-medium text-gray-900">Gmail Connection Status</h4>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            onClick={() => setShowSendTest(!showSendTest)}
-                                            variant="outline"
-                                            size="sm"
-                                        >
-                                            <Send className="w-4 h-4 mr-2" />
-                                            Send
-                                        </Button>
-                                        <Button
-                                            onClick={() => setShowConnectionTest(!showConnectionTest)}
-                                            variant="outline"
-                                            size="sm"
-                                        >
-                                            <TestTube className="w-4 h-4 mr-2" />
-                                            Test
-                                        </Button>
-                                        <Button
-                                            onClick={() => {
-                                                try {
-                                                    initiateGmailOAuth();
-                                                } catch (error) {
-                                                    toast.error(`OAuth Error: ${error.message}`);
-                                                }
-                                            }}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2"
-                                        >
-                                            <ExternalLink className="w-4 h-4 mr-2" />
-                                            Connect Gmail (Pro Only)
-                                        </Button>
-                                    </div>
-                                </div>
-                                
-                                {showSendTest && (
-                                    <div className="mb-4">
-                                        <GmailSendTest />
-                                    </div>
-                                )}
-                                
-                                {showConnectionTest && (
-                                    <div className="mb-4">
-                                        <GmailConnectionTest />
-                                    </div>
-                                )}
-                                
-                                <p className="text-sm text-gray-500">
-                                    Click "Connect Gmail" to authorize InvoicePort to send emails from your Gmail account.
-                                    <br />
-                                    <span className="text-yellow-600 font-medium">Note: This feature requires a Pro subscription.</span>
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* EmailJS Configuration */}
-                    {preferredEmailMethod === 'emailjs' && (
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <h3 className="text-gray-900 font-semibold mb-3">EmailJS Configuration</h3>
-                            <p className="text-gray-600 text-sm mb-4">
-                                EmailJS provides reliable email delivery for your invoices. 
-                                Emails are sent from InvoicePort with your company branding.
-                            </p>
-                            
-                            {/* Plan-based limits */}
-                            <div className="p-3 bg-white border border-blue-200 rounded-lg">
-                                <div className="flex items-center justify-between mb-2">
-                                    <h4 className="font-medium text-gray-900">Email Limits</h4>
-                                    <span className="text-sm text-blue-600 font-medium">Current Plan</span>
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    <div className="flex justify-between">
-                                        <span>Trial Users:</span>
-                                        <span className="font-medium">3 emails total</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Pro Users:</span>
-                                        <span className="font-medium text-emerald-600">Unlimited emails</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                <div>
+                  <Label className="text-xs text-gray-500">Default Tax Rate (%)</Label>
+                  <Input
+                    type="number"
+                    value={settings.tax_rate ?? 18}
+                    onChange={e => set('tax_rate', parseFloat(e.target.value) || 0)}
+                    placeholder="18"
+                    className="text-sm mt-1"
+                  />
                 </div>
-
-                {/* Logo Upload Section */}
-                <div className="space-y-4">
-                    <Label className="text-gray-700">Company Logo</Label>
-                    
-                    <div className="flex flex-col md:flex-row items-start gap-6">
-                        {/* Logo Preview */}
-                        <div className="w-32 h-32 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 relative overflow-hidden group">
-                            {logoUrl ? (
-                                <img
-                                    src={logoUrl}
-                                    alt="Company Logo"
-                                    className="w-full h-full object-contain p-2"
-                                />
-                            ) : (
-                                <ImageIcon className="h-10 w-10 text-gray-300" />
-                            )}
-                            {/* Loading Overlay */}
-                            {uploading && (
-                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                    <Loader2 className="h-8 w-8 animate-spin text-white" />
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Upload Controls */}
-                        <div className="flex-1 space-y-2">
-                             <div className="flex items-center gap-3">
-                                <label htmlFor="logo-upload" className="cursor-pointer">
-                                    <div className="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors shadow-sm">
-                                        <Upload className="h-4 w-4" />
-                                        {logoUrl ? 'Change Logo' : 'Upload Logo'}
-                                    </div>
-                                    <input
-                                        id="logo-upload"
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleLogoUpload}
-                                        disabled={uploading}
-                                        className="hidden"
-                                    />
-                                </label>
-                                {uploading && <span className="text-sm text-gray-500 animate-pulse">Uploading...</span>}
-                            </div>
-                            <p className="text-sm text-gray-500">
-                                Max size: <span className="font-bold text-gray-700">200KB</span>. Supported: PNG, JPG.
-                                <br /> This logo will appear on all your generated invoices.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Invoice Settings Section */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Building2 className="w-5 h-5 text-indigo-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">Invoice Settings</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="currency" className="text-gray-700">Default Currency</Label>
-                            <select
-                                id="currency"
-                                value={currency}
-                                onChange={(e) => setCurrency(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            >
-                                <option value="INR">INR (₹)</option>
-                                <option value="USD">USD ($)</option>
-                                <option value="EUR">EUR (€)</option>
-                                <option value="GBP">GBP (£)</option>
-                            </select>
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <Label htmlFor="taxRate" className="text-gray-700">Default Tax Rate (%)</Label>
-                            <Input
-                                id="taxRate"
-                                type="number"
-                                step="0.01"
-                                value={taxRate}
-                                onChange={(e) => setTaxRate(e.target.value)}
-                                placeholder="18.00"
-                            />
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <Label htmlFor="invoicePrefix" className="text-gray-700">Invoice Prefix</Label>
-                            <Input
-                                id="invoicePrefix"
-                                value={invoicePrefix}
-                                onChange={(e) => setInvoicePrefix(e.target.value)}
-                                placeholder="INV"
-                                maxLength="10"
-                            />
-                        </div>
-                    </div>
-                    
-                    <p className="text-sm text-gray-500">
-                        These settings will be used as defaults when creating new invoices. Currency applies to all invoices.
-                    </p>
-                </div>
-
-                {/* Save Button */}
-                <div className="pt-6 border-t border-gray-100 flex justify-end">
-                    <Button 
-                        onClick={handleSave} 
-                        disabled={loading} 
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 h-11 shadow-md transition-all"
-                    >
-                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save Business Settings
-                    </Button>
-                </div>
+              </div>
             </div>
+          </div>
+
+          {/* MAIN CONTENT */}
+          <div className="xl:col-span-3 space-y-6">
+
+            {/* Company Info */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-5 flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-indigo-500" /> Company Information
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-gray-500">Company Name</Label>
+                  <Input value={settings.company_name || ''} onChange={e => set('company_name', e.target.value)} placeholder="Your Company Name" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Tagline</Label>
+                  <Input value={settings.company_tagline || ''} onChange={e => set('company_tagline', e.target.value)} placeholder="e.g. Building the future" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Email</Label>
+                  <Input type="email" value={settings.company_email || ''} onChange={e => set('company_email', e.target.value)} placeholder="contact@company.com" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Phone</Label>
+                  <Input value={settings.company_phone || ''} onChange={e => set('company_phone', e.target.value)} placeholder="+91 98765 43210" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Website</Label>
+                  <Input value={settings.company_website || ''} onChange={e => set('company_website', e.target.value)} placeholder="https://yourcompany.com" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Address</Label>
+                  <Input value={settings.address_line1 || ''} onChange={e => set('address_line1', e.target.value)} placeholder="123 Main St, City, State" className="mt-1" />
+                </div>
+              </div>
+            </div>
+
+            {/* Email Config */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-5 flex items-center gap-2">
+                <Mail className="h-4 w-4 text-indigo-500" /> Email Configuration
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <label className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${settings.preferred_email_method === 'gmail' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" name="email_method" value="gmail" checked={settings.preferred_email_method === 'gmail'} onChange={e => set('preferred_email_method', e.target.value)} className="mt-0.5 accent-indigo-600" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Gmail Integration</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Send from your Gmail account</p>
+                    <p className="text-xs mt-1 text-emerald-600">✅ Recommended</p>
+                  </div>
+                </label>
+                <label className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${settings.preferred_email_method === 'emailjs' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" name="email_method" value="emailjs" checked={settings.preferred_email_method === 'emailjs'} onChange={e => set('preferred_email_method', e.target.value)} className="mt-0.5 accent-indigo-600" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">EmailJS (Basic)</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Simple fallback delivery</p>
+                    <p className="text-xs mt-1 text-yellow-600">⚠️ Generic sender</p>
+                  </div>
+                </label>
+              </div>
+              {settings.preferred_email_method === 'gmail' && (
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-3">Connect your Gmail account to send invoices professionally.</p>
+                  <GmailTestButtonFixed />
+                </div>
+              )}
+            </div>
+
+            {/* Save */}
+            <div className="flex justify-end">
+              <Button onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8">
+                {saving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving...</>
+                ) : (
+                  <><Save className="h-4 w-4 mr-2" />Save Settings</>
+                )}
+              </Button>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
