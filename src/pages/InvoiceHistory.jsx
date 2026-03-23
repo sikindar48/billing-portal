@@ -1,28 +1,65 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Eye, Trash2, Download, Search, FileText, Calendar, DollarSign, CheckCircle2, Clock, AlertCircle, XCircle, Mail, ArrowRightLeft } from 'lucide-react';
+import { Loader2, Eye, Trash2, Download, Search, FileText, Calendar, DollarSign, CheckCircle2, Clock, AlertCircle, XCircle, Mail, ArrowRightLeft } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatCurrency';
 import Navigation from '@/components/Navigation';
 import { generatePDF } from '@/utils/pdfGenerator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import FloatingLabelInput from '@/components/FloatingLabelInput';
 
+// Loading skeleton for the invoice table
+const InvoiceTableSkeleton = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm text-left">
+        <thead className="text-xs text-gray-500 uppercase bg-gray-50/50 border-b border-gray-100">
+          <tr>
+            {['Invoice #', 'Date', 'Client', 'Status', 'Amount', 'Actions'].map(h => (
+              <th key={h} className="px-6 py-4 font-medium">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {[1, 2, 3, 4, 5].map(i => (
+            <tr key={i} className="animate-pulse">
+              <td className="px-6 py-4"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+              <td className="px-6 py-4"><div className="h-4 w-20 bg-gray-200 rounded" /></td>
+              <td className="px-6 py-4"><div className="h-4 w-32 bg-gray-200 rounded" /></td>
+              <td className="px-6 py-4"><div className="h-6 w-20 bg-gray-200 rounded-full" /></td>
+              <td className="px-6 py-4"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+              <td className="px-6 py-4"><div className="h-8 w-24 bg-gray-200 rounded ml-auto" /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
 const InvoiceHistory = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
-  const [invoiceStatuses, setInvoiceStatuses] = useState({}); // Track statuses locally
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [processingId, setProcessingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [modeFilter, setModeFilter] = useState('all');
   
   // Payment modal state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  // Delete confirmation state
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  // Convert confirmation state
+  const [convertConfirmInvoice, setConvertConfirmInvoice] = useState(null);
   const [paymentData, setPaymentData] = useState({
     amount: '',
     payment_method: 'cash',
@@ -34,14 +71,11 @@ const InvoiceHistory = () => {
   const [savingPayment, setSavingPayment] = useState(false);
 
   useEffect(() => {
-    loadInvoices();
-  }, []);
+    if (user) loadInvoices();
+  }, [user]);
 
   const loadInvoices = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data, error } = await supabase
         .from('invoices')
         .select('*')
@@ -51,18 +85,6 @@ const InvoiceHistory = () => {
       if (error) throw error;
 
       setInvoices(data || []);
-      
-      // Initialize statuses from localStorage or default to 'draft'
-      const savedStatuses = localStorage.getItem(`invoice_statuses_${user.id}`);
-      if (savedStatuses) {
-        setInvoiceStatuses(JSON.parse(savedStatuses));
-      } else {
-        const defaultStatuses = {};
-        (data || []).forEach(inv => {
-          defaultStatuses[inv.id] = 'draft';
-        });
-        setInvoiceStatuses(defaultStatuses);
-      }
     } catch (error) {
       toast.error('Failed to load invoices');
     } finally {
@@ -71,8 +93,6 @@ const InvoiceHistory = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this invoice? This cannot be undone.')) return;
-    
     setProcessingId(id);
     try {
       const { error } = await supabase
@@ -88,14 +108,22 @@ const InvoiceHistory = () => {
       toast.error('Failed to delete invoice');
     } finally {
       setProcessingId(null);
+      setDeleteConfirmId(null);
     }
   };
 
   const handleView = (invoice) => {
+    // Pass the original invoice number — do NOT generate a new number.
+    // viewMode flag tells Dashboard to skip draft-number generation.
     const invoiceData = {
         billTo: invoice.bill_to,
         shipTo: invoice.ship_to,
-        invoice: invoice.invoice_details,
+        invoice: {
+            ...(invoice.invoice_details || {}),
+            number: invoice.invoice_number, // preserve original number
+            date: invoice.issue_date || invoice.invoice_details?.date,
+            paymentDate: invoice.due_date || invoice.invoice_details?.paymentDate,
+        },
         yourCompany: invoice.from_details,
         items: invoice.items,
         taxPercentage: invoice.tax,
@@ -103,10 +131,12 @@ const InvoiceHistory = () => {
         subTotal: invoice.subtotal,
         grandTotal: invoice.grand_total,
         notes: invoice.notes,
-        selectedCurrency: invoice.currency || "INR"
+        selectedCurrency: invoice.currency || "INR",
+        invoiceMode: invoice.invoice_mode || 'proforma',
+        _sourceInvoiceId: invoice.id,
     };
     
-    navigate('/dashboard', { state: { invoiceData } });
+    navigate('/dashboard', { state: { invoiceData, viewMode: true } });
   };
 
   const handleDownload = async (invoice) => {
@@ -123,10 +153,10 @@ const InvoiceHistory = () => {
             selectedCurrency: invoice.currency || "INR"
         };
         
-        await generatePDF(formData, 1); 
+        const templateNumber = invoice.template_id || 1;
+        await generatePDF(formData, templateNumber); 
         toast.success("Invoice downloaded!");
     } catch (error) {
-        console.error(error);
         toast.error("Failed to generate PDF");
     } finally {
         setProcessingId(null);
@@ -152,19 +182,24 @@ const InvoiceHistory = () => {
     );
   };
 
-  const handleStatusChange = async (invoiceId, newStatus) => {
+  const handleStatusChange = async (invoiceId, newStatus, existingUserId = null) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Not authenticated');
-        return;
+      // Use passed userId if available to avoid redundant auth call
+      let uid = existingUserId;
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast.error('Not authenticated');
+          return;
+        }
+        uid = user.id;
       }
 
       const { error } = await supabase
         .from('invoices')
         .update({ status: newStatus })
         .eq('id', invoiceId)
-        .eq('user_id', user.id);
+        .eq('user_id', uid);
 
       if (error) throw error;
 
@@ -172,17 +207,7 @@ const InvoiceHistory = () => {
       toast.success(`Invoice marked as ${newStatus}`);
     } catch (error) {
       console.error('Error updating status:', error);
-      // Fallback to localStorage if DB update fails
-      const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
-      if (user) {
-        const updatedStatuses = { ...invoiceStatuses, [invoiceId]: newStatus };
-        setInvoiceStatuses(updatedStatuses);
-        localStorage.setItem(`invoice_statuses_${user.id}`, JSON.stringify(updatedStatuses));
-        setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: newStatus } : inv));
-        toast.success(`Invoice marked as ${newStatus}`);
-      } else {
-        toast.error(`Failed to update status: ${error.message || 'Unknown error'}`);
-      }
+      toast.error(`Failed to update status: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -235,7 +260,8 @@ const InvoiceHistory = () => {
 
       const invoiceAmount = selectedInvoice.grand_total || 0;
       if (parseFloat(paymentData.amount) >= invoiceAmount) {
-        await handleStatusChange(selectedInvoice.id, 'paid');
+        // Pass user.id to avoid a redundant getUser() call inside handleStatusChange
+        await handleStatusChange(selectedInvoice.id, 'paid', user.id);
       }
 
       toast.success('Payment recorded successfully');
@@ -250,10 +276,7 @@ const InvoiceHistory = () => {
   };
 
   const handleConvertToTaxInvoice = async (proformaInvoice) => {
-    if (!confirm('Convert this Proforma Invoice to a Tax Invoice? This will generate a new invoice number and record the payment.')) {
-      return;
-    }
-
+    setConvertConfirmInvoice(null);
     setProcessingId(proformaInvoice.id);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -272,6 +295,13 @@ const InvoiceHistory = () => {
         return;
       }
 
+      // Also block if the proforma itself was already marked converted
+      if (proformaInvoice.status === 'converted') {
+        toast.error('This proforma has already been converted to a tax invoice');
+        setProcessingId(null);
+        return;
+      }
+
       if (!proformaInvoice.items || proformaInvoice.items.length === 0) {
         toast.error('Cannot convert invoice without items');
         setProcessingId(null);
@@ -284,7 +314,7 @@ const InvoiceHistory = () => {
       // Generate new invoice number with 'INV' prefix for tax invoice
       const newInvoiceNumber = generateSecureInvoiceNumber('INV', 6);
 
-      // Create new tax invoice record
+      // Create new tax invoice record — only columns that exist in DB schema
       const taxInvoiceData = {
         user_id: user.id,
         invoice_number: newInvoiceNumber,
@@ -292,11 +322,6 @@ const InvoiceHistory = () => {
         status: 'paid',
         issue_date: new Date().toISOString().split('T')[0],
         due_date: proformaInvoice.due_date,
-        
-        // Copy customer data
-        customer_name: proformaInvoice.customer_name,
-        customer_email: proformaInvoice.customer_email,
-        customer_address: proformaInvoice.customer_address,
         
         // Copy amounts
         subtotal: proformaInvoice.subtotal,
@@ -310,7 +335,7 @@ const InvoiceHistory = () => {
         terms: proformaInvoice.terms,
         template_id: proformaInvoice.template_id,
         
-        // Copy legacy fields
+        // Copy JSONB fields (bill_to contains customer data)
         bill_to: proformaInvoice.bill_to,
         ship_to: proformaInvoice.ship_to,
         invoice_details: proformaInvoice.invoice_details,
@@ -320,8 +345,6 @@ const InvoiceHistory = () => {
         
         // Conversion tracking
         converted_from_id: proformaInvoice.id,
-        conversion_date: new Date().toISOString(),
-        paid_at: new Date().toISOString()
       };
 
       const { data: newInvoice, error: invoiceError } = await supabase
@@ -340,7 +363,7 @@ const InvoiceHistory = () => {
           description: item.description || '',
           quantity: item.quantity,
           unit_price: item.amount,
-          amount: item.total,
+          amount: item.total ?? (item.quantity * item.amount),
           sort_order: index
         }));
 
@@ -369,6 +392,13 @@ const InvoiceHistory = () => {
       if (paymentError) {
         console.error('Error recording payment:', paymentError);
       }
+
+      // Mark the source proforma as 'converted' to prevent duplicate conversions
+      await supabase
+        .from('invoices')
+        .update({ status: 'converted' })
+        .eq('id', proformaInvoice.id)
+        .eq('user_id', user.id);
 
       // Log conversion in audit_logs
       try {
@@ -403,14 +433,22 @@ const InvoiceHistory = () => {
       inv.bill_to?.name?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
+    const matchesMode = modeFilter === 'all' || inv.invoice_mode === modeFilter;
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesMode;
   });
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <div className="min-h-screen bg-slate-50 font-sans">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="mb-6">
+            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+          </div>
+          <InvoiceTableSkeleton />
+        </div>
       </div>
     );
   }
@@ -451,6 +489,18 @@ const InvoiceHistory = () => {
                         <SelectItem value="sent">Sent</SelectItem>
                         <SelectItem value="paid">Paid</SelectItem>
                         <SelectItem value="cancelled">Cancelled</SelectItem>
+                        <SelectItem value="converted">Converted</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                 <Select value={modeFilter} onValueChange={setModeFilter}>
+                    <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="proforma">Proforma</SelectItem>
+                        <SelectItem value="tax_invoice">Tax Invoice</SelectItem>
                     </SelectContent>
                 </Select>
              </div>
@@ -528,7 +578,7 @@ const InvoiceHistory = () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => handleConvertToTaxInvoice(invoice)}
+                                                    onClick={() => setConvertConfirmInvoice(invoice)}
                                                     title="Convert to Tax Invoice"
                                                     disabled={processingId === invoice.id}
                                                     className="text-gray-400 hover:text-purple-600 hover:bg-purple-50"
@@ -573,7 +623,7 @@ const InvoiceHistory = () => {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => handleDelete(invoice.id)}
+                                                onClick={() => setDeleteConfirmId(invoice.id)}
                                                 title="Delete"
                                                 disabled={processingId === invoice.id}
                                                 className="text-gray-400 hover:text-red-600 hover:bg-red-50"
@@ -590,6 +640,48 @@ const InvoiceHistory = () => {
             )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this invoice? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => handleDelete(deleteConfirmId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Convert to Tax Invoice Confirmation Dialog */}
+      <AlertDialog open={!!convertConfirmInvoice} onOpenChange={(open) => !open && setConvertConfirmInvoice(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Convert to Tax Invoice</AlertDialogTitle>
+            <AlertDialogDescription>
+              Convert this Proforma Invoice to a Tax Invoice? This will generate a new invoice number and record the payment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => handleConvertToTaxInvoice(convertConfirmInvoice)}
+            >
+              Convert
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Payment Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>

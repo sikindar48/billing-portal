@@ -3,48 +3,39 @@ import { supabase } from '@/integrations/supabase/client';
 import { isAdminEmail } from '@/utils/adminUtils';
 
 /**
- * Check if user is admin (same logic as Dashboard)
- * @param {string} userId - User ID
+ * Check if current user is admin.
  * @returns {Promise<boolean>} True if user is admin
  */
-const isAdminUser = async (userId) => {
+const isAdminUser = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // Check admin emails
-    if (isAdminEmail(user.email)) {
-      return true;
-    }
+    if (isAdminEmail(user.email)) return true;
 
-    // Check user roles table
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .eq('role', 'admin')
       .maybeSingle();
 
     return !!roleData;
   } catch (error) {
-    console.error('Error checking admin status:', error);
     return false;
   }
 };
 
 /**
- * Check if user can send emails based on their subscription plan
- * @param {string} userId - User ID
+ * Check if user can send emails based on their subscription plan.
+ * Always resolves the user internally — no userId param needed.
  * @returns {Promise<Object>} Email usage status
  */
-export const checkEmailUsageLimit = async (userId) => {
+export const checkEmailUsageLimit = async () => {
   try {
-    console.log('Checking email usage limit for user:', userId);
-    
     // Check if user is admin first
-    const isAdmin = await isAdminUser(userId);
+    const isAdmin = await isAdminUser();
     if (isAdmin) {
-      console.log('User is admin, bypassing email limits');
       return {
         canSendEmail: true,
         currentUsage: 0,
@@ -58,7 +49,6 @@ export const checkEmailUsageLimit = async (userId) => {
     const { data, error } = await supabase.rpc('check_email_limit');
     
     if (error) {
-      console.error('Error checking email limit:', error);
       // Default to trial limits on error
       return {
         canSendEmail: false,
@@ -72,7 +62,6 @@ export const checkEmailUsageLimit = async (userId) => {
     }
 
     if (!data || data.length === 0) {
-      // No subscription found, default to trial limits
       return {
         canSendEmail: false,
         currentUsage: 0,
@@ -84,7 +73,6 @@ export const checkEmailUsageLimit = async (userId) => {
     }
 
     const result = data[0];
-    console.log('Email usage check result:', result);
 
     return {
       canSendEmail: result.can_send_email,
@@ -95,7 +83,6 @@ export const checkEmailUsageLimit = async (userId) => {
       isAdmin: false
     };
   } catch (error) {
-    console.error('Error in checkEmailUsageLimit:', error);
     return {
       canSendEmail: false,
       currentUsage: 0,
@@ -119,14 +106,6 @@ export const checkEmailUsageLimit = async (userId) => {
  */
 export const logEmailUsage = async (invoiceId, recipientEmail, emailMethod, status, errorMessage = null) => {
   try {
-    console.log('Logging email usage:', {
-      invoiceId,
-      recipientEmail,
-      emailMethod,
-      status,
-      errorMessage
-    });
-
     const { data, error } = await supabase.rpc('log_email_usage', {
       p_invoice_id: invoiceId,
       p_recipient_email: recipientEmail,
@@ -136,26 +115,15 @@ export const logEmailUsage = async (invoiceId, recipientEmail, emailMethod, stat
     });
 
     if (error) {
-      console.error('Error logging email usage:', error);
-      
-      // Fallback: try to increment usage directly if logging fails but email was sent
+      // Fallback: increment usage directly if logging fails but email was sent
       if (status === 'sent') {
-        console.log('Attempting fallback email usage increment...');
-        const { error: incrementError } = await supabase.rpc('increment_email_usage');
-        if (incrementError) {
-          console.error('Fallback increment also failed:', incrementError);
-        } else {
-          console.log('Fallback increment successful');
-        }
+        await supabase.rpc('increment_email_usage');
       }
-      
       return { success: false, error: error.message };
     }
 
-    console.log('Email usage logged successfully:', data);
     return { success: true, logId: data };
   } catch (error) {
-    console.error('Error in logEmailUsage:', error);
     return { success: false, error: error.message };
   }
 };

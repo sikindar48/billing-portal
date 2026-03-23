@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import Navigation from '@/components/Navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { formatCurrency } from '@/utils/formatCurrency';
 
 const Analytics = () => {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth(); // Read from context — no extra network calls
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState({
     mrr: 0,
@@ -27,59 +29,52 @@ const Analytics = () => {
   });
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    if (user) fetchAnalytics();
+  }, [user]);
 
   const fetchAnalytics = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch all subscriptions with plan details
-      const { data: subscriptions, error: subError } = await supabase
-        .from('user_subscriptions')
-        .select(`
-          *,
-          subscription_plans (
-            name,
-            slug,
-            price,
-            billing_period
-          )
-        `);
-
-      if (subError) {
-        console.error('Error fetching subscriptions:', subError);
-        throw subError;
-      }
-
-      // Calculate MRR (Monthly Recurring Revenue)
+      // Platform-wide subscription metrics — admin only (isAdmin from AuthContext)
       let mrr = 0;
-      subscriptions?.forEach(sub => {
-        if (sub.status === 'active' && sub.subscription_plans) {
-          const price = parseFloat(sub.subscription_plans.price);
-          if (sub.subscription_plans.billing_period === 'yearly') {
-            mrr += price / 12; // Convert yearly to monthly
-          } else if (sub.subscription_plans.billing_period === 'monthly') {
-            mrr += price;
-          }
+      let activePlans = { trial: 0, pro: 0, enterprise: 0 };
+      let trialUsers = 0;
+      let conversionRate = 0;
+      let planDistribution = [];
+
+      if (isAdmin) {
+        const { data: subscriptions, error: subError } = await supabase
+          .from('user_subscriptions')
+          .select(`*, subscription_plans(name, slug, price, billing_period)`);
+
+        if (!subError && subscriptions) {
+          subscriptions.forEach(sub => {
+            if (sub.status === 'active' && sub.subscription_plans) {
+              const price = parseFloat(sub.subscription_plans.price);
+              if (sub.subscription_plans.billing_period === 'yearly') mrr += price / 12;
+              else if (sub.subscription_plans.billing_period === 'monthly') mrr += price;
+            }
+          });
+
+          activePlans = {
+            trial: subscriptions.filter(s => s.subscription_plans?.slug === 'trial' && s.status === 'trialing').length,
+            pro: subscriptions.filter(s => s.subscription_plans?.slug === 'monthly' && s.status === 'active').length,
+            enterprise: subscriptions.filter(s => s.subscription_plans?.slug === 'yearly' && s.status === 'active').length
+          };
+
+          trialUsers = subscriptions.filter(s => s.status === 'trialing').length;
+          const totalUsers = subscriptions.length || 1;
+          const paidUsers = subscriptions.filter(s => s.status === 'active' && s.subscription_plans?.slug !== 'trial').length;
+          conversionRate = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : 0;
+
+          planDistribution = [
+            { name: 'Trial', value: activePlans.trial, color: '#3b82f6' },
+            { name: 'Pro', value: activePlans.pro, color: '#10b981' },
+            { name: 'Enterprise', value: activePlans.enterprise, color: '#8b5cf6' }
+          ].filter(p => p.value > 0);
         }
-      });
-
-      // Count active plans by type
-      const activePlans = {
-        trial: subscriptions?.filter(s => s.subscription_plans?.slug === 'trial' && s.status === 'trialing').length || 0,
-        pro: subscriptions?.filter(s => s.subscription_plans?.slug === 'monthly' && s.status === 'active').length || 0,
-        enterprise: subscriptions?.filter(s => s.subscription_plans?.slug === 'yearly' && s.status === 'active').length || 0
-      };
-
-      // Trial users count
-      const trialUsers = subscriptions?.filter(s => s.status === 'trialing').length || 0;
-
-      // Conversion rate (active paid / total users)
-      const totalUsers = subscriptions?.length || 1;
-      const paidUsers = subscriptions?.filter(s => s.status === 'active' && s.subscription_plans?.slug !== 'trial').length || 0;
-      const conversionRate = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : 0;
+      }
 
       // Email usage stats - handle if table doesn't exist
       let emailUsage = {
@@ -106,19 +101,13 @@ const Analytics = () => {
         console.warn('Email usage tracking not available:', emailErr);
       }
 
-      // Plan distribution for chart
-      const planDistribution = [
-        { name: 'Trial', value: activePlans.trial, color: '#3b82f6' },
-        { name: 'Pro', value: activePlans.pro, color: '#10b981' },
-        { name: 'Enterprise', value: activePlans.enterprise, color: '#8b5cf6' }
-      ].filter(p => p.value > 0);
-
-      // Fetch invoice statistics
+      // Fetch invoice statistics (scoped to current user, limited for performance)
       const { data: invoices, error: invError } = await supabase
         .from('invoices')
-        .select('id, invoice_number, grand_total, created_at, bill_to, customer_name')
+        .select('id, invoice_number, grand_total, created_at, bill_to')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(200);
 
       let totalRevenue = 0;
       let totalInvoices = 0;

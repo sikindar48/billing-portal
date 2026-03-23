@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 // import { sendWelcomeEmail } from '@/utils/emailService';
 import { sendInvoiceEmail, validateInvoiceForEmail, getEmailCapabilities } from '@/utils/invoiceEmailService';
 import { checkEmailUsageLimit } from '@/utils/emailUsageService';
-import { isAdminEmail } from '@/utils/adminUtils';
+import { useAuth } from '@/context/AuthContext';
 import { formatCurrency } from '../utils/formatCurrency'; 
 import { generateSecureInvoiceNumber } from '../utils/invoiceNumberGenerator';
 import FloatingLabelInput from '../components/FloatingLabelInput';
@@ -45,13 +45,14 @@ const getInitialItems = () => ([{ name: "", description: "", quantity: 0, amount
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, isAdmin } = useAuth(); // Read from context — no extra network calls
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailCapabilities, setEmailCapabilities] = useState(null);
   const [emailUsageStats, setEmailUsageStats] = useState(null);
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false); 
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userId, setUserId] = useState(null); // Store user ID for DB calls
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  // brandingApplied ref prevents the branding effect from re-running on every keystroke
+  const brandingAppliedRef = useRef(false);
   
   // Usage State
   const [usageStats, setUsageStats] = useState({
@@ -60,9 +61,7 @@ const Index = () => {
       trialEnds: null,
       planName: 'Loading...',
       daysLeft: 0
-  });
-
-  const [brandingSettings, setBrandingSettings] = useState({
+  });  const [brandingSettings, setBrandingSettings] = useState({
     logoUrl: '',
     brandingCompanyName: '',
     brandingTagline: '',
@@ -98,28 +97,11 @@ const Index = () => {
     setNotes(noteOptions[randomIndex]);
   };
 
-  // 1. INITIAL DATA FETCH (Admin Check & Branding Metadata)
+  // 1. INITIAL DATA FETCH — user & isAdmin come from AuthContext (no extra network calls)
   useEffect(() => {
+    if (!user) return; // Wait for AuthContext to resolve
     const initData = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            setUserId(user.id);
-
-            let adminStatus = false;
-            if (isAdminEmail(user.email)) {
-                adminStatus = true;
-            } else {
-                try {
-                    const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
-                    if (roleData) adminStatus = true;
-                } catch (roleError) {
-                    // user_roles table doesn't exist, skip role check
-                    console.warn('user_roles table not found, using email-based admin check only');
-                }
-            }
-            setIsAdmin(adminStatus);
-
             // B. Fetch Business Settings (Company Information)
             const { data: businessSettings } = await supabase.from('business_settings').select('*').eq('user_id', user.id).maybeSingle();
             if (businessSettings) {
@@ -140,11 +122,8 @@ const Index = () => {
             const capabilities = await getEmailCapabilities(user.id);
             setEmailCapabilities(capabilities);
             
-            const emailUsage = await checkEmailUsageLimit(user.id);
+            const emailUsage = await checkEmailUsageLimit();
             setEmailUsageStats(emailUsage);
-            
-            console.log('Email capabilities loaded:', capabilities);
-            console.log('Email usage stats loaded:', emailUsage);
 
             // C. Fetch Usage & Subscription (Rest of the logic)
             const { data: sub } = await supabase.from('user_subscriptions').select('*, subscription_plans(*)')
@@ -152,39 +131,20 @@ const Index = () => {
 
             // D. Check if this is a newly confirmed user (no subscription yet)
             if (!sub && user.email_confirmed_at) {
-                console.log('New user confirmed, creating trial subscription and sending welcome email...');
-                
-                // Create trial subscription for newly confirmed user
+                // Create trial subscription idempotently — upsert prevents duplicates on re-mount
                 const trialEndDate = new Date();
                 trialEndDate.setDate(trialEndDate.getDate() + 3);
                 
-                const { error: subError } = await supabase.from('user_subscriptions').insert({
+                const { error: subError } = await supabase.from('user_subscriptions').upsert({
                     user_id: user.id,
                     plan_id: 1, 
                     status: 'trialing',
                     current_period_end: trialEndDate.toISOString()
-                });
+                }, { onConflict: 'user_id' });
 
                 if (subError) {
                     console.error('Failed to create trial subscription:', subError);
                 } else {
-                    console.log('Trial subscription created successfully');
-                    
-                    // Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
-                    // try {
-                    //     const userName = user.user_metadata?.full_name || 'User';
-                    //     const emailResult = await sendWelcomeEmail(user.email, userName);
-                    //     
-                    //     if (emailResult.success) {
-                    //         console.log('✅ Welcome email sent successfully');
-                    //         toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
-                    //     } else {
-                    //         console.warn('❌ Welcome email failed:', emailResult.error);
-                    //     }
-                    // } catch (emailError) {
-                    //     console.warn('❌ Welcome email error:', emailError);
-                    // }
-                    
                     // Show welcome message without email
                     toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
                 }
@@ -226,9 +186,13 @@ const Index = () => {
             // Option A: Load from History (passed via navigation state) - Highest Priority
             if (location.state && location.state.invoiceData) {
                 const data = location.state.invoiceData;
+                const isViewMode = location.state.viewMode === true;
                 setBillTo(data.billTo || getInitialBillTo());
                 setShipTo(data.shipTo || getInitialCompany());
-                setInvoice(data.invoice ? { ...data.invoice, number: generateSecureInvoiceNumber('INV', 6) } : getInitialInvoice());
+                // In viewMode, preserve the original invoice number; otherwise generate a new one
+                setInvoice(data.invoice
+                    ? { ...data.invoice, number: isViewMode ? data.invoice.number : generateSecureInvoiceNumber('INV', 6) }
+                    : getInitialInvoice());
                 setYourCompany(data.yourCompany || getInitialCompany());
                 setItems(data.items || getInitialItems());
                 setTaxPercentage(data.taxPercentage || 0);
@@ -262,27 +226,26 @@ const Index = () => {
         }
     };
     initData();
-  }, []);
+  }, [user]);
 
-  // 3. APPLY BRANDING & DRAFT MERGE (Ensures Branding is applied over blank or initial draft)
+  // 3. APPLY BRANDING — runs once when branding loads, not on every keystroke
   useEffect(() => {
-    // Check if branding data has loaded AND if the core fields are currently empty in the form state.
-    if (yourCompany.name === "" || yourCompany.website === "" || yourCompany.address === "" || yourCompany.phone === "") {
-        setYourCompany(prev => ({
-            ...prev,
-            // Apply branding only if the current field is empty
-            name: prev.name || brandingSettings.brandingCompanyName || "", 
-            website: prev.website || brandingSettings.brandingWebsite || "",
-            address: prev.address || brandingSettings.address || "",
-            phone: prev.phone || brandingSettings.phone || "",
-        }));
-    }
-  }, [brandingSettings, yourCompany.name, yourCompany.website, yourCompany.address, yourCompany.phone]); 
+    if (brandingAppliedRef.current) return; // Only apply once
+    if (!brandingSettings.brandingCompanyName && !brandingSettings.address) return; // Branding not loaded yet
+    brandingAppliedRef.current = true;
+    setYourCompany(prev => ({
+        ...prev,
+        name: prev.name || brandingSettings.brandingCompanyName || "",
+        website: prev.website || brandingSettings.brandingWebsite || "",
+        address: prev.address || brandingSettings.address || "",
+        phone: prev.phone || brandingSettings.phone || "",
+    }));
+  }, [brandingSettings]);
 
 
   // 4. SAVE DRAFT TO DATABASE ON STATE CHANGE (with debouncing)
   useEffect(() => {
-    if (!userId) return;
+    if (!user?.id) return;
 
     const formData = {
       billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, taxAmount, subTotal, grandTotal, notes, selectedCurrency, invoiceMode,
@@ -293,14 +256,14 @@ const Index = () => {
       try {
         await supabase
           .from('user_drafts')
-          .upsert({ user_id: userId, form_data: formData }, { onConflict: 'user_id' });
+          .upsert({ user_id: user.id, form_data: formData }, { onConflict: 'user_id' });
       } catch (error) {
         console.error('Error saving draft:', error);
       }
     }, 1000); // Wait 1 second after last change before saving
 
     return () => clearTimeout(timeoutId);
-  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, notes, taxAmount, subTotal, grandTotal, selectedCurrency, invoiceMode, userId]);
+  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, notes, taxAmount, subTotal, grandTotal, selectedCurrency, invoiceMode, user]);
 
   // --- HANDLERS ---
   const handleInputChange = (setter) => (e) => {
@@ -386,26 +349,20 @@ const Index = () => {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error('Please sign in to save invoices.', { duration: 2000 });
         setIsSaving(false);
         return;
       }
 
-      // Prepare invoice data for new schema
+      // Prepare invoice data — only columns that exist in the DB schema
       const invoiceData = {
         user_id: user.id,
         invoice_number: invoice.number,
-        invoice_mode: invoiceMode, // 'proforma' or 'tax_invoice'
+        invoice_mode: invoiceMode,
         status: 'draft',
         issue_date: invoice.date,
         due_date: invoice.paymentDate || invoice.date,
-        
-        // Customer snapshot
-        customer_name: billTo.name,
-        customer_email: billTo.email,
-        customer_address: billTo.address,
         
         // Amounts
         subtotal: subTotal,
@@ -418,10 +375,10 @@ const Index = () => {
         
         // Additional info
         notes: notes,
-        terms: notes, // Using notes as terms for now
+        terms: notes,
         template_id: 1,
         
-        // Legacy fields for backward compatibility
+        // Store all structured data in JSONB fields
         bill_to: billTo,
         ship_to: shipTo,
         invoice_details: { 
@@ -441,7 +398,6 @@ const Index = () => {
         items: items,
         tax: taxPercentage
       };
-
       const { data: savedInvoice, error: invoiceError } = await supabase
         .from('invoices')
         .insert(invoiceData)
@@ -507,7 +463,7 @@ const Index = () => {
       }
 
       // Send email with plan restrictions
-      const result = await sendInvoiceEmail(invoiceData, userId);
+      const result = await sendInvoiceEmail(invoiceData, user?.id);
       
       if (result.success) {
         toast.success(
@@ -524,9 +480,8 @@ const Index = () => {
         }
         
         // Refresh email usage stats
-        const updatedUsage = await checkEmailUsageLimit(userId);
+        const updatedUsage = await checkEmailUsageLimit();
         setEmailUsageStats(updatedUsage);
-        console.log('Updated email usage stats:', updatedUsage);
       } else {
         // Handle different error types
         if (result.reason === 'usage_limit_exceeded') {
@@ -635,7 +590,7 @@ const Index = () => {
                 {/* Send Mail Button */}
                 <Button 
                     onClick={handleSendEmail} 
-                    disabled={isSendingEmail || !billTo.email || !userId || (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)}
+                    disabled={isSendingEmail || !billTo.email || !user?.id || (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)}
                     className={`w-full font-bold h-11 text-md shadow-md transition-all ${
                         !billTo.email 
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 

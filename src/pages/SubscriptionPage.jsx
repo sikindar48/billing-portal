@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,7 @@ const SubscriptionSkeleton = () => (
 
 const SubscriptionPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [plans, setPlans] = useState([]);
   const [currentSubscription, setCurrentSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -58,9 +60,6 @@ const SubscriptionPage = () => {
   useEffect(() => {
     const fetchData = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            // Define UI-Rich Plans (We use these for display to ensure icons/colors work)
             const displayPlans = [
                 { 
                     id: 'starter', 
@@ -169,27 +168,27 @@ const SubscriptionPage = () => {
         return;
       }
       try {
-        const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-             // Map UI IDs to DB IDs
-             let dbPlanId = 1; 
-             if (selectedPlan.id === 'pro') dbPlanId = 2;
-             if (selectedPlan.id === 'enterprise') dbPlanId = 3;
+             // Resolve plan ID from DB by slug instead of hardcoding
+             const slugMap = { starter: 'trial', pro: billingCycle === 'monthly' ? 'monthly' : 'yearly_pro', enterprise: 'enterprise' };
+             const targetSlug = slugMap[selectedPlan.id] || 'trial';
+             const { data: planRow } = await supabase.from('subscription_plans').select('id').eq('slug', targetSlug).maybeSingle();
+             const dbPlanId = planRow?.id ?? null;
 
-             await supabase.from('subscription_requests').insert({
+             const { error: insertError } = await supabase.from('subscription_requests').insert({
                 user_id: user.id,
                 plan_id: dbPlanId,
                 message: `Requesting ${selectedPlan.name} Plan (${billingCycle}). Note: ${requestMessage}`,
                 status: 'pending'
              });
+
+             if (insertError) throw insertError;
         }
         toast.success("Request submitted! We'll contact you shortly.", { duration: 2500 });
         setShowRequestDialog(false);
         setRequestMessage("");
       } catch(e) {
-        console.error(e);
-        toast.success("Request received! We will contact you.", { duration: 2500 }); 
-        setShowRequestDialog(false);
+        toast.error("Failed to submit request. Please try again.", { duration: 2500 }); 
       }
   };
 
@@ -202,19 +201,13 @@ const SubscriptionPage = () => {
     setIsSubmittingPayment(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Map UI IDs to DB IDs
-        let dbPlanId = 2; // Pro plan
+        // Resolve plan ID from DB by slug instead of hardcoding
+        const proSlug = billingCycle === 'monthly' ? 'monthly' : 'yearly_pro';
+        const { data: planRow } = await supabase.from('subscription_plans').select('id').eq('slug', proSlug).maybeSingle();
+        const dbPlanId = planRow?.id ?? null;
         
         const message = `Payment made for ${selectedPlan.name} Plan (${billingCycle}). Amount: ₹${selectedPlan.price}. Transaction ID: ${transactionId.trim()}. UPI ID: invoiceport@ybl`;
-        
-        console.log('Submitting payment verification:', {
-          user_id: user.id,
-          plan_id: dbPlanId,
-          message: message,
-          status: 'pending'
-        });
         
         // Try with transaction_id column first, fallback to message only
         let insertData = {
@@ -230,19 +223,14 @@ const SubscriptionPage = () => {
         try {
           insertData.transaction_id = transactionId.trim();
           const { data, error } = await supabase.from('subscription_requests').insert(insertData).select();
-          
           if (error) throw error;
-          console.log('Payment verification submitted successfully with transaction_id:', data);
           requestId = data && data[0] ? data[0].id : null;
         } catch (dbError) {
           // If transaction_id column doesn't exist, try without it
           if (dbError.message && dbError.message.includes('transaction_id')) {
-            console.log('transaction_id column not found, submitting without it');
             delete insertData.transaction_id;
             const { data, error } = await supabase.from('subscription_requests').insert(insertData).select();
-            
             if (error) throw error;
-            console.log('Payment verification submitted successfully without transaction_id:', data);
             requestId = data && data[0] ? data[0].id : null;
           } else {
             throw dbError;
@@ -252,7 +240,7 @@ const SubscriptionPage = () => {
         // Send email notification to admin
         try {
           const userName = user.user_metadata?.full_name || user.email || 'User';
-          const emailResult = await sendPaymentVerificationNotification(
+          await sendPaymentVerificationNotification(
             user.email,
             userName,
             selectedPlan.name,
@@ -262,15 +250,7 @@ const SubscriptionPage = () => {
             requestId,
             user.id
           );
-          
-          if (emailResult.success) {
-            console.log('Payment verification email sent to admin successfully');
-          } else {
-            console.error('Failed to send payment verification email:', emailResult.error);
-            // Don't fail the whole operation if email fails
-          }
         } catch (emailError) {
-          console.error('Error sending payment verification email:', emailError);
           // Don't fail the whole operation if email fails
         }
         
@@ -386,7 +366,7 @@ const SubscriptionPage = () => {
                 </button>
                 
                 {/* Sliding Background */}
-                <div className={`absolute top-1 bottom-1 w-[50%] bg-indigo-600 rounded-md shadow-sm transition-transform duration-300 ${billingCycle === 'monthly' ? 'translate-x-0' : 'translate-x-full left-[-4px]'}`}></div>
+                <div className={`absolute top-1 bottom-1 w-[50%] bg-indigo-600 rounded-md shadow-sm transition-all duration-300 ${billingCycle === 'monthly' ? 'left-1' : 'left-[50%]'}`}></div>
             </div>
             
             {billingCycle === 'yearly' && (

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { isAdminEmail } from '@/utils/adminUtils';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { 
   LogOut, Settings, History, Crown, Menu, X, Shield, 
@@ -19,8 +19,7 @@ import {
 const Navigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user, isAdmin } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Helper function to check if a path is active
@@ -48,45 +47,8 @@ const Navigation = () => {
     return `${baseClass} ${isActivePath(path) ? activeClass : inactiveClass}`;
   };
 
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        setUser(session.user);
-        
-        // Check Admin Status
-        if (isAdminEmail(session.user.email)) {
-            setIsAdmin(true);
-        } else {
-            const { data } = await supabase
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', session.user.id)
-                .eq('role', 'admin')
-                .maybeSingle();
-            
-            if (data) setIsAdmin(true);
-        }
-      }
-    };
-
-    checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (event === 'SIGNED_OUT') {
-        navigate('/');
-        setIsAdmin(false);
-      }
-    });
-
-    return () => subscription?.unsubscribe();
-  }, [navigate]);
-
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) console.error('Error logging out:', error);
+    await supabase.auth.signOut();
     setIsMenuOpen(false);
   };
 
@@ -206,7 +168,7 @@ const Navigation = () => {
             </Button>
           )}
 
-          <Button variant="ghost" onClick={() => handleNavigation('/')} className={getMobileNavButtonClass('/')}>
+          <Button variant="ghost" onClick={() => handleNavigation('/dashboard')} className={getMobileNavButtonClass('/dashboard')}>
             <LayoutDashboard className="mr-3 h-5 w-5" /> Dashboard
           </Button>
 

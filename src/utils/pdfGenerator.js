@@ -3,10 +3,9 @@ import jsPDF from 'jspdf';
 
 export const generatePDF = async (invoiceData, templateNumber) => {
   return new Promise(async (resolve, reject) => {
+    const invoice = document.createElement('div');
+    document.body.appendChild(invoice);
     try {
-      const invoice = document.createElement('div');
-      document.body.appendChild(invoice);
-      
       // Render the InvoiceTemplate component to a string
       const InvoiceTemplate = (await import('../components/InvoiceTemplate')).default;
       const ReactDOMServer = (await import('react-dom/server')).default;
@@ -29,9 +28,12 @@ export const generatePDF = async (invoiceData, templateNumber) => {
       const pdf = new jsPDF('p', 'mm', 'a4');
       
       pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
-      const { number, date, paymentDate } = invoiceData.invoice;
-      const { name: companyName } = invoiceData.yourCompany;
-      const { name: billToName } = invoiceData.billTo;
+
+      // Null-safe field access for filename generation
+      const number = invoiceData.invoice?.number || 'invoice';
+      const date = invoiceData.invoice?.date || new Date().toISOString().split('T')[0];
+      const companyName = invoiceData.yourCompany?.name || 'company';
+      const billToName = invoiceData.billTo?.name || 'client';
       const timestamp = new Date().getTime();
 
       let fileName;
@@ -68,11 +70,14 @@ export const generatePDF = async (invoiceData, templateNumber) => {
       }
 
       pdf.save(fileName);
-      
-      document.body.removeChild(invoice);
       resolve();
     } catch (error) {
       reject(error);
+    } finally {
+      // Always clean up the DOM node, even on error
+      if (document.body.contains(invoice)) {
+        document.body.removeChild(invoice);
+      }
     }
   });
 };

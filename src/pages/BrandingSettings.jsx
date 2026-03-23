@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,9 +10,9 @@ import Navigation from '@/components/Navigation';
 import GmailTestButtonFixed from '@/components/GmailTestButtonFixed';
 
 const BrandingSettings = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState(null);
   const [settings, setSettings] = useState({
     company_name: '',
     company_tagline: '',
@@ -27,11 +28,9 @@ const BrandingSettings = () => {
   });
 
   useEffect(() => {
+    if (!user) return;
     const fetchSettings = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        setUserId(user.id);
         const { data } = await supabase
           .from('business_settings')
           .select('company_name,company_tagline,company_email,company_phone,company_website,address_line1,logo_url,invoice_prefix,currency,tax_rate,preferred_email_method')
@@ -45,16 +44,15 @@ const BrandingSettings = () => {
       }
     };
     fetchSettings();
-  }, []);
+  }, [user]);
 
   const handleSave = async () => {
-    if (!userId) return;
+    if (!user) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from('business_settings')
-        .upsert({
-          user_id: userId,
+        .upsert({ user_id: user.id,
           company_name: settings.company_name,
           company_tagline: settings.company_tagline,
           company_email: settings.company_email,
@@ -114,13 +112,18 @@ const BrandingSettings = () => {
                     src={settings.logo_url}
                     alt="Logo"
                     className="h-16 w-auto object-contain rounded"
-                    onError={e => { e.target.style.display = 'none'; }}
+                    onError={e => { 
+                      e.target.style.display = 'none'; 
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
                   />
-                ) : (
-                  <div className="h-16 w-16 rounded-xl bg-indigo-50 flex items-center justify-center">
-                    <Building2 className="h-8 w-8 text-indigo-300" />
-                  </div>
-                )}
+                ) : null}
+                <div 
+                  className="h-16 w-16 rounded-xl bg-indigo-50 flex items-center justify-center"
+                  style={{ display: settings.logo_url ? 'none' : 'flex' }}
+                >
+                  <Building2 className="h-8 w-8 text-indigo-300" />
+                </div>
                 <div className="text-center">
                   <p className="font-semibold text-gray-800 text-sm">{settings.company_name || 'Your Company'}</p>
                   {settings.company_tagline && (

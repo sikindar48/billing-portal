@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, User, Lock, Save, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Loader2, User, Lock, Save, ShieldCheck } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import SEO from '@/components/SEO';
 
 const Profile = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -27,18 +29,11 @@ const Profile = () => {
   });
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    if (user) fetchProfile();
+  }, [user]);
 
   const fetchProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/');
-        return;
-      }
-
-      // Fetch profile data from public.profiles
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -46,13 +41,12 @@ const Profile = () => {
         .single();
 
       if (error && error.code !== 'PGRST116') {
-         // If no profile exists yet, we just use auth email
          console.error("Error fetching profile:", error);
       }
 
       setProfile({
         full_name: data?.full_name || '',
-        email: user.email // Email comes from Auth, read-only
+        email: user.email
       });
     } catch (error) {
       console.error(error);
@@ -65,21 +59,15 @@ const Profile = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-      
+      if (!user) throw new Error('User not authenticated');
+
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           full_name: profile.full_name,
           updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        });
+        }, { onConflict: 'id' });
 
       if (error) {
         console.error('Profile update error:', error);

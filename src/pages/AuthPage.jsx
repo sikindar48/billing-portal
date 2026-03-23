@@ -535,7 +535,7 @@ const AuthPage = () => {
                        >
                            Yearly
                        </button>
-                       <div className={`absolute top-1 bottom-1 w-[50%] bg-indigo-600 rounded-full transition-transform duration-300 shadow-lg shadow-indigo-500/25 ${billingCycle === 'monthly' ? 'translate-x-0' : 'translate-x-full left-[-4px]'}`}></div>
+                       <div className={`absolute top-1 bottom-1 w-[50%] bg-indigo-600 rounded-full transition-all duration-300 shadow-lg shadow-indigo-500/25 ${billingCycle === 'monthly' ? 'left-1' : 'left-[50%]'}`}></div>
                   </div>
                   {billingCycle === 'yearly' && (
                         <span className="block mt-4 text-xs font-bold text-emerald-400 animate-pulse">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +11,7 @@ import FloatingLabelInput from '@/components/FloatingLabelInput';
 
 const Customers = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,14 +33,11 @@ const Customers = () => {
   });
 
   useEffect(() => {
-    loadCustomers();
-  }, []);
+    if (user) loadCustomers();
+  }, [user]);
 
   const loadCustomers = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data, error } = await supabase
         .from('customers')
         .select('*')
@@ -97,7 +96,6 @@ const Customers = () => {
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       if (editingCustomer) {

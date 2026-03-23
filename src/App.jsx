@@ -1,10 +1,9 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
-import { supabase } from "@/integrations/supabase/client";
 
 // Import components
 import AuthPage from "./pages/AuthPage";
@@ -27,28 +26,12 @@ import InvoiceVerify from "./pages/InvoiceVerify";
 import AdminVerifyPayment from "./pages/AdminVerifyPayment";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SubscriptionGuard from "./components/SubscriptionGuard";
+import AdminGuard from "./components/AdminGuard";
+import { AuthProvider } from "./context/AuthContext";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  // Handle auth state changes and redirects
-  useEffect(() => {
-    const handleAuthStateChange = async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        console.log('User signed in:', session.user.email);
-      }
-    };
-
-    try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-      return () => subscription?.unsubscribe();
-    } catch (error) {
-      console.error('Error setting up auth listener:', error);
-    }
-  }, []);
-
-  console.log('App component rendering...');
-
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
@@ -60,7 +43,8 @@ const App = () => {
             richColors={true}
           />
           <BrowserRouter>
-          <Routes>
+            <AuthProvider>
+              <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} /> {/* Landing page with auth form */}
             <Route path="/auth" element={<AuthPage />} /> {/* Keep for backward compatibility */}
@@ -187,9 +171,9 @@ const App = () => {
               path="/analytics" 
               element={
                 <ProtectedRoute>
-                  <SubscriptionGuard>
+                  <AdminGuard>
                     <Analytics />
-                  </SubscriptionGuard>
+                  </AdminGuard>
                 </ProtectedRoute>
               } 
             />
@@ -204,8 +188,9 @@ const App = () => {
             />
             
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
     </HelmetProvider>

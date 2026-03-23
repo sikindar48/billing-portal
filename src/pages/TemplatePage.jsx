@@ -4,7 +4,7 @@ import { ArrowLeft, Loader2, Download, Layout, CheckCircle, Lock, CreditCard } f
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { supabase } from '../integrations/supabase/client';
-import { isAdminEmail } from '../utils/adminUtils';
+import { useAuth } from '@/context/AuthContext';
 import InvoiceTemplate from '../components/InvoiceTemplate';
 import { generatePDF } from '../utils/pdfGenerator';
 import { templates } from '../utils/templateRegistry';
@@ -14,6 +14,7 @@ import SEO from '../components/SEO';
 const TemplatePage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [formData, setFormData] = useState(null);
   const [currentTemplate, setCurrentTemplate] = useState(1);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -40,36 +41,27 @@ const TemplatePage = () => {
         const savedCount = parseInt(localStorage.getItem('pdf_download_count') || '0');
         setDownloadCount(savedCount);
 
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // A. Admin Check
-        if (isAdminEmail(user.email)) {
-             setIsUnlimited(true);
-             return;
-        }
-        
-        // B. Role Check
-        const { data: role } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
-        if (role) {
+        // Admin always gets unlimited (from AuthContext — no extra DB calls)
+        if (isAdmin) {
             setIsUnlimited(true);
             return;
         }
 
-        // C. Subscription Plan Check
+        // Check subscription plan — one DB call only
         const { data: sub } = await supabase
             .from('user_subscriptions')
-            .select('*, subscription_plans(slug)')
+            .select('subscription_plans(slug)')
             .eq('user_id', user.id)
             .maybeSingle();
-        
-        // If plan is NOT trial, allow unlimited
+
         if (sub?.subscription_plans?.slug !== 'trial') {
             setIsUnlimited(true);
         }
     };
     checkAccess();
-  }, [location.state]);
+  }, [location.state, user]);
 
   const handleTemplateChange = (templateNumber) => {
     setCurrentTemplate(templateNumber);

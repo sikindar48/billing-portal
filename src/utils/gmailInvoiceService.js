@@ -5,10 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 const GMAIL_CLIENT_ID = import.meta.env.VITE_GMAIL_CLIENT_ID;
 const GMAIL_CLIENT_SECRET = import.meta.env.VITE_GMAIL_CLIENT_SECRET;
 
-console.log('=== GMAIL SERVICE DEBUG ===');
-console.log('GMAIL_CLIENT_ID:', GMAIL_CLIENT_ID);
-console.log('GMAIL_CLIENT_SECRET:', GMAIL_CLIENT_SECRET ? 'Set' : 'Missing');
-console.log('=== END GMAIL DEBUG ===');
+
 
 /**
  * Get user's business settings for email branding
@@ -45,8 +42,6 @@ const getUserBusinessSettings = async (userId) => {
  */
 export const isGmailConnected = async (userId) => {
   try {
-    console.log('Checking Gmail connection for user:', userId);
-    
     const { data: settings, error } = await supabase
       .from('business_settings')
       .select('gmail_refresh_token, preferred_email_method, gmail_email')
@@ -54,19 +49,11 @@ export const isGmailConnected = async (userId) => {
       .single();
 
     if (error) {
-      console.error('Error checking Gmail connection:', error);
       return false;
     }
 
-    console.log('Gmail connection status:', {
-      hasRefreshToken: !!settings.gmail_refresh_token,
-      preferredMethod: settings.preferred_email_method,
-      gmailEmail: settings.gmail_email
-    });
-
     return !!(settings.gmail_refresh_token && settings.preferred_email_method === 'gmail');
   } catch (error) {
-    console.error('Error checking Gmail connection:', error);
     return false;
   }
 };
@@ -76,10 +63,6 @@ export const isGmailConnected = async (userId) => {
  */
 export const sendInvoiceViaGmail = async (invoiceData, userId) => {
   try {
-    console.log('=== ATTEMPTING GMAIL SEND ===');
-    console.log('Invoice Data:', invoiceData);
-    console.log('User ID:', userId);
-    
     // Check if Gmail is connected first
     const gmailConnected = await isGmailConnected(userId);
     if (!gmailConnected) {
@@ -114,7 +97,6 @@ export const sendInvoiceViaGmail = async (invoiceData, userId) => {
     // Send email via Gmail API
     const result = await sendGmailMessage(accessToken, emailContent);
     
-    console.log('Gmail send successful:', result);
     return {
       success: true,
       result,
@@ -124,7 +106,6 @@ export const sendInvoiceViaGmail = async (invoiceData, userId) => {
     };
 
   } catch (error) {
-    console.error('Error sending invoice via Gmail:', error);
     return {
       success: false,
       error: error.message,

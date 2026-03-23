@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 
 const ProductInventory = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,20 +23,16 @@ const ProductInventory = () => {
   const [currentProduct, setCurrentProduct] = useState({ id: null, name: '', description: '', price: '' });
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (user) fetchProducts();
+  }, [user]);
 
   const fetchProducts = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .eq('user_id', user.id)
         .order('name', { ascending: true });
-
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
@@ -52,8 +50,6 @@ const ProductInventory = () => {
     
     setIsSaving(true);
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
         const productData = {
             user_id: user.id,
             name: currentProduct.name,
