@@ -155,60 +155,65 @@ InvoicePort is a comprehensive invoice generation and management system built wi
 
 ## 🚧 Known Issues & Fixes Applied
 
-### Database Schema Issues (RESOLVED)
+### Phase 1 Fixes (22 issues resolved)
 
-- ❌ **Issue**: Missing `sent_at` and `paid_at` columns in invoices table
-- ✅ **Fix**: Created migration `20260220_add_missing_columns.sql`
-- ✅ **Status**: Migration available, graceful fallback implemented
+- ✅ Removed all debug `console.log` leaking PII from email/gmail utils
+- ✅ Fixed `pdfGenerator.js` DOM node leak on error (try/finally)
+- ✅ Fixed `SubscriptionGuard` fail-open on error (catch → allowed)
+- ✅ Fixed `handleDownload` hardcoded template 1 → uses stored `template_id`
+- ✅ Fixed mobile nav Dashboard link pointing to `/` instead of `/dashboard`
+- ✅ Fixed `pdfGenerator.js` filename crash on null fields (optional chaining)
+- ✅ Fixed `AuthPage` and `SubscriptionPage` billing toggle sliding background
+- ✅ Fixed `BrandingSettings` logo broken image (`Building2` fallback)
+- ✅ Added `InvoiceHistory` skeleton loader
+- ✅ Fixed `GmailTestButtonFixed` dark theme + debug labels in production UI
+- ✅ Removed unused `ArrowLeft` imports (`Profile`, `InvoiceHistory`)
+- ✅ Moved `BUG_REPORT.md` to `.github/`, deleted unused `src/app.js`
+- ✅ Fixed `emailService.js` duplicate `emailjs.init()` in `testEmailJSConnection`
+- ✅ Fixed `sendPaymentVerificationNotification` hardcoded admin email
+- ✅ Replaced `InvoiceHistory` `confirm()` delete with shadcn `AlertDialog`
+- ✅ Fixed `item.total` undefined in `invoice_items` copy (nullish coalescing)
 
-- ❌ **Issue**: Missing `audit_logs` table
-- ✅ **Fix**: Migration creates table with full schema
-- ✅ **Status**: Table creation automated in migration
+### Phase 2 Fixes (16 issues resolved)
 
-- ❌ **Issue**: Column name mismatch (`action` vs `action_type`)
-- ✅ **Fix**: Created migration `20260220_fix_audit_logs_columns.sql`
-- ✅ **Status**: Smart detection and column renaming
+- ✅ Removed `localStorage` fallback for invoice status (`InvoiceHistory`)
+- ✅ Fixed `handleView` generating new invoice number on view (`viewMode` flag)
+- ✅ Fixed `Analytics` fetching all subscriptions without user filter
+- ✅ Wrapped `/analytics` route in `AdminGuard` (admin-only data)
+- ✅ Fixed `SubscriptionPage` `submitSubscriptionRequest` showing `toast.success` on DB error
+- ✅ Fixed trial subscription duplicate insert → `upsert` with `onConflict`
+- ✅ Fixed `handleRecordPayment` redundant `getUser()` via `existingUserId` param
+- ✅ Fixed `checkEmailUsageLimit` inconsistent `userId` param usage
+- ✅ Fixed `SubscriptionPage` hardcoded plan IDs → resolve by slug from DB
+- ✅ Added `invoice_mode` filter to `InvoiceHistory` (Proforma / Tax Invoice)
+- ✅ Fixed `handleConvertToTaxInvoice` allowing duplicate conversions
+- ✅ Removed `console.log` from `Dashboard`, `emailUsageService`, `SubscriptionPage`
+- ✅ Created `AuthContext` (`AuthProvider` + `useAuth`) — single source of truth
+- ✅ Migrated `Navigation`, `SubscriptionGuard`, `AdminGuard`, `ProtectedRoute` to `useAuth()`
 
-### Application Error Handling (RESOLVED)
+### Phase 3 Fixes (7 issues resolved)
 
-- ✅ **Graceful Fallback**: App works even without migrations
-- ✅ **User-Friendly Messages**: Clear error messages with solutions
-- ✅ **No Crashes**: Missing columns/tables don't break the app
-- ✅ **Migration Prompts**: Users guided to run migrations
+- ✅ Removed `getUser()` + admin DB query from `Dashboard` mount (uses `useAuth`)
+- ✅ Fixed branding `useEffect` re-running on every keystroke (`useRef` flag)
+- ✅ Removed redundant `getUser()` in `handleSaveToDatabase`
+- ✅ Removed `getUser()` + admin DB query from `Analytics` (uses `useAuth`)
+- ✅ Added `.limit(200)` to `Analytics` invoice query (unbounded fetch)
+- ✅ Migrated all remaining pages to `useAuth()` — `BrandingSettings`, `ProductInventory`, `TemplatePage`, `SubscriptionPage`, `InvoiceHistory`, `Profile`, `Customers`
+- ✅ Removed non-existent columns from inserts: `customer_name`, `customer_email`, `customer_address`, `conversion_date`, `paid_at`
 
-### Gmail OAuth Issues (RESOLVED)
+### Phase 4 Fixes (11 issues resolved)
 
-- ❌ **Issue**: Redirect URI mismatch errors
-- ✅ **Fix**: Dynamic origin detection for localhost and network IPs
-- ✅ **Fix**: Updated OAuth service to use current origin
-- ✅ **Status**: Working correctly
-
-### Gmail API Not Enabled (RESOLVED)
-
-- ❌ **Issue**: Gmail API was disabled in Google Cloud project
-- ✅ **Fix**: Enabled Gmail API in Google Cloud Console
-- ✅ **Status**: Gmail sending now works
-
-### Email Encoding Issues (RESOLVED)
-
-- ❌ **Issue**: "Invalid characters" error in Gmail API
-- ✅ **Fix**: Proper UTF-8 encoding with `unescape(encodeURIComponent())`
-- ✅ **Fix**: Added proper MIME headers and boundaries
-- ✅ **Status**: Emails send successfully
-
-### Plain Text Emails (RESOLVED)
-
-- ❌ **Issue**: Emails sent as plain text without styling
-- ✅ **Fix**: Implemented HTML email templates
-- ✅ **Fix**: Added professional invoice email design
-- ✅ **Status**: Beautiful HTML emails now sent
-
-### Email Count Mismatch (RESOLVED)
-
-- ❌ **Issue**: Toast showed different count than dashboard
-- ✅ **Fix**: Updated remaining email calculation after send
-- ✅ **Fix**: Synchronized counts across UI
-- ✅ **Status**: Counts now match correctly
+- ✅ Removed `VITE_GMAIL_CLIENT_SECRET` from frontend — `exchangeCodeForTokens` and `refreshAccessToken` now proxy through Supabase Edge Functions (`gmail-token-exchange`, `gmail-token-refresh`)
+- ✅ Removed `isAdminEmail` / `VITE_ADMIN_EMAILS` from `AuthContext` — admin status now determined solely by `user_roles` DB table
+- ✅ Removed `VITE_EMAILJS_PRIVATE_KEY` from `.env.example` with security warning
+- ✅ Confirmed `InvoiceVerify.jsx` is already DB-backed (Supabase query, not client-side token check)
+- ✅ Added 60-second OTP cooldown to `handleForgotPassword` in `AuthPage.jsx` and `LandingPage.jsx`
+- ✅ Added `overflow-visible` to `SubscriptionPage` pricing grid (badge clipping on mobile)
+- ✅ Fixed `robots.txt` — removed `Allow: /template`, added `Disallow: /template`
+- ✅ Deleted `src/utils/invoiceEmailExample.js` (unused dev example file)
+- ✅ Deleted `src/components/BusinessSettings.jsx` (unused duplicate component)
+- ✅ Removed all remaining debug `console.log` calls from `gmailOAuthService.js`
+- ✅ Cleaned up `adminUtils.js` — `isAdminEmail` removed, `getAdminEmails` kept for notifications only
 
 ---
 
@@ -281,9 +286,13 @@ InvoicePort is a comprehensive invoice generation and management system built wi
 - ✅ **HTTPS Only** - Secure communication
 - ✅ **CORS Configuration** - Controlled API access
 - ✅ **Input Validation** - Form validation and sanitization
-- ✅ **Data Isolation** - Users only access their own data ✨ NEW
-- ✅ **Foreign Key Constraints** - Data integrity enforcement ✨ NEW
-- ✅ **Unique Constraints** - Prevent duplicate invoice numbers ✨ NEW
+- ✅ **Data Isolation** - Users only access their own data
+- ✅ **Foreign Key Constraints** - Data integrity enforcement
+- ✅ **Unique Constraints** - Prevent duplicate invoice numbers
+- ✅ **DB-only Admin Check** - Admin status from `user_roles` table only, no client-side email list
+- ✅ **Gmail Secret Proxied** - Token exchange via Supabase Edge Function, secret never in bundle
+- ✅ **OTP Rate Limiting** - 60-second cooldown on password reset requests
+- ✅ **Invoice Verification** - DB-backed lookup, not client-side token check
 
 ---
 
@@ -348,8 +357,11 @@ VITE_EMAILJS_SERVICE_ID
 VITE_EMAILJS_PUBLIC_KEY
 VITE_EMAILJS_INVOICE_TEMPLATE_ID
 VITE_GMAIL_CLIENT_ID
-VITE_GMAIL_CLIENT_SECRET
+VITE_ADMIN_EMAILS
 ```
+
+> ⚠️ `VITE_GMAIL_CLIENT_SECRET` must NOT be set as a frontend env var — it belongs in a Supabase Edge Function secret only.
+> ⚠️ `VITE_EMAILJS_PRIVATE_KEY` must NOT be set — the browser SDK only needs the public key.
 
 ### OAuth Configuration
 
@@ -463,50 +475,40 @@ VITE_GMAIL_CLIENT_SECRET
 
 ## 📅 Last Updated
 
-February 20, 2026
+March 23, 2026
 
-**Latest Update**: Invoice Mode System complete! Proforma vs Tax Invoice differentiation, secure non-sequential invoice numbering, and conversion workflow with full audit trail operational.
+**Latest Update**: Phase 4 complete — all 56 audit issues resolved (100%). Security hardening, performance optimization, dead code removal, and full `useAuth()` migration across all pages.
 
 ## 👥 Project Status
 
 **Status**: Production Ready ✅
-**Version**: 1.4.0 (Invoice Mode System & Secure Numbering)
+**Version**: 2.0.0 (Full Audit Complete)
 **Stability**: Stable
 
-### Recent Changes (v1.4.0)
+### Recent Changes (v2.0.0 — Phase 4)
 
-- ✅ Implemented Invoice Mode System (Proforma vs Tax Invoice)
-- ✅ Added secure, non-sequential invoice numbering
-- ✅ Created invoice conversion workflow (Proforma → Tax Invoice)
-- ✅ Added invoice type badges and disclaimers
-- ✅ Implemented conversion tracking with audit trail
-- ✅ Added invoice mode selector in Dashboard
-- ✅ Created convert button in Invoice History
-- ✅ Updated Invoice Verify to show invoice type
-- ✅ Generated new invoice numbers on conversion
-- ✅ Recorded payments automatically on conversion
-- ✅ Maintained backward compatibility
-- ✅ Created comprehensive documentation
+- ✅ Gmail client secret removed from frontend bundle — proxied via Supabase Edge Functions
+- ✅ Admin check migrated to DB-only (`user_roles` table) — `VITE_ADMIN_EMAILS` no longer used for auth
+- ✅ `VITE_EMAILJS_PRIVATE_KEY` removed from `.env.example` with security warning
+- ✅ Invoice verification confirmed DB-backed (no client-side token check)
+- ✅ OTP rate limiting added to `handleForgotPassword` (60s cooldown)
+- ✅ `SubscriptionPage` pricing grid badge overflow fixed (`overflow-visible`)
+- ✅ `robots.txt` fixed — `/template` now disallowed (protected route)
+- ✅ Deleted `invoiceEmailExample.js` and `BusinessSettings.jsx` (dead code)
+- ✅ All debug `console.log` calls removed from `gmailOAuthService.js`
 
-### Previous Changes (v1.3.0)
+### Previous Changes (v1.5.0 — Phase 3)
 
-- ✅ Implemented Subscription Analytics Dashboard
-- ✅ Added MRR (Monthly Recurring Revenue) tracking
-- ✅ Created active plans and trial users metrics
-- ✅ Implemented conversion rate calculation
-- ✅ Added email usage trends visualization
-- ✅ Created plan distribution charts
-- ✅ Implemented Audit Logs Viewer for admins
-- ✅ Added comprehensive log filtering (identity, action, date)
-- ✅ Created pagination for large log volumes
-- ✅ Added real-time log monitoring
-- ✅ Implemented Public Invoice Verification page
-- ✅ Added invoice lookup by invoice number
-- ✅ Created authenticity verification system
-- ✅ Added public RLS policy for invoice verification
-- ✅ Integrated all features into navigation
-- ✅ Maintained backward compatibility with existing features
-- ✅ Created database migrations for missing columns/tables
-- ✅ Implemented graceful error handling for schema issues
-- ✅ Added smart column detection and renaming
-- ✅ Created comprehensive troubleshooting documentation
+- ✅ `AuthContext` rewritten — parallel `Promise.allSettled` for admin + subscription DB calls
+- ✅ `Dashboard` branding `useEffect` uses `useRef` flag (runs once only)
+- ✅ Removed all `supabase.auth.getUser()` calls from page-level components
+- ✅ Added `.limit(200)` to `Analytics` invoice query
+- ✅ Removed non-existent columns from DB inserts (`customer_name`, `customer_email`, etc.)
+
+### Previous Changes (v1.4.0 — Phase 2)
+
+- ✅ Created `AuthContext` with `AuthProvider` + `useAuth` hook
+- ✅ Migrated `Navigation`, `SubscriptionGuard`, `AdminGuard`, `ProtectedRoute` to context
+- ✅ Fixed all silent data loss bugs (localStorage fallback, toast.success on error)
+- ✅ Fixed invoice conversion duplicate prevention
+- ✅ Fixed hardcoded plan IDs → DB slug resolution

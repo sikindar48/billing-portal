@@ -90,10 +90,12 @@ structuredData: WebApplication schema with features and pricing
 
 #### Robots.txt (`public/robots.txt`)
 
-- Allow public pages
-- Disallow private/admin areas
+- Allow public pages (`/auth`, `/subscription`)
+- Disallow private/admin areas including `/template` (protected route requiring login)
 - Sitemap reference
 - Crawl delay optimization
+
+> ✅ Fixed in Phase 4 — removed `Allow: /template` and added `Disallow: /template` since the template page requires authentication and should not be indexed.
 
 ## 📊 SEO Utilities
 
@@ -245,7 +247,7 @@ Pre-defined SEO settings for all major pages with customization options.
 - [x] SEO component creation
 - [x] Page-specific SEO implementation
 - [x] Sitemap generation
-- [x] Robots.txt configuration
+- [x] Robots.txt configuration (fixed: `/template` now disallowed)
 - [x] Structured data implementation
 - [x] SEO utilities development
 - [x] Social media optimization

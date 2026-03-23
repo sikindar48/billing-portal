@@ -4,7 +4,6 @@ Allow: /
 # Important pages for crawling
 Allow: /auth
 Allow: /subscription
-Allow: /template
 
 # Disallow admin and private areas
 Disallow: /admin
@@ -14,6 +13,7 @@ Disallow: /branding
 Disallow: /inventory
 Disallow: /statistics
 Disallow: /invoice-history
+Disallow: /template
 
 # Sitemap location
 Sitemap: https://www.invoiceport.live/sitemap.xml

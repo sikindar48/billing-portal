@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { isAdminEmail } from '@/utils/adminUtils';
 
 const AuthContext = createContext(null);
 
@@ -15,12 +14,10 @@ export const AuthProvider = ({ children }) => {
 
     // Run both DB calls in parallel instead of sequentially
     const [adminResult, subResult] = await Promise.allSettled([
-      // Admin check
-      isAdminEmail(u.email)
-        ? Promise.resolve(true)
-        : supabase.from('user_roles').select('role').eq('user_id', u.id).eq('role', 'admin').maybeSingle()
-            .then(({ data }) => !!data)
-            .catch(() => false),
+      // Admin check — DB is the sole source of truth (no client-side email list)
+      supabase.from('user_roles').select('role').eq('user_id', u.id).eq('role', 'admin').maybeSingle()
+        .then(({ data }) => !!data)
+        .catch(() => false),
 
       // Subscription check
       supabase.from('user_subscriptions')

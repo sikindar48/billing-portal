@@ -87,6 +87,8 @@ const AuthPage = () => {
   const [verifyingSession, setVerifyingSession] = useState(true);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [showPassword, setShowPassword] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const otpCooldownRef = useRef(null);
 
   // --- AUTH LOGIC ---
   useEffect(() => {
@@ -164,16 +166,25 @@ const AuthPage = () => {
         toast.error("Please enter your email address first.", { duration: 2000 });
         return;
     }
+    if (otpCooldown > 0) {
+        toast.error(`Please wait ${otpCooldown}s before requesting another OTP.`, { duration: 2000 });
+        return;
+    }
     setLoading(true);
     try {
-        // Use OTP system for password reset
         const result = await sendOTP(email, 'password_reset');
         if (!result.success) {
             throw new Error(result.error || 'Failed to send OTP');
         }
         toast.success("OTP sent to your email!", { duration: 2500 });
-        
-        // Navigate to OTP verification page
+        // Start 60s cooldown
+        setOtpCooldown(60);
+        otpCooldownRef.current = setInterval(() => {
+            setOtpCooldown(prev => {
+                if (prev <= 1) { clearInterval(otpCooldownRef.current); return 0; }
+                return prev - 1;
+            });
+        }, 1000);
         navigate(`/otp-verification?email=${encodeURIComponent(email)}&purpose=password_reset`);
     } catch (error) {
         toast.error(error.message || "Failed to send OTP", { duration: 2500 });
@@ -325,9 +336,10 @@ const AuthPage = () => {
                                       <button 
                                         type="button"
                                         onClick={handleForgotPassword}
-                                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors hover:underline"
+                                        disabled={otpCooldown > 0 || loading}
+                                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
-                                          Forgot password?
+                                          {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Forgot password?'}
                                       </button>
                                   )}
                               </div>

@@ -1,8 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 
 // Gmail OAuth Configuration
+// NOTE: VITE_GMAIL_CLIENT_SECRET must NOT be used here — it is compiled into the
+// public bundle and visible to anyone. Token exchange and refresh must be proxied
+// through a Supabase Edge Function. The client ID is safe to expose (public identifier).
 const GMAIL_CLIENT_ID = import.meta.env.VITE_GMAIL_CLIENT_ID;
-const GMAIL_CLIENT_SECRET = import.meta.env.VITE_GMAIL_CLIENT_SECRET;
 
 // Use localhost for development, production domain for production
 const getRedirectUri = () => {
@@ -43,53 +45,30 @@ export const initiateGmailOAuth = () => {
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'consent');
 
-  console.log('=== Gmail OAuth Debug Info ===');
-  console.log('Client ID:', GMAIL_CLIENT_ID);
-  console.log('Redirect URI:', REDIRECT_URI);
-  console.log('Current Origin:', window.location.origin);
-  console.log('Full OAuth URL:', authUrl.toString());
-  console.log('============================');
-
   window.location.href = authUrl.toString();
 };
 
 /**
- * Exchange authorization code for access and refresh tokens
+ * Exchange authorization code for access and refresh tokens.
+ * Proxied through a Supabase Edge Function so the client secret never
+ * touches the frontend bundle.
  * @param {string} authCode - Authorization code from OAuth callback
  * @returns {Promise<Object>} Token response
  */
 export const exchangeCodeForTokens = async (authCode) => {
-  if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET) {
+  if (!GMAIL_CLIENT_ID) {
     throw new Error('Gmail OAuth credentials not configured');
   }
 
-  const tokenUrl = 'https://oauth2.googleapis.com/token';
-  const tokenData = {
-    client_id: GMAIL_CLIENT_ID,
-    client_secret: GMAIL_CLIENT_SECRET,
-    code: authCode,
-    grant_type: 'authorization_code',
-    redirect_uri: REDIRECT_URI
-  };
-
   try {
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams(tokenData)
+    const { data, error } = await supabase.functions.invoke('gmail-token-exchange', {
+      body: { code: authCode, redirect_uri: REDIRECT_URI }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Token exchange failed: ${errorData.error_description || errorData.error}`);
-    }
+    if (error) throw new Error(error.message || 'Token exchange failed');
+    if (data?.error) throw new Error(data.error_description || data.error);
 
-    const tokens = await response.json();
-    console.log('Tokens received:', { ...tokens, access_token: '[HIDDEN]', refresh_token: '[HIDDEN]' });
-    
-    return tokens;
+    return data;
   } catch (error) {
     console.error('Error exchanging code for tokens:', error);
     throw error;
@@ -97,39 +76,26 @@ export const exchangeCodeForTokens = async (authCode) => {
 };
 
 /**
- * Refresh access token using refresh token
+ * Refresh access token using refresh token.
+ * Proxied through a Supabase Edge Function so the client secret never
+ * touches the frontend bundle.
  * @param {string} refreshToken - Stored refresh token
  * @returns {Promise<Object>} New access token
  */
 export const refreshAccessToken = async (refreshToken) => {
-  if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET) {
+  if (!GMAIL_CLIENT_ID) {
     throw new Error('Gmail OAuth credentials not configured');
   }
 
-  const tokenUrl = 'https://oauth2.googleapis.com/token';
-  const tokenData = {
-    client_id: GMAIL_CLIENT_ID,
-    client_secret: GMAIL_CLIENT_SECRET,
-    refresh_token: refreshToken,
-    grant_type: 'refresh_token'
-  };
-
   try {
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams(tokenData)
+    const { data, error } = await supabase.functions.invoke('gmail-token-refresh', {
+      body: { refresh_token: refreshToken }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Token refresh failed: ${errorData.error_description || errorData.error}`);
-    }
+    if (error) throw new Error(error.message || 'Token refresh failed');
+    if (data?.error) throw new Error(data.error_description || data.error);
 
-    const tokens = await response.json();
-    return tokens;
+    return data;
   } catch (error) {
     console.error('Error refreshing access token:', error);
     throw error;
@@ -143,32 +109,13 @@ export const refreshAccessToken = async (refreshToken) => {
  */
 export const saveGmailTokens = async (tokens, userEmail) => {
   try {
-    console.log('Attempting to save Gmail tokens...');
-    
-    // Check authentication with detailed logging
     const { data: authData, error: authError } = await supabase.auth.getUser();
     
-    console.log('Auth check result:', {
-      hasUser: !!authData?.user,
-      userId: authData?.user?.id,
-      userEmail: authData?.user?.email,
-      authError: authError?.message
-    });
-    
-    if (authError) {
-      console.error('Authentication error:', authError);
-      throw new Error(`Authentication failed: ${authError.message}`);
-    }
-    
-    if (!authData?.user) {
-      console.error('No user found in auth data');
-      throw new Error('User not authenticated. Please log in and try again.');
-    }
+    if (authError) throw new Error(`Authentication failed: ${authError.message}`);
+    if (!authData?.user) throw new Error('User not authenticated. Please log in and try again.');
 
     const user = authData.user;
     const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
-
-    console.log('Saving tokens for user:', user.id);
 
     const { error } = await supabase
       .from('business_settings')
@@ -183,12 +130,8 @@ export const saveGmailTokens = async (tokens, userEmail) => {
         onConflict: 'user_id'
       });
 
-    if (error) {
-      console.error('Database error:', error);
-      throw error;
-    }
+    if (error) throw error;
 
-    console.log('Gmail tokens saved successfully');
     return { success: true };
   } catch (error) {
     console.error('Error saving Gmail tokens:', error);

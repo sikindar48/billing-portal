@@ -310,8 +310,8 @@ OAuth flow initiated
 2. Redirect to Google OAuth consent screen
     URL: https://accounts.google.com/o/oauth2/v2/auth
     Parameters:
-        - client_id
-        - redirect_uri (localhost:8080/gmail-callback)
+        - client_id (VITE_GMAIL_CLIENT_ID — safe to expose)
+        - redirect_uri
         - response_type: code
         - scope: gmail.send, userinfo.email
         - access_type: offline
@@ -323,14 +323,9 @@ OAuth flow initiated
     ↓
 5. Frontend receives auth code
     ↓
-6. Exchange code for tokens
-    POST: https://oauth2.googleapis.com/token
-    Body:
-        - code
-        - client_id
-        - client_secret
-        - grant_type: authorization_code
-        - redirect_uri
+6. Exchange code for tokens via Supabase Edge Function
+    (client secret stays server-side — never in the bundle)
+    supabase.functions.invoke('gmail-token-exchange', { code, redirect_uri })
     ↓
 7. Receive access_token & refresh_token
     ↓
@@ -360,12 +355,9 @@ Check token expiration
     ↓
 If expired:
     ↓
-    POST: https://oauth2.googleapis.com/token
-    Body:
-        - refresh_token
-        - client_id
-        - client_secret
-        - grant_type: refresh_token
+    Proxy refresh via Supabase Edge Function:
+    supabase.functions.invoke('gmail-token-refresh', { refresh_token })
+    (client secret stays server-side)
     ↓
     Receive new access_token
     ↓
@@ -835,11 +827,17 @@ JWT Token Generation
     ↓
 Browser Storage (Session)
     ↓
-Protected Route Access
+AuthContext (onAuthStateChange)
     ↓
-User Data Fetching
+Parallel DB calls (Promise.allSettled):
+    - user_roles table → isAdmin (DB-only, no client-side email list)
+    - user_subscriptions table → subscriptionStatus
     ↓
-UI Personalization
+Context provides: user, isAdmin, subscriptionStatus, authLoading
+    ↓
+All pages consume via useAuth() — zero redundant getUser() calls
+    ↓
+Protected Route / AdminGuard / SubscriptionGuard read from context
 ```
 
 ---
@@ -962,9 +960,9 @@ UI Personalization
 
 ## Last Updated
 
-January 20, 2026
+March 23, 2026
 
-**Latest Update**: Added complete database integration flows for invoice storage, retrieval, and management. All invoice data now properly stored in PostgreSQL with RLS, indexes, and helper functions.
+**Latest Update**: Phase 4 complete — Gmail token exchange proxied via Supabase Edge Functions (client secret removed from bundle), admin check migrated to DB-only, AuthContext is now the single source of truth for all auth state across the entire app.
 
 ---
 

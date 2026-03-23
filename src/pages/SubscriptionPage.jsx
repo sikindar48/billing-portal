@@ -379,7 +379,7 @@ const SubscriptionPage = () => {
         </div>
 
         {/* --- PRICING CARDS --- */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-16 overflow-visible">
             {plans.map((plan, index) => {
                 const isHighlighted = plan.highlight; 
                 const isEnterprise = plan.slug === 'enterprise';
