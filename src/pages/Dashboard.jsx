@@ -123,12 +123,15 @@ const Index = () => {
                 setBrandingSettings({
                     logoUrl: branding.logo_url || '',
                     brandingCompanyName: branding.company_name || '',
-                    brandingTagline: '',
+                    brandingTagline: branding.metadata?.tagline || '',
                     brandingWebsite: branding.website || '',
-                    address: '',
-                    phone: '',
-                    currency: 'INR',
+                    address: branding.metadata?.address || '',
+                    phone: branding.metadata?.phone || '',
+                    currency: branding.metadata?.currency || 'INR',
                 });
+                if (branding.metadata?.currency) {
+                    setSelectedCurrency(branding.metadata.currency);
+                }
             }
 
             // Fetch subscription

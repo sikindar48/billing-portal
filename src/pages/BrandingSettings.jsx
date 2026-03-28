@@ -32,11 +32,27 @@ const BrandingSettings = () => {
     const fetchSettings = async () => {
       try {
         const { data } = await supabase
-          .from('business_settings')
-          .select('company_name,company_tagline,company_email,company_phone,company_website,address_line1,logo_url,invoice_prefix,currency,tax_rate,preferred_email_method')
+          .from('branding_settings')
+          .select('*')
           .eq('user_id', user.id)
           .maybeSingle();
-        if (data) setSettings(prev => ({ ...prev, ...data }));
+        if (data) {
+          setSettings(prev => ({
+            ...prev,
+            company_name: data.company_name || '',
+            logo_url: data.logo_url || '',
+            company_website: data.website || '',
+            // Extra fields stored in metadata JSONB if present
+            company_tagline: data.metadata?.tagline || '',
+            company_email: data.metadata?.email || '',
+            company_phone: data.metadata?.phone || '',
+            address_line1: data.metadata?.address || '',
+            invoice_prefix: data.metadata?.invoice_prefix || 'INV',
+            currency: data.metadata?.currency || 'INR',
+            tax_rate: data.metadata?.tax_rate ?? 18,
+            preferred_email_method: data.metadata?.preferred_email_method || 'emailjs',
+          }));
+        }
       } catch (e) {
         toast.error('Failed to load settings');
       } finally {
@@ -51,19 +67,23 @@ const BrandingSettings = () => {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('business_settings')
-        .upsert({ user_id: user.id,
+        .from('branding_settings')
+        .upsert({
+          user_id: user.id,
           company_name: settings.company_name,
-          company_tagline: settings.company_tagline,
-          company_email: settings.company_email,
-          company_phone: settings.company_phone,
-          company_website: settings.company_website,
-          address_line1: settings.address_line1,
           logo_url: settings.logo_url,
-          invoice_prefix: settings.invoice_prefix,
-          currency: settings.currency,
-          tax_rate: settings.tax_rate,
-          preferred_email_method: settings.preferred_email_method,
+          website: settings.company_website,
+          // Extra fields packed into metadata JSONB
+          metadata: {
+            tagline: settings.company_tagline,
+            email: settings.company_email,
+            phone: settings.company_phone,
+            address: settings.address_line1,
+            invoice_prefix: settings.invoice_prefix,
+            currency: settings.currency,
+            tax_rate: settings.tax_rate,
+            preferred_email_method: settings.preferred_email_method,
+          },
         }, { onConflict: 'user_id' });
       if (error) throw error;
       toast.success('Settings saved');
