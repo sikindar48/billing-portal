@@ -132,7 +132,7 @@ const InvoiceHistory = () => {
         grandTotal: invoice.grand_total,
         notes: invoice.notes,
         selectedCurrency: invoice.currency || "INR",
-        invoiceMode: invoice.invoice_mode || 'proforma',
+        invoiceMode: invoice.invoice_details?.invoiceMode || invoice.invoice_mode || 'proforma',
         _sourceInvoiceId: invoice.id,
     };
     
@@ -142,19 +142,34 @@ const InvoiceHistory = () => {
   const handleDownload = async (invoice) => {
     setProcessingId(invoice.id);
     try {
+        const taxPct = invoice.tax || 0;
+        const sub = invoice.subtotal || 0;
+        const taxAmt = (sub * taxPct) / 100;
+        const currency = invoice.invoice_details?.currency || 'INR';
+
         const formData = {
             billTo: invoice.bill_to,
             shipTo: invoice.ship_to,
-            invoice: invoice.invoice_details,
+            invoice: {
+                ...(invoice.invoice_details || {}),
+                number: invoice.invoice_number,
+            },
             yourCompany: invoice.from_details,
-            items: invoice.items,
-            taxPercentage: invoice.tax,
+            items: invoice.items || [],
+            taxPercentage: taxPct,
+            taxAmount: taxAmt,
+            subTotal: sub,
+            grandTotal: invoice.grand_total || 0,
             notes: invoice.notes,
-            selectedCurrency: invoice.currency || "INR"
+            selectedCurrency: currency,
         };
-        
-        const templateNumber = invoice.template_id || 1;
-        await generatePDF(formData, templateNumber); 
+
+        // Read template number from template_name (e.g. "template_3" → 3), default 3
+        const templateNumber = invoice.template_name
+            ? parseInt(invoice.template_name.replace('template_', ''), 10) || 3
+            : 3;
+
+        await generatePDF(formData, templateNumber);
         toast.success("Invoice downloaded!");
     } catch (error) {
         toast.error("Failed to generate PDF");
@@ -183,31 +198,39 @@ const InvoiceHistory = () => {
   };
 
   const handleStatusChange = async (invoiceId, newStatus, existingUserId = null) => {
+    // Optimistic update — update UI immediately
+    setInvoices(prev => prev.map(inv =>
+      inv.id === invoiceId
+        ? { ...inv, invoice_details: { ...(inv.invoice_details || {}), status: newStatus } }
+        : inv
+    ));
     try {
-      // Use passed userId if available to avoid redundant auth call
-      let uid = existingUserId;
-      if (!uid) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          toast.error('Not authenticated');
-          return;
-        }
-        uid = user.id;
-      }
+      const uid = existingUserId || user?.id;
+      if (!uid) { toast.error('Not authenticated'); return; }
+
+      // Fetch current invoice_details then merge status
+      const { data: current, error: fetchErr } = await supabase
+        .from('invoices')
+        .select('invoice_details')
+        .eq('id', invoiceId)
+        .eq('user_id', uid)
+        .single();
+
+      if (fetchErr) throw fetchErr;
 
       const { error } = await supabase
         .from('invoices')
-        .update({ status: newStatus })
+        .update({ invoice_details: { ...(current.invoice_details || {}), status: newStatus } })
         .eq('id', invoiceId)
         .eq('user_id', uid);
 
       if (error) throw error;
-
-      setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: newStatus } : inv));
       toast.success(`Invoice marked as ${newStatus}`);
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error(`Failed to update status: ${error.message || 'Unknown error'}`);
+      // Revert optimistic update on failure
+      loadInvoices();
     }
   };
 
@@ -239,28 +262,9 @@ const InvoiceHistory = () => {
 
     setSavingPayment(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          invoice_id: selectedInvoice.id,
-          user_id: user.id,
-          amount: parseFloat(paymentData.amount),
-          payment_method: paymentData.payment_method,
-          payment_date: paymentData.payment_date,
-          transaction_id: paymentData.transaction_id || null,
-          reference_number: paymentData.reference_number || null,
-          notes: paymentData.notes || null,
-          status: 'completed'
-        });
-
-      if (paymentError) throw paymentError;
-
+      // Mark invoice as paid if full amount received
       const invoiceAmount = selectedInvoice.grand_total || 0;
       if (parseFloat(paymentData.amount) >= invoiceAmount) {
-        // Pass user.id to avoid a redundant getUser() call inside handleStatusChange
         await handleStatusChange(selectedInvoice.id, 'paid', user.id);
       }
 
@@ -283,7 +287,7 @@ const InvoiceHistory = () => {
       if (!user) throw new Error('Not authenticated');
 
       // Validation checks
-      if (proformaInvoice.invoice_mode !== 'proforma') {
+      if ((proformaInvoice.invoice_details?.invoiceMode || proformaInvoice.invoice_mode) !== 'proforma') {
         toast.error('Only proforma invoices can be converted');
         setProcessingId(null);
         return;
@@ -296,7 +300,7 @@ const InvoiceHistory = () => {
       }
 
       // Also block if the proforma itself was already marked converted
-      if (proformaInvoice.status === 'converted') {
+      if ((proformaInvoice.invoice_details?.status || proformaInvoice.status) === 'converted') {
         toast.error('This proforma has already been converted to a tax invoice');
         setProcessingId(null);
         return;
@@ -318,33 +322,28 @@ const InvoiceHistory = () => {
       const taxInvoiceData = {
         user_id: user.id,
         invoice_number: newInvoiceNumber,
-        invoice_mode: 'tax_invoice',
-        status: 'paid',
-        issue_date: new Date().toISOString().split('T')[0],
-        due_date: proformaInvoice.due_date,
         
         // Copy amounts
         subtotal: proformaInvoice.subtotal,
-        tax_amount: proformaInvoice.tax_amount,
         grand_total: proformaInvoice.grand_total,
         
         // Copy other details
-        currency: proformaInvoice.currency,
-        currency_symbol: proformaInvoice.currency_symbol,
         notes: proformaInvoice.notes,
-        terms: proformaInvoice.terms,
-        template_id: proformaInvoice.template_id,
+        template_name: proformaInvoice.template_name,
         
         // Copy JSONB fields (bill_to contains customer data)
         bill_to: proformaInvoice.bill_to,
         ship_to: proformaInvoice.ship_to,
-        invoice_details: proformaInvoice.invoice_details,
+        invoice_details: {
+          ...(proformaInvoice.invoice_details || {}),
+          invoiceMode: 'tax_invoice',
+          status: 'paid',
+          converted_from_id: proformaInvoice.id,
+          conversion_date: new Date().toLocaleDateString('en-GB'),
+        },
         from_details: proformaInvoice.from_details,
         items: proformaInvoice.items,
         tax: proformaInvoice.tax,
-        
-        // Conversion tracking
-        converted_from_id: proformaInvoice.id,
       };
 
       const { data: newInvoice, error: invoiceError } = await supabase
@@ -355,66 +354,18 @@ const InvoiceHistory = () => {
 
       if (invoiceError) throw invoiceError;
 
-      // Copy invoice items
-      if (proformaInvoice.items && proformaInvoice.items.length > 0) {
-        const invoiceItems = proformaInvoice.items.map((item, index) => ({
-          invoice_id: newInvoice.id,
-          name: item.name,
-          description: item.description || '',
-          quantity: item.quantity,
-          unit_price: item.amount,
-          amount: item.total ?? (item.quantity * item.amount),
-          sort_order: index
-        }));
-
-        const { error: itemsError } = await supabase
-          .from('invoice_items')
-          .insert(invoiceItems);
-
-        if (itemsError) {
-          console.error('Error copying invoice items:', itemsError);
-        }
-      }
-
-      // Record payment
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          invoice_id: newInvoice.id,
-          user_id: user.id,
-          amount: proformaInvoice.grand_total,
-          payment_method: 'conversion',
-          payment_date: new Date().toISOString().split('T')[0],
-          notes: `Converted from Proforma Invoice ${proformaInvoice.invoice_number}`,
-          status: 'completed'
-        });
-
-      if (paymentError) {
-        console.error('Error recording payment:', paymentError);
-      }
-
       // Mark the source proforma as 'converted' to prevent duplicate conversions
+      const { data: srcInvoice } = await supabase
+        .from('invoices')
+        .select('invoice_details')
+        .eq('id', proformaInvoice.id)
+        .single();
+
       await supabase
         .from('invoices')
-        .update({ status: 'converted' })
+        .update({ invoice_details: { ...(srcInvoice?.invoice_details || {}), status: 'converted' } })
         .eq('id', proformaInvoice.id)
         .eq('user_id', user.id);
-
-      // Log conversion in audit_logs
-      try {
-        await supabase.from('audit_logs').insert({
-          user_id: user.id,
-          user_identity_type: 'user',
-          action_type: 'invoice_converted',
-          resource_type: 'invoice',
-          resource_id: newInvoice.id,
-          details: `Converted Proforma ${proformaInvoice.invoice_number} to Tax Invoice ${newInvoiceNumber}`,
-          old_values: { invoice_mode: 'proforma', invoice_id: proformaInvoice.id },
-          new_values: { invoice_mode: 'tax_invoice', invoice_id: newInvoice.id }
-        });
-      } catch (auditError) {
-        console.warn('Failed to log audit entry:', auditError);
-      }
 
       toast.success(`Tax Invoice ${newInvoiceNumber} created successfully!`, { duration: 4000 });
       loadInvoices();
@@ -432,8 +383,8 @@ const InvoiceHistory = () => {
       inv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       inv.bill_to?.name?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
-    const matchesMode = modeFilter === 'all' || inv.invoice_mode === modeFilter;
+    const matchesStatus = statusFilter === 'all' || (inv.invoice_details?.status || 'draft') === statusFilter;
+    const matchesMode = modeFilter === 'all' || (inv.invoice_details?.invoiceMode || 'proforma') === modeFilter;
     
     return matchesSearch && matchesStatus && matchesMode;
   });
@@ -544,7 +495,7 @@ const InvoiceHistory = () => {
                                     <td className="px-6 py-4 text-gray-600">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                                            {new Date(invoice.issue_date || invoice.created_at).toLocaleDateString()}
+                                            {invoice.invoice_details?.date || new Date(invoice.created_at).toLocaleDateString('en-GB')}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
@@ -553,12 +504,12 @@ const InvoiceHistory = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <Select
-                                            value={invoice.status || 'draft'}
+                                            value={invoice.invoice_details?.status || 'draft'}
                                             onValueChange={(value) => handleStatusChange(invoice.id, value)}
                                         >
                                             <SelectTrigger className="w-[130px] h-8 border-0 focus:ring-0">
                                                 <SelectValue>
-                                                    {getStatusBadge(invoice.status || 'draft')}
+                                                    {getStatusBadge(invoice.invoice_details?.status || 'draft')}
                                                 </SelectValue>
                                             </SelectTrigger>
                                             <SelectContent>
@@ -574,7 +525,7 @@ const InvoiceHistory = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-1">
-                                            {invoice.invoice_mode === 'proforma' && invoice.status !== 'paid' && (
+                                            {(invoice.invoice_details?.invoiceMode || 'proforma') === 'proforma' && (invoice.invoice_details?.status || 'draft') !== 'paid' && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -587,7 +538,7 @@ const InvoiceHistory = () => {
                                                 </Button>
                                             )}
                                             
-                                            {invoice.status !== 'paid' && (
+                                            {(invoice.invoice_details?.status || 'draft') !== 'paid' && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"

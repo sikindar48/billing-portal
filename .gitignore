@@ -28,3 +28,6 @@ dist-ssr
 *.sln
 *.sw?
 .aider*
+
+# Internal audit/dev notes
+errors.md

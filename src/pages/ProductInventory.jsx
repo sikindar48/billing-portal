@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Loader2, Plus, Search, Package, Edit2, Trash2 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const ProductInventory = () => {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const ProductInventory = () => {
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [currentProduct, setCurrentProduct] = useState({ id: null, name: '', description: '', price: '' });
 
   useEffect(() => {
@@ -86,7 +88,7 @@ const ProductInventory = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this product?")) return;
+    setDeleteConfirmId(null);
     try {
         const { error } = await supabase.from('products').delete().eq('id', id);
         if (error) throw error;
@@ -165,7 +167,7 @@ const ProductInventory = () => {
                                     <td className="px-6 py-4 text-right font-mono">₹{product.price}</td>
                                     <td className="px-6 py-4 text-right">
                                         <Button variant="ghost" size="sm" onClick={() => openEdit(product)}><Edit2 className="h-4 w-4 text-indigo-600" /></Button>
-                                        <Button variant="ghost" size="sm" onClick={() => handleDelete(product.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(product.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
                                     </td>
                                 </tr>
                             ))}
@@ -204,6 +206,27 @@ const ProductInventory = () => {
             </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this product? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => handleDelete(deleteConfirmId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

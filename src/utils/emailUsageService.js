@@ -1,17 +1,14 @@
 // Email Usage Service - Handles plan-based email restrictions
 import { supabase } from '@/integrations/supabase/client';
-import { isAdminEmail } from '@/utils/adminUtils';
 
 /**
- * Check if current user is admin.
+ * Check if current user is admin via DB only (no client-side email list).
  * @returns {Promise<boolean>} True if user is admin
  */
 const isAdminUser = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-
-    if (isAdminEmail(user.email)) return true;
 
     const { data: roleData } = await supabase
       .from('user_roles')

@@ -6,7 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 const SubscriptionGuard = ({ children }) => {
   const { subscriptionStatus, authLoading } = useAuth();
 
-  if (authLoading || subscriptionStatus === 'loading') {
+  // Only block if we're still waiting for the very first auth resolution
+  // (no cached session). Once authLoading is false, never show a spinner —
+  // subscription status resolves in the background.
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
@@ -14,8 +17,7 @@ const SubscriptionGuard = ({ children }) => {
     );
   }
 
-  if (subscriptionStatus === 'expired') {
-    return (
+  if (subscriptionStatus === 'expired') {    return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
         <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-200">
           <div className="mx-auto bg-red-100 h-16 w-16 rounded-full flex items-center justify-center mb-6">

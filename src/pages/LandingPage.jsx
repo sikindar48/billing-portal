@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { sendOTP } from '@/utils/otpService';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,33 +80,31 @@ const FeatureCard = ({ icon, title, desc, color }) => {
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user, authLoading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const [verifyingSession, setVerifyingSession] = useState(true);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [showPassword, setShowPassword] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
   const otpCooldownRef = useRef(null);
 
-  // --- AUTH LOGIC ---
+  // Redirect already-logged-in users
   useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          navigate('/dashboard', { replace: true }); 
-        } else {
-          setVerifyingSession(false);
-        }
-      } catch (error) {
-        setVerifyingSession(false);
-      }
-    };
-    checkUser();
-  }, [navigate]);
+    if (!authLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  if (authLoading || user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0B0F19]">
+        <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -200,14 +199,6 @@ const LandingPage = () => {
       setIsLogin(false);
       setTimeout(() => document.getElementById('email')?.focus(), 500);
   };
-
-  if (verifyingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0B0F19]">
-        <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />
-      </div>
-    );
-  }
 
   return (
     <>

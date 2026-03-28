@@ -8,18 +8,17 @@ export const AuthProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState('loading');
   const [authLoading, setAuthLoading] = useState(true);
+  // Tracks whether we've resolved admin+sub at least once for this session
+  const resolvedRef = React.useRef(false);
 
   const resolveUserData = async (u) => {
     if (!u) return { adminStatus: false, subStatus: 'expired' };
 
-    // Run both DB calls in parallel instead of sequentially
     const [adminResult, subResult] = await Promise.allSettled([
-      // Admin check — DB is the sole source of truth (no client-side email list)
       supabase.from('user_roles').select('role').eq('user_id', u.id).eq('role', 'admin').maybeSingle()
         .then(({ data }) => !!data)
         .catch(() => false),
 
-      // Subscription check
       supabase.from('user_subscriptions')
         .select('status, current_period_end')
         .eq('user_id', u.id)
@@ -35,14 +34,41 @@ export const AuthProvider = ({ children }) => {
     ]);
 
     const adminStatus = adminResult.status === 'fulfilled' ? adminResult.value : false;
-    // Admins always get 'allowed' regardless of subscription
     const subStatus = adminStatus ? 'allowed' : (subResult.status === 'fulfilled' ? subResult.value : 'allowed');
-
     return { adminStatus, subStatus };
   };
 
   useEffect(() => {
     let mounted = true;
+
+    // Get the current session immediately — this is synchronous from the
+    // Supabase client cache and resolves before onAuthStateChange fires.
+    // This eliminates the loading flash on tab navigation.
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      const sessionUser = session?.user ?? null;
+      setUser(sessionUser);
+
+      if (!sessionUser) {
+        setAuthLoading(false);
+        setSubscriptionStatus('expired');
+        return;
+      }
+
+      // Resolve admin + subscription once on startup
+      try {
+        const { adminStatus, subStatus } = await resolveUserData(sessionUser);
+        if (!mounted) return;
+        setIsAdmin(adminStatus);
+        setSubscriptionStatus(subStatus);
+        resolvedRef.current = true;
+      } catch {
+        if (!mounted) return;
+        setSubscriptionStatus('allowed');
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
@@ -51,6 +77,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setIsAdmin(false);
         setSubscriptionStatus('expired');
+        resolvedRef.current = false;
         setAuthLoading(false);
         return;
       }
@@ -65,26 +92,29 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // TOKEN_REFRESHED — user identity unchanged, skip DB calls
-      if (event === 'TOKEN_REFRESHED') {
+      // TOKEN_REFRESHED or INITIAL_SESSION after getSession already ran —
+      // just update the user object, skip DB calls if already resolved
+      if (event === 'TOKEN_REFRESHED' || (event === 'INITIAL_SESSION' && resolvedRef.current)) {
         setUser(sessionUser);
         setAuthLoading(false);
         return;
       }
 
-      // INITIAL_SESSION or SIGNED_IN — resolve admin + subscription in parallel
-      setUser(sessionUser);
-      try {
-        const { adminStatus, subStatus } = await resolveUserData(sessionUser);
-        if (!mounted) return;
-        setIsAdmin(adminStatus);
-        setSubscriptionStatus(subStatus);
-      } catch {
-        if (!mounted) return;
-        setIsAdmin(false);
-        setSubscriptionStatus('allowed'); // fail open
-      } finally {
-        if (mounted) setAuthLoading(false);
+      // SIGNED_IN (new login) — resolve fresh
+      if (event === 'SIGNED_IN') {
+        setUser(sessionUser);
+        try {
+          const { adminStatus, subStatus } = await resolveUserData(sessionUser);
+          if (!mounted) return;
+          setIsAdmin(adminStatus);
+          setSubscriptionStatus(subStatus);
+          resolvedRef.current = true;
+        } catch {
+          if (!mounted) return;
+          setSubscriptionStatus('allowed');
+        } finally {
+          if (mounted) setAuthLoading(false);
+        }
       }
     });
 

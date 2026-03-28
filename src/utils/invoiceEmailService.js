@@ -30,7 +30,6 @@ const getEmailMethodPreference = async (userId) => {
     
     // If user prefers Gmail but doesn't have pro plan, force EmailJS
     if (settings.preferred_email_method === 'gmail' && !availableMethods.gmail) {
-      console.log('Gmail requested but not available for current plan, using EmailJS');
       return 'emailjs';
     }
 
@@ -52,8 +51,6 @@ const getEmailMethodPreference = async (userId) => {
  */
 export const sendInvoiceEmail = async (invoiceData, userId) => {
   try {
-    console.log('=== UNIFIED INVOICE EMAIL SERVICE ===');
-    
     // Validate required data
     if (!invoiceData.billTo?.email) {
       return {
@@ -87,8 +84,6 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
 
     // Determine the best email method based on plan and preferences
     const preferredMethod = await getEmailMethodPreference(userId);
-    console.log('Preferred email method:', preferredMethod);
-    console.log('Plan allows method:', preferredMethod);
 
     let result;
     let invoiceId = null;
@@ -107,7 +102,6 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
     }
 
     if (preferredMethod === 'gmail') {
-      console.log('Attempting to send via Gmail (Pro feature)...');
       result = await sendInvoiceViaGmail(invoiceData, userId);
       
       // Log the attempt
@@ -121,7 +115,6 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
       
       // If Gmail fails, fallback to EmailJS
       if (!result.success) {
-        console.log('Gmail failed, falling back to EmailJS:', result.error);
         result = await sendInvoiceEmailViaEmailJS(invoiceData, userId);
         result.fallbackUsed = true;
         result.originalError = result.error;
@@ -136,7 +129,6 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
         );
       }
     } else {
-      console.log('Sending via EmailJS (Trial/Basic method)...');
       result = await sendInvoiceEmailViaEmailJS(invoiceData, userId);
       
       // Log the attempt
@@ -164,14 +156,6 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
     } else {
       result.remainingEmails = usageValidation.remainingEmails;
     }
-
-    console.log('Invoice email result:', {
-      success: result.success,
-      method: result.method,
-      sentTo: result.sentTo,
-      error: result.error,
-      remainingEmails: result.remainingEmails
-    });
 
     return result;
 

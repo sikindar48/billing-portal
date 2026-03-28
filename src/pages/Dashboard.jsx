@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 // Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
 // import { sendWelcomeEmail } from '@/utils/emailService';
-import { sendInvoiceEmail, validateInvoiceForEmail, getEmailCapabilities } from '@/utils/invoiceEmailService';
+import { sendInvoiceEmail, validateInvoiceForEmail } from '@/utils/invoiceEmailService';
 import { checkEmailUsageLimit } from '@/utils/emailUsageService';
 import { useAuth } from '@/context/AuthContext';
 import { formatCurrency } from '../utils/formatCurrency'; 
@@ -31,11 +31,22 @@ const noteOptions = [
   "Thank you for your prompt payment."
 ];
 
+// Convert any date string (yyyy-mm-dd or dd/mm/yyyy) to dd/mm/yyyy display format
+const toDisplayDate = (dateStr) => {
+  if (!dateStr) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return dateStr; // already dd/mm/yyyy
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('T')[0].split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+};
+
 // Initial default state for a clean slate
 const getInitialCompany = () => ({ name: "", address: "", phone: "", website: "" });
 const getInitialBillTo = () => ({ name: "", address: "", phone: "", email: "" });
 const getInitialInvoice = () => ({
-    date: new Date().toISOString().split('T')[0],
+    date: (() => { const d = new Date(); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })(),
     paymentDate: "",
     number: generateSecureInvoiceNumber('INV', 6), // Secure non-sequential number
 });
@@ -48,9 +59,9 @@ const Index = () => {
   const { user, isAdmin } = useAuth(); // Read from context — no extra network calls
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [emailCapabilities, setEmailCapabilities] = useState(null);
   const [emailUsageStats, setEmailUsageStats] = useState(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(3);
   // brandingApplied ref prevents the branding effect from re-running on every keystroke
   const brandingAppliedRef = useRef(false);
   
@@ -99,126 +110,78 @@ const Index = () => {
 
   // 1. INITIAL DATA FETCH — user & isAdmin come from AuthContext (no extra network calls)
   useEffect(() => {
-    if (!user) return; // Wait for AuthContext to resolve
+    if (!user) return;
     const initData = async () => {
         try {
-            // B. Fetch Business Settings (Company Information)
-            const { data: businessSettings } = await supabase.from('business_settings').select('*').eq('user_id', user.id).maybeSingle();
-            if (businessSettings) {
+            // Fetch branding (uses the real 'branding_settings' table)
+            const { data: branding } = await supabase
+                .from('branding_settings')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+            if (branding) {
                 setBrandingSettings({
-                    logoUrl: businessSettings.logo_url || '',
-                    brandingCompanyName: businessSettings.company_name || '',
-                    brandingTagline: businessSettings.company_tagline || '',
-                    brandingWebsite: businessSettings.company_website || '',
-                    address: businessSettings.address_line1 || '',
-                    phone: businessSettings.company_phone || '',
-                    currency: businessSettings.currency || 'INR',
+                    logoUrl: branding.logo_url || '',
+                    brandingCompanyName: branding.company_name || '',
+                    brandingTagline: '',
+                    brandingWebsite: branding.website || '',
+                    address: '',
+                    phone: '',
+                    currency: 'INR',
                 });
-                // Set currency from business settings
-                setSelectedCurrency(businessSettings.currency || 'INR');
             }
 
-            // Load email capabilities and usage stats
-            const capabilities = await getEmailCapabilities(user.id);
-            setEmailCapabilities(capabilities);
-            
-            const emailUsage = await checkEmailUsageLimit();
-            setEmailUsageStats(emailUsage);
+            // Fetch subscription
+            const { data: sub } = await supabase
+                .from('user_subscriptions')
+                .select('*, subscription_plans(*)')
+                .eq('user_id', user.id)
+                .maybeSingle();
 
-            // C. Fetch Usage & Subscription (Rest of the logic)
-            const { data: sub } = await supabase.from('user_subscriptions').select('*, subscription_plans(*)')
-                .eq('user_id', user.id).maybeSingle();
-
-            // D. Check if this is a newly confirmed user (no subscription yet)
             if (!sub && user.email_confirmed_at) {
-                // Create trial subscription idempotently — upsert prevents duplicates on re-mount
                 const trialEndDate = new Date();
                 trialEndDate.setDate(trialEndDate.getDate() + 3);
-                
                 const { error: subError } = await supabase.from('user_subscriptions').upsert({
                     user_id: user.id,
-                    plan_id: 1, 
+                    plan_id: 1,
                     status: 'trialing',
                     current_period_end: trialEndDate.toISOString()
                 }, { onConflict: 'user_id' });
-
-                if (subError) {
-                    console.error('Failed to create trial subscription:', subError);
-                } else {
-                    // Show welcome message without email
-                    toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
-                }
-                
-                // Refresh subscription data after creation
-                const { data: newSub } = await supabase.from('user_subscriptions').select('*, subscription_plans(*)')
-                    .eq('user_id', user.id).maybeSingle();
-                
-                if (newSub) {
-                    const end = new Date(newSub.current_period_end);
-                    const now = new Date();
-                    const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-                    
-                    setUsageStats({
-                        count: newSub.invoice_usage_count || 0,
-                        limit: 10,
-                        planName: 'Free Trial',
-                        daysLeft: daysLeft > 0 ? daysLeft : 0
-                    });
-                }
+                if (!subError) toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
+                setUsageStats({ count: 0, limit: 10, planName: 'Free Trial', daysLeft: 3 });
             } else if (sub) {
-                // Existing user with subscription
-                let daysLeft = 0;
-                if (sub.current_period_end) {
-                    const end = new Date(sub.current_period_end);
-                    const now = new Date();
-                    daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-                }
-
+                const end = new Date(sub.current_period_end);
+                const daysLeft = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
                 setUsageStats({
                     count: sub.invoice_usage_count || 0,
                     limit: sub.subscription_plans?.slug === 'trial' ? 10 : 10000,
                     planName: sub.subscription_plans?.name || 'Free Trial',
-                    daysLeft: daysLeft > 0 ? daysLeft : 0
+                    daysLeft,
                 });
             }
 
-            // Load form data immediately after user is fetched (combine with second useEffect)
-            // Option A: Load from History (passed via navigation state) - Highest Priority
-            if (location.state && location.state.invoiceData) {
+            // Load from navigation state (view from history)
+            if (location.state?.invoiceData) {
                 const data = location.state.invoiceData;
                 const isViewMode = location.state.viewMode === true;
                 setBillTo(data.billTo || getInitialBillTo());
                 setShipTo(data.shipTo || getInitialCompany());
-                // In viewMode, preserve the original invoice number; otherwise generate a new one
                 setInvoice(data.invoice
-                    ? { ...data.invoice, number: isViewMode ? data.invoice.number : generateSecureInvoiceNumber('INV', 6) }
+                    ? {
+                        ...data.invoice,
+                        number: isViewMode ? data.invoice.number : generateSecureInvoiceNumber('INV', 6),
+                        date: toDisplayDate(data.invoice.date),
+                        paymentDate: toDisplayDate(data.invoice.paymentDate),
+                      }
                     : getInitialInvoice());
                 setYourCompany(data.yourCompany || getInitialCompany());
                 setItems(data.items || getInitialItems());
                 setTaxPercentage(data.taxPercentage || 0);
-                setTaxType(data.taxType || 'exclusive');
-                setEnableRoundOff(data.enableRoundOff !== undefined ? data.enableRoundOff : true);
+                setTaxType(data.taxType || 'IGST');
+                setEnableRoundOff(data.enableRoundOff ?? false);
                 setNotes(data.notes || '');
                 setSelectedCurrency(data.selectedCurrency || 'INR');
                 setInvoiceMode(data.invoiceMode || 'proforma');
-                return; // Skip draft loading if history data exists
-            }
-
-            // Option B: Load from Database Draft (if no history data)
-            const { data: draftData } = await supabase.from('user_drafts').select('form_data').eq('user_id', user.id).maybeSingle();
-            if (draftData && draftData.form_data) {
-                const draft = draftData.form_data;
-                setBillTo(draft.billTo || getInitialBillTo());
-                setShipTo(draft.shipTo || getInitialCompany());
-                setInvoice(draft.invoice ? { ...draft.invoice, number: generateSecureInvoiceNumber('INV', 6) } : getInitialInvoice());
-                setYourCompany(draft.yourCompany || getInitialCompany());
-                setItems(draft.items || getInitialItems());
-                setTaxPercentage(draft.taxPercentage || 0);
-                setTaxType(draft.taxType || 'exclusive');
-                setEnableRoundOff(draft.enableRoundOff !== undefined ? draft.enableRoundOff : true);
-                setNotes(draft.notes || '');
-                setSelectedCurrency(draft.selectedCurrency || 'INR');
-                setInvoiceMode(draft.invoiceMode || 'proforma');
             }
 
         } catch (error) {
@@ -242,28 +205,6 @@ const Index = () => {
     }));
   }, [brandingSettings]);
 
-
-  // 4. SAVE DRAFT TO DATABASE ON STATE CHANGE (with debouncing)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const formData = {
-      billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, taxAmount, subTotal, grandTotal, notes, selectedCurrency, invoiceMode,
-    };
-
-    // Debounce the save operation to prevent excessive API calls
-    const timeoutId = setTimeout(async () => {
-      try {
-        await supabase
-          .from('user_drafts')
-          .upsert({ user_id: user.id, form_data: formData }, { onConflict: 'user_id' });
-      } catch (error) {
-        console.error('Error saving draft:', error);
-      }
-    }, 1000); // Wait 1 second after last change before saving
-
-    return () => clearTimeout(timeoutId);
-  }, [billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxType, enableRoundOff, notes, taxAmount, subTotal, grandTotal, selectedCurrency, invoiceMode, user]);
 
   // --- HANDLERS ---
   const handleInputChange = (setter) => (e) => {
@@ -359,33 +300,29 @@ const Index = () => {
       const invoiceData = {
         user_id: user.id,
         invoice_number: invoice.number,
-        invoice_mode: invoiceMode,
-        status: 'draft',
-        issue_date: invoice.date,
-        due_date: invoice.paymentDate || invoice.date,
         
         // Amounts
         subtotal: subTotal,
-        tax_amount: taxAmount,
         grand_total: grandTotal,
         
-        // Currency
-        currency: selectedCurrency,
-        currency_symbol: selectedCurrency === 'USD' ? '$' : selectedCurrency === 'EUR' ? '€' : '₹',
-        
-        // Additional info
+        // Notes
         notes: notes,
-        terms: notes,
-        template_id: 1,
         
-        // Store all structured data in JSONB fields
+        // Template
+        template_name: `template_${selectedTemplateId}`,        
+        // Store ALL structured data in JSONB fields
         bill_to: billTo,
         ship_to: shipTo,
         invoice_details: { 
-            ...invoice, 
+            ...invoice,
+            invoiceMode,
+            status: 'draft',
             taxType, 
             enableRoundOff, 
-            roundOffAmount 
+            roundOffAmount,
+            taxAmount,
+            currency: selectedCurrency,
+            currency_symbol: selectedCurrency === 'USD' ? '$' : selectedCurrency === 'EUR' ? '€' : '₹',
         },
         from_details: { 
             name: yourCompany.name, 
@@ -405,28 +342,6 @@ const Index = () => {
         .single();
 
       if (invoiceError) throw invoiceError;
-
-      // Save invoice items
-      if (savedInvoice && items.length > 0) {
-        const invoiceItems = items.map((item, index) => ({
-          invoice_id: savedInvoice.id,
-          name: item.name,
-          description: item.description || '',
-          quantity: item.quantity,
-          unit_price: item.amount,
-          amount: item.total,
-          sort_order: index
-        }));
-
-        const { error: itemsError } = await supabase
-          .from('invoice_items')
-          .insert(invoiceItems);
-
-        if (itemsError) {
-          console.error('Error saving invoice items:', itemsError);
-          // Don't fail the whole operation if items fail
-        }
-      }
 
       await supabase.rpc('increment_invoice_usage');
       setUsageStats(prev => ({ ...prev, count: prev.count + 1 }));
@@ -513,6 +428,7 @@ const Index = () => {
   };
 
   const handleTemplateSelect = (templateNumber) => {
+    setSelectedTemplateId(templateNumber);
     setIsTemplateModalOpen(false);
     const companyDataWithBranding = { ...yourCompany, logoUrl: brandingSettings.logoUrl, tagline: brandingSettings.brandingTagline };
     const formData = {
@@ -527,8 +443,8 @@ const Index = () => {
     setShipTo({ name: "Jane Smith", address: "456 Elm St, Othertown, USA", phone: "(555) 987-6543" });
     setInvoice(prev => ({
       ...prev,
-      date: new Date().toISOString().split("T")[0],
-      paymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      date: new Date().toLocaleDateString('en-GB').replace(/\//g, '/'),
+      paymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB').replace(/\//g, '/'),
     }));
     setYourCompany(prev => ({
       ...prev,
@@ -549,7 +465,7 @@ const Index = () => {
     setBillTo({ name: "", address: "", phone: "", email: "" });
     setShipTo({ name: "", address: "", phone: "" });
     setInvoice({
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toLocaleDateString('en-GB').replace(/\//g, '/'),
       paymentDate: "",
       number: generateSecureInvoiceNumber('INV', 6),
     });
@@ -646,10 +562,7 @@ const Index = () => {
                             </div>
                         )}
                         <div className="text-gray-500 mt-1">
-                            Will send via: {(emailCapabilities?.planRestrictions?.isPro || emailUsageStats?.isAdmin) ? 
-                                (emailCapabilities?.gmailConnected ? 'Gmail (Professional)' : 'InvoicePort Mail') : 
-                                'InvoicePort Mail'
-                            }
+                            Will send via: {emailUsageStats?.isAdmin || emailUsageStats?.isPro ? 'Gmail / InvoicePort Mail' : 'InvoicePort Mail'}
                         </div>
                     </div>
                 )}
@@ -849,8 +762,8 @@ const Index = () => {
                                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Dates & ID</h3>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <FloatingLabelInput id="invoiceNumber" label="Invoice Number" value={invoice.number} onChange={handleInputChange(setInvoice)} name="number" />
-                                        <FloatingLabelInput id="invoiceDate" label="Issue Date" type="date" value={invoice.date} onChange={handleInputChange(setInvoice)} name="date" />
-                                        <FloatingLabelInput id="paymentDate" label="Due Date" type="date" value={invoice.paymentDate} onChange={handleInputChange(setInvoice)} name="paymentDate" />
+                                        <FloatingLabelInput id="invoiceDate" label="Issue Date (DD/MM/YYYY)" type="text" placeholder="DD/MM/YYYY" value={invoice.date} onChange={handleInputChange(setInvoice)} name="date" />
+                                        <FloatingLabelInput id="paymentDate" label="Due Date (DD/MM/YYYY)" type="text" placeholder="DD/MM/YYYY" value={invoice.paymentDate} onChange={handleInputChange(setInvoice)} name="paymentDate" />
                                     </div>
                                 </div>
                                 <div>
