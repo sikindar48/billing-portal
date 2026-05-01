@@ -41,6 +41,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let mounted = true;
 
+    // Safety net — if auth never resolves (Supabase cold start / network hang),
+    // force loading off after 5 seconds so the app doesn't stay stuck forever
+    const authTimeout = setTimeout(() => {
+      if (mounted) {
+        setAuthLoading(false);
+        setSubscriptionStatus(prev => prev === 'loading' ? 'expired' : prev);
+      }
+    }, 5000);
+
     // Get the current session immediately — this is synchronous from the
     // Supabase client cache and resolves before onAuthStateChange fires.
     // This eliminates the loading flash on tab navigation.
@@ -50,6 +59,7 @@ export const AuthProvider = ({ children }) => {
       setUser(sessionUser);
 
       if (!sessionUser) {
+        clearTimeout(authTimeout);
         setAuthLoading(false);
         setSubscriptionStatus('expired');
         return;
@@ -66,8 +76,13 @@ export const AuthProvider = ({ children }) => {
         if (!mounted) return;
         setSubscriptionStatus('allowed');
       } finally {
+        clearTimeout(authTimeout);
         if (mounted) setAuthLoading(false);
       }
+    }).catch(() => {
+      // getSession itself failed — don't hang
+      clearTimeout(authTimeout);
+      if (mounted) setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
