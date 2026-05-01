@@ -33,7 +33,15 @@ const GmailTestButtonFixed = () => {
   const checkGmailStatus = async () => {
     try {
       setGmailStatus(prev => ({ ...prev, checking: true }));
+
+      // Safety timeout — never hang longer than 6 seconds
+      const timeout = setTimeout(() => {
+        setGmailStatus({ connected: false, checking: false, error: null });
+      }, 6000);
+
       const status = await checkGmailConnection();
+      clearTimeout(timeout);
+
       setGmailStatus({ 
         ...status, 
         checking: false 
@@ -42,7 +50,7 @@ const GmailTestButtonFixed = () => {
       setGmailStatus({ 
         connected: false, 
         checking: false, 
-        error: error.message 
+        error: null  // Don't show error for a simple "not connected" state
       });
     }
   };

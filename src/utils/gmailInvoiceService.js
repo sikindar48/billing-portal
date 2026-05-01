@@ -13,13 +13,12 @@ const GMAIL_CLIENT_SECRET = import.meta.env.VITE_GMAIL_CLIENT_SECRET;
 const getUserBusinessSettings = async (userId) => {
   try {
     const { data, error } = await supabase
-      .from('business_settings')
-      .select('*')
+      .from('branding_settings')
+      .select('metadata, company_name, logo_url, website')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching business settings:', error);
+    if (error || !data) {
       return {
         company_name: 'My Business',
         company_email: null,
@@ -30,7 +29,16 @@ const getUserBusinessSettings = async (userId) => {
       };
     }
 
-    return data;
+    const meta = data.metadata || {};
+    return {
+      company_name: data.company_name || meta.company_name || 'My Business',
+      company_email: meta.email || null,
+      company_phone: meta.phone || null,
+      company_website: data.website || meta.website || null,
+      address_line1: meta.address || null,
+      preferred_email_method: meta.preferred_email_method || 'emailjs',
+      email_signature: meta.email_signature || '',
+    };
   } catch (error) {
     console.error('Error in getUserBusinessSettings:', error);
     return null;
@@ -43,16 +51,17 @@ const getUserBusinessSettings = async (userId) => {
 export const isGmailConnected = async (userId) => {
   try {
     const { data: settings, error } = await supabase
-      .from('business_settings')
-      .select('gmail_refresh_token, preferred_email_method, gmail_email')
+      .from('branding_settings')
+      .select('metadata')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error) {
+    if (error || !settings?.metadata) {
       return false;
     }
 
-    return !!(settings.gmail_refresh_token && settings.preferred_email_method === 'gmail');
+    const meta = settings.metadata;
+    return !!(meta.gmail_refresh_token && meta.preferred_email_method === 'gmail');
   } catch (error) {
     return false;
   }
@@ -76,23 +85,37 @@ export const sendInvoiceViaGmail = async (invoiceData, userId) => {
 
     // Get business settings and Gmail tokens
     const { data: settings, error } = await supabase
-      .from('business_settings')
-      .select('*')
+      .from('branding_settings')
+      .select('metadata, company_name, logo_url, website')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error || !settings.gmail_refresh_token) {
+    if (error || !settings?.metadata?.gmail_refresh_token) {
       throw new Error('Gmail not properly configured. Please reconnect your Gmail account.');
     }
 
+    const meta = settings.metadata;
+
     // Get fresh access token
-    const accessToken = await refreshGmailAccessToken(settings.gmail_refresh_token);
+    const accessToken = await refreshGmailAccessToken(meta.gmail_refresh_token);
     if (!accessToken) {
       throw new Error('Failed to refresh Gmail access token. Please reconnect your Gmail account.');
     }
 
+    // Build a settings-like object for email content generation
+    const businessSettings = {
+      company_name: settings.company_name || meta.company_name || 'My Business',
+      company_email: meta.email || '',
+      company_phone: meta.phone || '',
+      company_website: settings.website || meta.website || '',
+      address_line1: meta.address || '',
+      gmail_email: meta.gmail_email,
+      preferred_email_method: meta.preferred_email_method,
+      email_signature: meta.email_signature || '',
+    };
+
     // Prepare email content
-    const emailContent = createInvoiceEmailContent(invoiceData, settings);
+    const emailContent = createInvoiceEmailContent(invoiceData, businessSettings);
     
     // Send email via Gmail API
     const result = await sendGmailMessage(accessToken, emailContent);
@@ -102,7 +125,7 @@ export const sendInvoiceViaGmail = async (invoiceData, userId) => {
       result,
       method: 'gmail',
       sentTo: invoiceData.billTo.email,
-      sentFrom: settings.gmail_email || settings.company_email
+      sentFrom: businessSettings.gmail_email || businessSettings.company_email
     };
 
   } catch (error) {

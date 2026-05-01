@@ -10,12 +10,17 @@ const GMAIL_CLIENT_ID = import.meta.env.VITE_GMAIL_CLIENT_ID;
 const getRedirectUri = () => {
   const currentOrigin = window.location.origin;
   
-  // For local development, use the current origin (handles both localhost and network IPs)
-  if (currentOrigin.includes('localhost') || currentOrigin.includes('192.168') || currentOrigin.includes('127.0.0.1') || currentOrigin.includes('10.0.0')) {
-    return `${currentOrigin}/gmail-callback`;
+  // Always use localhost for local development — Google OAuth blocks private IPs (192.168.x.x)
+  if (
+    currentOrigin.includes('192.168') ||
+    currentOrigin.includes('10.0.') ||
+    currentOrigin.includes('127.0.0.1')
+  ) {
+    const port = window.location.port || '8080';
+    return `http://localhost:${port}/gmail-callback`;
   }
   
-  // For production
+  // localhost and production domains pass through as-is
   return `${currentOrigin}/gmail-callback`;
 };
 
@@ -103,7 +108,7 @@ export const refreshAccessToken = async (refreshToken) => {
 };
 
 /**
- * Save Gmail tokens to user's business settings
+ * Save Gmail tokens to user's branding_settings metadata
  * @param {Object} tokens - OAuth tokens from Google
  * @param {string} userEmail - User's Gmail address
  */
@@ -117,18 +122,28 @@ export const saveGmailTokens = async (tokens, userEmail) => {
     const user = authData.user;
     const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
 
+    // Read existing metadata first so we don't overwrite other fields
+    const { data: existing } = await supabase
+      .from('branding_settings')
+      .select('metadata')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const updatedMetadata = {
+      ...(existing?.metadata || {}),
+      gmail_access_token: tokens.access_token,
+      gmail_refresh_token: tokens.refresh_token,
+      gmail_token_expires: expiresAt.toISOString(),
+      gmail_email: userEmail,
+      preferred_email_method: 'gmail',
+    };
+
     const { error } = await supabase
-      .from('business_settings')
+      .from('branding_settings')
       .upsert({
         user_id: user.id,
-        gmail_access_token: tokens.access_token,
-        gmail_refresh_token: tokens.refresh_token,
-        gmail_token_expires: expiresAt.toISOString(),
-        gmail_email: userEmail,
-        preferred_email_method: 'gmail'
-      }, {
-        onConflict: 'user_id'
-      });
+        metadata: updatedMetadata,
+      }, { onConflict: 'user_id' });
 
     if (error) throw error;
 
@@ -192,60 +207,70 @@ export const getGmailProfile = async (accessToken) => {
  */
 export const checkGmailConnection = async () => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    // Use getSession() first — reads from local cache, no network call
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+
     if (!user) {
       return { connected: false, error: 'User not authenticated' };
     }
 
-    const { data: settings, error } = await supabase
-      .from('business_settings')
-      .select('gmail_access_token, gmail_refresh_token, gmail_token_expires, gmail_email')
+    // Add a 5-second timeout to prevent infinite spinner
+    const queryPromise = supabase
+      .from('branding_settings')
+      .select('metadata')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (error || !settings) {
-      return { connected: false, error: 'No Gmail settings found' };
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out')), 5000)
+    );
+
+    const { data: settings, error } = await Promise.race([queryPromise, timeoutPromise]);
+
+    // No row yet = not connected, but not an error
+    if (error) {
+      return { connected: false, error: 'Failed to load settings' };
     }
 
-    if (!settings.gmail_refresh_token) {
-      return { connected: false, error: 'No refresh token found' };
+    const meta = settings?.metadata || {};
+
+    if (!meta.gmail_refresh_token) {
+      return { connected: false, error: null };
     }
 
     // Check if access token is expired
     const now = new Date();
-    const expiresAt = new Date(settings.gmail_token_expires);
+    const expiresAt = new Date(meta.gmail_token_expires);
     
     if (now >= expiresAt) {
       // Try to refresh the token
       try {
-        const newTokens = await refreshAccessToken(settings.gmail_refresh_token);
+        const newTokens = await refreshAccessToken(meta.gmail_refresh_token);
         await saveGmailTokens({
           ...newTokens,
-          refresh_token: settings.gmail_refresh_token // Keep existing refresh token
-        }, settings.gmail_email);
+          refresh_token: meta.gmail_refresh_token
+        }, meta.gmail_email);
         
         return { 
           connected: true, 
-          email: settings.gmail_email,
+          email: meta.gmail_email,
           tokenRefreshed: true 
         };
       } catch (refreshError) {
         return { 
           connected: false, 
-          error: 'Token refresh failed', 
-          details: refreshError.message 
+          error: 'Token refresh failed'
         };
       }
     }
 
     return { 
       connected: true, 
-      email: settings.gmail_email,
-      expiresAt: settings.gmail_token_expires 
+      email: meta.gmail_email,
+      expiresAt: meta.gmail_token_expires
     };
   } catch (error) {
-    console.error('Error checking Gmail connection:', error);
     return { connected: false, error: error.message };
   }
 };
@@ -262,20 +287,28 @@ export const disconnectGmail = async () => {
       throw new Error('User not authenticated');
     }
 
+    // Read existing metadata first
+    const { data: existing } = await supabase
+      .from('branding_settings')
+      .select('metadata')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const updatedMetadata = {
+      ...(existing?.metadata || {}),
+      gmail_access_token: null,
+      gmail_refresh_token: null,
+      gmail_token_expires: null,
+      gmail_email: null,
+      preferred_email_method: 'emailjs',
+    };
+
     const { error } = await supabase
-      .from('business_settings')
-      .update({
-        gmail_access_token: null,
-        gmail_refresh_token: null,
-        gmail_token_expires: null,
-        gmail_email: null,
-        preferred_email_method: 'emailjs'
-      })
+      .from('branding_settings')
+      .update({ metadata: updatedMetadata })
       .eq('user_id', user.id);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     return { success: true };
   } catch (error) {
@@ -371,35 +404,37 @@ export const getValidAccessToken = async () => {
     }
 
     const { data: settings, error } = await supabase
-      .from('business_settings')
-      .select('gmail_access_token, gmail_refresh_token, gmail_token_expires')
+      .from('branding_settings')
+      .select('metadata')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (error || !settings) {
-      throw new Error('No Gmail settings found');
+    if (error) {
+      throw new Error('Failed to load Gmail settings');
     }
 
-    if (!settings.gmail_refresh_token) {
+    const meta = settings?.metadata || {};
+
+    if (!meta.gmail_refresh_token) {
       throw new Error('Gmail not connected');
     }
 
     // Check if access token is expired
     const now = new Date();
-    const expiresAt = new Date(settings.gmail_token_expires);
+    const expiresAt = new Date(meta.gmail_token_expires);
     
     if (now >= expiresAt) {
       // Refresh the token
-      const newTokens = await refreshAccessToken(settings.gmail_refresh_token);
+      const newTokens = await refreshAccessToken(meta.gmail_refresh_token);
       await saveGmailTokens({
         ...newTokens,
-        refresh_token: settings.gmail_refresh_token
-      }, settings.gmail_email);
+        refresh_token: meta.gmail_refresh_token
+      }, meta.gmail_email);
       
       return newTokens.access_token;
     }
 
-    return settings.gmail_access_token;
+    return meta.gmail_access_token;
   } catch (error) {
     console.error('Error getting valid access token:', error);
     throw error;
