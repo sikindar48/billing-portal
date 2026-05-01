@@ -18,15 +18,19 @@ jobs:
 
           RESPONSE=$(curl --silent --output /dev/null --write-out "%{http_code}" \
             --request GET \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/?apikey=${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/subscription_plans?select=id&limit=1" \
             --header "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            --header "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+            --header "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            --header "Accept: application/json")
 
           echo "HTTP status: $RESPONSE"
 
-          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
+          if [ "$RESPONSE" -eq 200 ]; then
             echo "✅ Supabase is alive and responding."
+          elif [ "$RESPONSE" -eq 000 ]; then
+            echo "❌ Could not reach Supabase — network error."
+            exit 1
           else
-            echo "⚠️ Unexpected response: $RESPONSE"
+            echo "⚠️ Unexpected response: $RESPONSE — project may need attention."
             exit 1
           fi
