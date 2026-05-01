@@ -41,18 +41,17 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let mounted = true;
 
-    // Safety net — if auth never resolves (Supabase cold start / network hang),
-    // force loading off after 5 seconds so the app doesn't stay stuck forever
+    // Safety net — only fires if BOTH getSession AND onAuthStateChange fail to resolve.
+    // 8 seconds is generous enough for slow connections but prevents infinite spinner.
+    // Does NOT set user to null — avoids false logouts on slow networks.
     const authTimeout = setTimeout(() => {
       if (mounted) {
         setAuthLoading(false);
-        setSubscriptionStatus(prev => prev === 'loading' ? 'expired' : prev);
       }
-    }, 5000);
+    }, 8000);
 
-    // Get the current session immediately — this is synchronous from the
-    // Supabase client cache and resolves before onAuthStateChange fires.
-    // This eliminates the loading flash on tab navigation.
+    // getSession reads from local storage — fast, no network call.
+    // Resolves the user immediately on refresh without waiting for the network.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       const sessionUser = session?.user ?? null;
@@ -80,7 +79,7 @@ export const AuthProvider = ({ children }) => {
         if (mounted) setAuthLoading(false);
       }
     }).catch(() => {
-      // getSession itself failed — don't hang
+      // getSession itself failed — clear timeout and unblock the app
       clearTimeout(authTimeout);
       if (mounted) setAuthLoading(false);
     });
@@ -108,7 +107,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       // TOKEN_REFRESHED or INITIAL_SESSION after getSession already ran —
-      // just update the user object, skip DB calls if already resolved
+      // just update the user object, skip redundant DB calls
       if (event === 'TOKEN_REFRESHED' || (event === 'INITIAL_SESSION' && resolvedRef.current)) {
         setUser(sessionUser);
         setAuthLoading(false);
