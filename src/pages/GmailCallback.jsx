@@ -23,17 +23,14 @@ const GmailCallback = () => {
 
   const handleOAuthCallback = async () => {
     try {
-      // First, check if user is authenticated
+      // First, check if user is authenticated — use getSession (local cache, no network hang)
       setMessage('Checking authentication...');
       
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (authError || !authData?.user) {
-        console.error('Authentication check failed:', authError);
+      if (!session?.user) {
         throw new Error('You must be logged in to connect Gmail. Please log in and try again.');
       }
-      
-      console.log('User authenticated:', authData.user.email);
 
       // Get authorization code from URL parameters
       const authCode = searchParams.get('code');
