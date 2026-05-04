@@ -16,6 +16,8 @@ import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { sendPaymentVerificationNotification } from '@/utils/emailService';
 
+const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
+
 const SubscriptionSkeleton = () => (
   <div className="min-h-screen bg-slate-50">
     <Navigation />
@@ -123,42 +125,122 @@ const SubscriptionPage = () => {
     }
     
     if (plan.id === 'enterprise') {
-      // For enterprise, show the request dialog
       const planWithCycle = { ...plan, selectedCycle: billingCycle };
       setSelectedPlan(planWithCycle);
       setShowRequestDialog(true);
       return;
     }
     
-    // For Pro plan, show UPI payment dialog directly
+    // For Pro plan — try Razorpay first, fall back to UPI manual
     const planWithCycle = { ...plan, selectedCycle: billingCycle };
     setSelectedPlan(planWithCycle);
-    
-    // Generate UPI QR code
+
+    if (RAZORPAY_KEY_ID) {
+      await initiateRazorpayPayment(planWithCycle);
+    } else {
+      // Fallback: UPI manual payment
+      await showUPIFallback(planWithCycle);
+    }
+  };
+
+  const initiateRazorpayPayment = async (plan) => {
+    try {
+      // Load Razorpay checkout script dynamically
+      if (!window.Razorpay) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Failed to load Razorpay'));
+          document.body.appendChild(script);
+        });
+      }
+
+      // Open Razorpay checkout directly — no backend order creation needed for test mode
+      const options = {
+        key: RAZORPAY_KEY_ID,
+        amount: plan.price * 100, // paise
+        currency: 'INR',
+        name: 'InvoicePort',
+        description: `${plan.name} Plan - ${billingCycle}`,
+        prefill: {
+          email: user?.email || '',
+          name: user?.user_metadata?.full_name || '',
+        },
+        theme: { color: '#4F46E5' },
+        handler: async (response) => {
+          await handleRazorpaySuccess(response, plan, response.razorpay_order_id || 'direct');
+        },
+        modal: {
+          ondismiss: () => {
+            toast.info('Payment cancelled. You can try again anytime.');
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (response) => {
+        toast.error(`Payment failed: ${response.error.description}`);
+      });
+      rzp.open();
+
+    } catch (err) {
+      console.error('Razorpay error:', err);
+      await showUPIFallback(plan);
+    }
+  };
+
+  const handleRazorpaySuccess = async (response, plan, orderId) => {
+    try {
+      const proSlug = billingCycle === 'monthly' ? 'monthly' : 'yearly_pro';
+      const { data: planRow } = await supabase.from('subscription_plans').select('id').eq('slug', proSlug).maybeSingle();
+      const dbPlanId = planRow?.id ?? null;
+
+      const message = `Razorpay payment for ${plan.name} (${billingCycle}). ` +
+        `Amount: ₹${plan.price}. Order: ${orderId}. ` +
+        `Payment ID: ${response.razorpay_payment_id}. Signature: ${response.razorpay_signature}`;
+
+      const { error } = await supabase.from('subscription_requests').insert({
+        user_id: user.id,
+        plan_id: dbPlanId,
+        message,
+        status: 'pending',
+      });
+
+      if (error) throw error;
+
+      // Notify admin
+      try {
+        await sendPaymentVerificationNotification(
+          user.email,
+          user.user_metadata?.full_name || user.email,
+          plan.name,
+          plan.price,
+          response.razorpay_payment_id,
+          billingCycle,
+          null,
+          user.id
+        );
+      } catch (_) {}
+
+      toast.success('Payment successful! Your plan will be activated within a few minutes.', { duration: 5000 });
+    } catch (err) {
+      toast.error('Payment received but verification failed. Please contact support with your payment ID: ' + response.razorpay_payment_id);
+    }
+  };
+
+  const showUPIFallback = async (plan) => {
     try {
       const amount = plan.price;
-      const upiId = 'invoiceport@ybl';
-      const merchantName = 'InvoicePort';
-      const transactionNote = `${plan.name} Plan - ${billingCycle}`;
-      
-      // UPI URL format
-      const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
-      
-      // Generate QR code
+      const upiUrl = `upi://pay?pa=invoiceport@ybl&pn=${encodeURIComponent('InvoicePort')}&am=${amount}&cu=INR&tn=${encodeURIComponent(`${plan.name} Plan - ${billingCycle}`)}`;
       const qrDataUrl = await QRCode.toDataURL(upiUrl, {
-        width: 256,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
+        width: 256, margin: 2,
+        color: { dark: '#000000', light: '#FFFFFF' }
       });
-      
       setQrCodeUrl(qrDataUrl);
       setShowUPIDialog(true);
     } catch (error) {
-      console.error('Error generating QR code:', error);
-      toast.error('Failed to generate payment QR code', { duration: 2000 });
+      toast.error('Failed to generate payment QR code');
     }
   };
 
