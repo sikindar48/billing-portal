@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Users, AlertCircle, Trash2, Inbox, Check, X, Settings } from 'lucide-react';
 import { format, addMonths, addYears } from 'date-fns';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 
 const PLAN_OPTIONS = [
     { id: 1, name: 'Starter', slug: 'trial' },
