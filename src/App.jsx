@@ -6,30 +6,42 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 
 // Import components
-import AuthPage from "./pages/AuthPage";
-import Index from "./pages/Index"; // Now the landing page
-import Dashboard from "./pages/Dashboard"; // The invoice creation form
-import AdminDashboard from "./pages/AdminDashboard";
-import BrandingSettings from "./pages/BrandingSettings";
-import ConfirmEmail from "./pages/ConfirmEmail";
-import GmailCallback from "./pages/GmailCallback";
-import OTPVerification from "./pages/OTPVerification";
-import InvoiceHistory from "./pages/InvoiceHistory";
-import ProductInventory from "./pages/ProductInventory";
-import Customers from "./pages/Customers";
-import Profile from "./pages/Profile";
-import SubscriptionPage from "./pages/SubscriptionPage";
-import TemplatePage from "./pages/TemplatePage";
-import Analytics from "./pages/Analytics";
-import AuditLogs from "./pages/AuditLogs";
-import InvoiceVerify from "./pages/InvoiceVerify";
-import AdminVerifyPayment from "./pages/AdminVerifyPayment";
+import AuthPage from "./pages/auth/AuthPage";
+import Index from "./pages/public/Index"; // Now the landing page
+import Dashboard from "./pages/dashboard/Dashboard"; // The invoice creation form
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import BrandingSettings from "./pages/settings/BrandingSettings";
+import ConfirmEmail from "./pages/auth/ConfirmEmail";
+import GmailCallback from "./pages/public/GmailCallback";
+import OTPVerification from "./pages/auth/OTPVerification";
+import InvoiceHistory from "./pages/dashboard/InvoiceHistory";
+import ProductInventory from "./pages/management/ProductInventory";
+import Customers from "./pages/management/Customers";
+import Profile from "./pages/settings/Profile";
+import SubscriptionPage from "./pages/subscription/SubscriptionPage";
+import TemplatePage from "./pages/dashboard/TemplatePage";
+import Analytics from "./pages/admin/Analytics";
+import AuditLogs from "./pages/admin/AuditLogs";
+import InvoiceVerify from "./pages/public/InvoiceVerify";
+import AdminVerifyPayment from "./pages/admin/AdminVerifyPayment";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SubscriptionGuard from "./components/SubscriptionGuard";
 import AdminGuard from "./components/AdminGuard";
+import Navigation from "./components/Navigation";
+import AppLoader from "./components/AppLoader";
 import { AuthProvider } from "./context/AuthContext";
 
 const queryClient = new QueryClient();
+
+// Wrapper component to include Navigation with protected routes
+const ProtectedLayout = ({ children }) => {
+  return (
+    <>
+      <Navigation />
+      {children}
+    </>
+  );
+};
 
 const App = () => {
   return (
@@ -44,8 +56,9 @@ const App = () => {
           />
           <BrowserRouter>
             <AuthProvider>
-              <Routes>
-            {/* Public Routes */}
+              <AppLoader>
+                <Routes>
+            {/* Public Routes - No Navigation */}
             <Route path="/" element={<Index />} /> {/* Landing page with auth form */}
             <Route path="/auth" element={<AuthPage />} /> {/* Keep for backward compatibility */}
             <Route path="/confirm-email" element={<ConfirmEmail />} />
@@ -53,142 +66,169 @@ const App = () => {
             <Route path="/otp-verification" element={<OTPVerification />} /> {/* OTP verification */}
             <Route path="/verify-invoice" element={<InvoiceVerify />} /> {/* Public invoice verification */}
             
-            {/* Protected Routes */}
+            {/* Protected Routes - With Navigation */}
             <Route 
               path="/dashboard" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <Dashboard />
-                  </SubscriptionGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <Dashboard />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/admin" 
               element={
-                <ProtectedRoute>
-                  <AdminDashboard />
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/admin/verify-payment" 
               element={
-                <ProtectedRoute>
-                  <AdminVerifyPayment />
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <AdminVerifyPayment />
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/branding" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <BrandingSettings />
-                  </SubscriptionGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <BrandingSettings />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/dashboard/settings" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <BrandingSettings />
-                  </SubscriptionGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <BrandingSettings />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/inventory" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <ProductInventory />
-                  </SubscriptionGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <ProductInventory />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/customers" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <Customers />
-                  </SubscriptionGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <Customers />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/profile" 
               element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/subscription" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionPage />
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionPage />
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/invoice-history" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <InvoiceHistory />
-                  </SubscriptionGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <InvoiceHistory />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/template" 
               element={
-                <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <TemplatePage />
-                  </SubscriptionGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <TemplatePage />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/analytics" 
               element={
-                <ProtectedRoute>
-                  <AdminGuard>
-                    <Analytics />
-                  </AdminGuard>
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <AdminGuard>
+                      <Analytics />
+                    </AdminGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route 
               path="/audit-logs" 
               element={
-                <ProtectedRoute>
-                  <AuditLogs />
-                </ProtectedRoute>
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <AuditLogs />
+                  </ProtectedRoute>
+                </ProtectedLayout>
               } 
             />
             
             <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              </AppLoader>
             </AuthProvider>
           </BrowserRouter>
       </TooltipProvider>

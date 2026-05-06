@@ -40,13 +40,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let mounted = true;
+    let authResolved = false;
 
     // Safety net — only fires if BOTH getSession AND onAuthStateChange fail to resolve.
     // 8 seconds is generous enough for slow connections but prevents infinite spinner.
     // Does NOT set user to null — avoids false logouts on slow networks.
     const authTimeout = setTimeout(() => {
-      if (mounted) {
+      if (mounted && !authResolved) {
+        console.warn('Auth timeout reached - forcing authLoading to false');
         setAuthLoading(false);
+        authResolved = true;
       }
     }, 8000);
 
@@ -61,6 +64,7 @@ export const AuthProvider = ({ children }) => {
         clearTimeout(authTimeout);
         setAuthLoading(false);
         setSubscriptionStatus('expired');
+        authResolved = true;
         return;
       }
 
@@ -76,12 +80,19 @@ export const AuthProvider = ({ children }) => {
         setSubscriptionStatus('allowed');
       } finally {
         clearTimeout(authTimeout);
-        if (mounted) setAuthLoading(false);
+        if (mounted) {
+          setAuthLoading(false);
+          authResolved = true;
+        }
       }
-    }).catch(() => {
+    }).catch((err) => {
       // getSession itself failed — clear timeout and unblock the app
+      console.error('getSession error:', err);
       clearTimeout(authTimeout);
-      if (mounted) setAuthLoading(false);
+      if (mounted) {
+        setAuthLoading(false);
+        authResolved = true;
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -93,6 +104,7 @@ export const AuthProvider = ({ children }) => {
         setSubscriptionStatus('expired');
         resolvedRef.current = false;
         setAuthLoading(false);
+        authResolved = true;
         return;
       }
 
@@ -103,6 +115,7 @@ export const AuthProvider = ({ children }) => {
         setIsAdmin(false);
         setSubscriptionStatus('expired');
         setAuthLoading(false);
+        authResolved = true;
         return;
       }
 
@@ -111,6 +124,7 @@ export const AuthProvider = ({ children }) => {
       if (event === 'TOKEN_REFRESHED' || (event === 'INITIAL_SESSION' && resolvedRef.current)) {
         setUser(sessionUser);
         setAuthLoading(false);
+        authResolved = true;
         return;
       }
 
@@ -127,19 +141,36 @@ export const AuthProvider = ({ children }) => {
           if (!mounted) return;
           setSubscriptionStatus('allowed');
         } finally {
-          if (mounted) setAuthLoading(false);
+          if (mounted) {
+            setAuthLoading(false);
+            authResolved = true;
+          }
         }
       }
     });
 
     return () => {
       mounted = false;
+      clearTimeout(authTimeout);
       subscription.unsubscribe();
     };
   }, []);
 
+  // Call this after a successful payment to re-check subscription status
+  const refreshSubscription = async () => {
+    const currentUser = user;
+    if (!currentUser) return;
+    try {
+      const { adminStatus, subStatus } = await resolveUserData(currentUser);
+      setIsAdmin(adminStatus);
+      setSubscriptionStatus(subStatus);
+    } catch {
+      setSubscriptionStatus('allowed');
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAdmin, subscriptionStatus, authLoading }}>
+    <AuthContext.Provider value={{ user, isAdmin, subscriptionStatus, authLoading, refreshSubscription }}>
       {children}
     </AuthContext.Provider>
   );

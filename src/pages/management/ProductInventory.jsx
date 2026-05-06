@@ -7,9 +7,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, Plus, Search, Package, Edit2, Trash2 } from 'lucide-react';
-import Navigation from '@/components/Navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
+// Skeleton loader for products
+const ProductsSkeleton = () => (
+  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="p-6 space-y-4">
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} className="flex gap-4 animate-pulse">
+          <div className="h-12 flex-1 bg-gray-200 rounded" />
+          <div className="h-12 w-24 bg-gray-200 rounded" />
+          <div className="h-12 w-20 bg-gray-200 rounded" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 const ProductInventory = () => {
   const navigate = useNavigate();
@@ -113,9 +127,25 @@ const ProductInventory = () => {
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          {/* Header Skeleton */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div className="h-10 w-48 bg-gray-200 rounded animate-pulse" />
+            <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
+          </div>
+          
+          {/* Products Skeleton */}
+          <ProductsSkeleton />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation />
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">

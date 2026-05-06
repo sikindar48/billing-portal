@@ -6,9 +6,27 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import Navigation from '@/components/Navigation';
 import { Loader2, Plus, Edit, Trash2, User, Mail, Phone, MapPin, Search } from 'lucide-react';
 import FloatingLabelInput from '@/components/FloatingLabelInput';
+
+// Skeleton loader for customers
+const CustomersSkeleton = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {[1, 2, 3, 4, 5, 6].map(i => (
+      <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
+        <div className="h-6 w-32 bg-gray-200 rounded mb-4" />
+        <div className="space-y-3 mb-4">
+          <div className="h-4 w-full bg-gray-200 rounded" />
+          <div className="h-4 w-3/4 bg-gray-200 rounded" />
+        </div>
+        <div className="flex gap-2 pt-4 border-t border-gray-100">
+          <div className="h-8 flex-1 bg-gray-200 rounded" />
+          <div className="h-8 w-8 bg-gray-200 rounded" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const Customers = () => {
   const navigate = useNavigate();
@@ -160,15 +178,26 @@ const Customers = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <div className="min-h-screen bg-slate-50">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          {/* Header Skeleton */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div className="flex-1">
+              <div className="h-10 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+            </div>
+            <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
+          </div>
+          
+          {/* Customers Grid Skeleton */}
+          <CustomersSkeleton />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation />
       
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}

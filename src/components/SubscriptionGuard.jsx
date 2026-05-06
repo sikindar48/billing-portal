@@ -2,9 +2,11 @@ import React from 'react';
 import { Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 const SubscriptionGuard = ({ children }) => {
   const { subscriptionStatus, authLoading } = useAuth();
+  const location = useLocation();
 
   // Only block if we're still waiting for the very first auth resolution
   // (no cached session). Once authLoading is false, never show a spinner —
@@ -17,7 +19,12 @@ const SubscriptionGuard = ({ children }) => {
     );
   }
 
-  if (subscriptionStatus === 'expired') {    return (
+  // Allow access to invoice-history even if subscription is expired
+  // This prevents circular redirect loops
+  const isInvoiceHistoryPage = location.pathname === '/invoice-history';
+
+  if (subscriptionStatus === 'expired' && !isInvoiceHistoryPage) {
+    return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
         <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-200">
           <div className="mx-auto bg-red-100 h-16 w-16 rounded-full flex items-center justify-center mb-6">

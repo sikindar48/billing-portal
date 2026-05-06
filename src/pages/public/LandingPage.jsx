@@ -98,7 +98,17 @@ const LandingPage = () => {
     }
   }, [user, authLoading, navigate]);
 
-  if (authLoading || user) {
+  // Show loading only while auth is being resolved, not while redirecting
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0B0F19]">
+        <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  // If user exists, redirect is in progress - show loading
+  if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0B0F19]">
         <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />

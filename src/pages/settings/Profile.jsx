@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, User, Lock, Save, ShieldCheck } from 'lucide-react';
-import Navigation from '@/components/Navigation';
 import SEO from '@/components/SEO';
 
 const Profile = () => {
@@ -128,7 +127,6 @@ const Profile = () => {
         noFollow={true}
       />
       <div className="min-h-screen bg-slate-50">
-      <Navigation />
       
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">

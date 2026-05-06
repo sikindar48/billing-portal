@@ -3,13 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Download, Layout, CheckCircle, Lock, CreditCard } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import InvoiceTemplate from '../components/InvoiceTemplate';
-import { generatePDF } from '../utils/pdfGenerator';
-import { templates } from '../utils/templateRegistry';
-import Navigation from '../components/Navigation';
-import SEO from '../components/SEO';
+import InvoiceTemplate from '@/components/InvoiceTemplate';
+import { generatePDF } from '@/utils/pdfGenerator';
+import { templates } from '@/utils/templateRegistry';
+import SEO from '@/components/SEO';
 
 const TemplatePage = () => {
   const location = useLocation();
@@ -124,7 +123,6 @@ const TemplatePage = () => {
         noIndex={true}
       />
       <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Navigation />
       
       <div className="flex-1 container mx-auto px-4 py-8 max-w-7xl h-[calc(100vh-80px)]">
         <div className="flex flex-col lg:flex-row h-full gap-6">

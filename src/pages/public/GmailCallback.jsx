@@ -32,6 +32,20 @@ const GmailCallback = () => {
         throw new Error('You must be logged in to connect Gmail. Please log in and try again.');
       }
 
+      // Check if user has Pro plan
+      setMessage('Verifying subscription...');
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select('*, subscription_plans(slug)')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      const isPro = subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro';
+      
+      if (!isPro) {
+        throw new Error('Gmail integration is only available for Pro plan users. Please upgrade to Pro to use this feature.');
+      }
+
       // Get authorization code from URL parameters
       const authCode = searchParams.get('code');
       const error = searchParams.get('error');

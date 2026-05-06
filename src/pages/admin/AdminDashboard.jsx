@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import Navigation from '@/components/Navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,8 +21,10 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [stats, setStats] = useState({ total: 0, active: 0, trialing: 0 });
   const [processingId, setProcessingId] = useState(null);
+  const [isFetching, setIsFetching] = useState(false);
 
   const [manageDialog, setManageDialog] = useState({ open: false, user: null });
   const [newPlan, setNewPlan] = useState('2');
@@ -32,16 +33,32 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchData();
     
-    // Real-time updates for requests and subscriptions
+    // Real-time updates for requests and subscriptions - with debounce to prevent rapid retries
+    let debounceTimer;
     const channel = supabase.channel('admin-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'subscription_requests' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_subscriptions' }, () => fetchData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'subscription_requests' }, () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => fetchData(), 1000);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_subscriptions' }, () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => fetchData(), 1000);
+        })
         .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchData = async () => {
+    // Prevent concurrent fetches
+    if (isFetching) return;
+    
+    setIsFetching(true);
+    setError(null);
+    
     try {
       // 1. First, let's fetch users and their subscriptions separately to avoid relationship issues
       
@@ -144,11 +161,13 @@ const AdminDashboard = () => {
       const trialing = transformedUsers.filter(u => u.status === 'trialing').length;
       setStats({ total, active, trialing });
 
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error(`Failed to load dashboard data: ${error.message}`);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err.message || 'Failed to load dashboard data');
+      toast.error(`Failed to load dashboard data: ${err.message}`);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
@@ -397,9 +416,27 @@ const AdminDashboard = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-indigo-600" /></div>;
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start gap-4">
+            <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Dashboard</h2>
+              <p className="text-red-700 mb-4">{error}</p>
+              <Button onClick={() => { setLoading(true); fetchData(); }} className="bg-red-600 hover:bg-red-700">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation />
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>

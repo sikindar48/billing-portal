@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import Navigation from '@/components/Navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, TrendingUp, Users, DollarSign, Mail, PieChart, Calendar, FileText, CreditCard, ArrowUpRight, BarChart3 } from 'lucide-react';
@@ -174,7 +173,6 @@ const Analytics = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation />
       
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-8">

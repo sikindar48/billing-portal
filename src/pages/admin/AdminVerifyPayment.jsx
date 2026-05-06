@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { CheckCircle, XCircle, Loader2, ArrowLeft, AlertTriangle, User, Hash } from 'lucide-react';
-import Navigation from '@/components/Navigation';
 import AdminGuard from '@/components/AdminGuard';
 
 const AdminVerifyPayment = () => {
@@ -165,7 +164,6 @@ const AdminVerifyPayment = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-        <Navigation />
         <div className="container mx-auto px-4 py-12 max-w-5xl">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -181,7 +179,6 @@ const AdminVerifyPayment = () => {
   if (!requestData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-        <Navigation />
         <div className="container mx-auto px-4 py-12 max-w-5xl">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="p-12 text-center">
@@ -207,7 +204,6 @@ const AdminVerifyPayment = () => {
   return (
     <AdminGuard>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-slate-100">
-        <Navigation />
         <div className="container mx-auto px-4 py-4 max-w-7xl">
           {/* Header */}
           <div className="mb-4">

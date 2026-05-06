@@ -7,18 +7,17 @@ import { toast } from 'sonner';
 import { sendInvoiceEmail, validateInvoiceForEmail } from '@/utils/invoiceEmailService';
 import { checkEmailUsageLimit } from '@/utils/emailUsageService';
 import { useAuth } from '@/context/AuthContext';
-import { formatCurrency } from '../utils/formatCurrency'; 
-import { generateSecureInvoiceNumber } from '../utils/invoiceNumberGenerator';
-import FloatingLabelInput from '../components/FloatingLabelInput';
-import BillToSection from '../components/BillToSection';
-import ShipToSection from '../components/ShipToSection';
-import ItemDetails from "../components/ItemDetails";
-import { templates } from "../utils/templateRegistry";
-import TemplatePreview from '../components/TemplatePreview';
-import SEO from '../components/SEO';
+import { formatCurrency } from '@/utils/formatCurrency'; 
+import { generateSecureInvoiceNumber } from '@/utils/invoiceNumberGenerator';
+import FloatingLabelInput from '@/components/FloatingLabelInput';
+import BillToSection from '@/components/BillToSection';
+import ShipToSection from '@/components/ShipToSection';
+import ItemDetails from "@/components/ItemDetails";
+import { templates } from "@/utils/templateRegistry";
+import TemplatePreview from '@/components/TemplatePreview';
+import SEO from '@/components/SEO';
 import { FiEdit, FiTrash2, FiLayers } from "react-icons/fi"; 
 import { RefreshCw, Save, Loader2, DollarSign, User, FileText, ShoppingBag, StickyNote, Clock, AlertCircle, ShieldCheck, ToggleRight, ToggleLeft, Mail } from "lucide-react"; 
-import Navigation from '../components/Navigation';
 import { Button } from '@/components/ui/button'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; 
@@ -100,6 +99,7 @@ const Index = () => {
   const [subTotal, setSubTotal] = useState(0);
   const [grandTotal, setGrandTotal] = useState(0);
   const [roundOffAmount, setRoundOffAmount] = useState(0);
+  const [initError, setInitError] = useState(null);
 
   const [notes, setNotes] = useState("");
 
@@ -113,6 +113,7 @@ const Index = () => {
     if (!user) return;
     const initData = async () => {
         try {
+            setInitError(null);
             // Fetch branding (uses the real 'branding_settings' table)
             const { data: branding } = await supabase
                 .from('branding_settings')
@@ -189,6 +190,7 @@ const Index = () => {
 
         } catch (error) {
             console.error("Error initializing data:", error);
+            setInitError(error.message || 'Failed to load dashboard data');
         }
     };
     initData();
@@ -674,6 +676,27 @@ const Index = () => {
 </div>
   );
 
+  if (initError) {
+    return (
+      <>
+        <div className="bg-slate-50 min-h-screen font-sans text-gray-900 pb-20">
+          <div className="container mx-auto px-4 py-8 max-w-7xl">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start gap-4">
+              <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Dashboard</h2>
+                <p className="text-red-700 mb-4">{initError}</p>
+                <Button onClick={() => { setInitError(null); window.location.reload(); }} className="bg-red-600 hover:bg-red-700">
+                  Reload Page
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <SEO 
@@ -682,7 +705,6 @@ const Index = () => {
         noIndex={true}
         noFollow={true}
       />
-      <Navigation /> 
       <div className="bg-slate-50 min-h-screen font-sans text-gray-900 pb-20">
         <div className="container mx-auto px-4 py-8 max-w-7xl">          
           

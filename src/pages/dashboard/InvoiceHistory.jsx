@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Loader2, Eye, Trash2, Download, Search, FileText, Calendar, DollarSign, CheckCircle2, Clock, AlertCircle, XCircle, Mail, ArrowRightLeft } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatCurrency';
-import Navigation from '@/components/Navigation';
 import { generatePDF } from '@/utils/pdfGenerator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -47,6 +46,7 @@ const InvoiceHistory = () => {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [processingId, setProcessingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -75,6 +75,7 @@ const InvoiceHistory = () => {
   }, [user]);
 
   const loadInvoices = async () => {
+    setError(null);
     try {
       const { data, error } = await supabase
         .from('invoices')
@@ -85,8 +86,10 @@ const InvoiceHistory = () => {
       if (error) throw error;
 
       setInvoices(data || []);
-    } catch (error) {
-      toast.error('Failed to load invoices');
+    } catch (err) {
+      const errorMsg = err.message || 'Failed to load invoices';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -392,7 +395,6 @@ const InvoiceHistory = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 font-sans">
-        <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-7xl">
           <div className="mb-6">
             <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2" />
@@ -404,9 +406,27 @@ const InvoiceHistory = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 font-sans">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start gap-4">
+            <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Invoices</h2>
+              <p className="text-red-700 mb-4">{error}</p>
+              <Button onClick={() => { setLoading(true); setError(null); loadInvoices(); }} className="bg-red-600 hover:bg-red-700">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <Navigation />
       
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         

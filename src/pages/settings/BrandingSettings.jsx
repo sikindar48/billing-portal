@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, Save, Building2, Mail, FileText } from 'lucide-react';
-import Navigation from '@/components/Navigation';
 import GmailTestButtonFixed from '@/components/GmailTestButtonFixed';
 
 const BrandingSettings = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [subscription, setSubscription] = useState(null);
   const [settings, setSettings] = useState({
     company_name: '',
     company_tagline: '',
@@ -31,6 +31,7 @@ const BrandingSettings = () => {
     if (!user) return;
     const fetchSettings = async () => {
       try {
+        // Fetch branding settings
         const { data } = await supabase
           .from('branding_settings')
           .select('*')
@@ -53,6 +54,15 @@ const BrandingSettings = () => {
             preferred_email_method: data.metadata?.preferred_email_method || 'emailjs',
           }));
         }
+
+        // Fetch subscription to check if user has Pro plan
+        const { data: sub } = await supabase
+          .from('user_subscriptions')
+          .select('*, subscription_plans(slug, name)')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        setSubscription(sub);
       } catch (e) {
         toast.error('Failed to load settings');
       } finally {
@@ -100,7 +110,6 @@ const BrandingSettings = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <Navigation />
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
         </div>
@@ -110,7 +119,6 @@ const BrandingSettings = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation />
       <div className="container mx-auto px-4 py-8 max-w-7xl">
 
         <div className="mb-8">
@@ -246,14 +254,42 @@ const BrandingSettings = () => {
                 <Mail className="h-4 w-4 text-indigo-500" /> Email Configuration
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-                <label className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${settings.preferred_email_method === 'gmail' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="radio" name="email_method" value="gmail" checked={settings.preferred_email_method === 'gmail'} onChange={e => set('preferred_email_method', e.target.value)} className="mt-0.5 accent-indigo-600" />
+                {/* Gmail Integration - Pro Only */}
+                <label className={`flex items-start gap-3 p-4 border rounded-lg transition-colors ${
+                  subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro'
+                    ? `cursor-pointer ${settings.preferred_email_method === 'gmail' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`
+                    : 'cursor-not-allowed opacity-60 border-gray-200'
+                }`}>
+                  <input 
+                    type="radio" 
+                    name="email_method" 
+                    value="gmail" 
+                    checked={settings.preferred_email_method === 'gmail'} 
+                    onChange={e => {
+                      if (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro') {
+                        set('preferred_email_method', e.target.value);
+                      } else {
+                        toast.error('Gmail integration is only available for Pro plan users');
+                      }
+                    }} 
+                    disabled={subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly_pro'}
+                    className="mt-0.5 accent-indigo-600" 
+                  />
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Gmail Integration</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gray-800">Gmail Integration</p>
+                      {subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro' ? (
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Pro</span>
+                      ) : (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Pro Only</span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-0.5">Send from your Gmail account</p>
                     <p className="text-xs mt-1 text-emerald-600">✅ Recommended</p>
                   </div>
                 </label>
+
+                {/* EmailJS - Available for all */}
                 <label className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${settings.preferred_email_method === 'emailjs' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <input type="radio" name="email_method" value="emailjs" checked={settings.preferred_email_method === 'emailjs'} onChange={e => set('preferred_email_method', e.target.value)} className="mt-0.5 accent-indigo-600" />
                   <div>
@@ -263,10 +299,21 @@ const BrandingSettings = () => {
                   </div>
                 </label>
               </div>
-              {settings.preferred_email_method === 'gmail' && (
+
+              {/* Gmail Info Box - Show only if Pro */}
+              {settings.preferred_email_method === 'gmail' && (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro') && (
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-xs text-gray-500 mb-3">Connect your Gmail account to send invoices professionally.</p>
                   <GmailTestButtonFixed />
+                </div>
+              )}
+
+              {/* Pro Plan Required Message */}
+              {subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly_pro' && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-700">
+                    <strong>💡 Upgrade to Pro:</strong> Gmail integration is available for Pro plan users. Upgrade now to send invoices from your own Gmail account.
+                  </p>
                 </div>
               )}
             </div>

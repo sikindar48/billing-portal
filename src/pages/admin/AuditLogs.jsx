@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import Navigation from '@/components/Navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -169,7 +168,6 @@ const AuditLogs = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation />
       
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex justify-between items-start mb-6">

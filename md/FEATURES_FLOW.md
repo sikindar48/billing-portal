@@ -1,491 +1,432 @@
-# InvoicePort — Features Flow Documentation
+# InvoicePort — Features & User Flow Guide
 
-> Last updated: March 28, 2026
+> Last updated: May 6, 2026
 
-## Table of Contents
+## 🚀 Platform Overview
 
-1. [User Authentication Flow](#user-authentication-flow)
-2. [Invoice Creation Flow](#invoice-creation-flow)
-3. [Invoice History Flow](#invoice-history-flow)
-4. [Email Delivery Flow](#email-delivery-flow)
-5. [Gmail Integration Flow](#gmail-integration-flow)
-6. [Subscription Management Flow](#subscription-management-flow)
-7. [Branding Settings Flow](#branding-settings-flow)
-8. [Customer Management Flow](#customer-management-flow)
-9. [Authentication Data Flow](#authentication-data-flow)
+InvoicePort is a comprehensive GST-compliant invoice generation platform designed for Indian businesses, freelancers, and startups. The platform combines professional invoice templates, automated email delivery, subscription management, and business branding in a seamless user experience.
 
----
+## 📋 Table of Contents
 
-## User Authentication Flow
-
-### Registration
-
-```
-User visits /
-    ↓
-Enters name, email, password
-    ↓
-supabase.auth.signUp()
-    ↓
-Confirmation email sent
-    ↓
-User confirms email → redirected to /
-    ↓
-AuthContext detects SIGNED_IN event
-    ↓
-Trial subscription created (3 days, 10 invoice limit)
-    ↓
-Redirected to /dashboard
-```
-
-### Login
-
-```
-User visits /
-    ↓
-Enters email + password
-    ↓
-supabase.auth.signInWithPassword()
-    ↓
-AuthContext fires SIGNED_IN
-    ↓
-Parallel DB calls:
-    user_roles → isAdmin
-    user_subscriptions → subscriptionStatus
-    ↓
-Redirected to /dashboard
-```
-
-### Password Reset (OTP)
-
-```
-User clicks "Forgot password?"
-    ↓
-60-second cooldown enforced (client-side)
-    ↓
-sendOTP(email, 'password_reset')
-    ↓
-User navigates to /otp-verification
-    ↓
-Enters OTP → password reset
-```
-
-### Session on Navigation
-
-```
-User navigates between tabs
-    ↓
-AuthContext.getSession() [from local cache — instant]
-    ↓
-authLoading = false immediately
-    ↓
-No spinner shown — page renders directly
-    ↓
-onAuthStateChange handles TOKEN_REFRESHED silently
-```
+1. [🔐 User Authentication & Onboarding](#user-authentication--onboarding)
+2. [📄 Invoice Creation & Management](#invoice-creation--management)
+3. [📧 Smart Email Delivery System](#smart-email-delivery-system)
+4. [💼 Business Branding & Customization](#business-branding--customization)
+5. [💳 Subscription & Payment Flow](#subscription--payment-flow)
+6. [👥 Customer & Inventory Management](#customer--inventory-management)
+7. [📊 Analytics & Admin Features](#analytics--admin-features)
+8. [🔄 Advanced Workflows](#advanced-workflows)
 
 ---
 
-## Invoice Creation Flow
+## 🔐 User Authentication & Onboarding
 
-### Data Entry
+### ✨ Key Features
 
-```
-User opens /dashboard
-    ↓
-Branding loaded from branding_settings:
-    - company_name, logo_url, website
-    - phone, address, tagline, currency (from metadata JSONB)
-    ↓
-Applied to "Your Company" fields once via useRef flag
-    ↓
-User fills:
-    - Bill To (name, email, address, phone) — required
-    - Ship To (optional)
-    - Invoice Number (auto-generated: INV-YY-RANDOM6)
-    - Issue Date (DD/MM/YYYY)
-    - Due Date (DD/MM/YYYY, optional)
-    - Items (name, description, quantity, unit price)
-    - Tax % + Tax Type (IGST / CGST+SGST / Standard)
-    - Round Off toggle
-    - Invoice Type (Proforma / Tax Invoice)
-    - Notes
-```
+- **Instant Trial Access**: 3-day trial with 10 invoices and 3 emails
+- **Secure Email Verification**: Supabase-powered authentication
+- **Smart Password Recovery**: OTP-based reset with rate limiting
+- **Zero-Flash Navigation**: Cached session for instant page loads
 
-### Calculations (real-time)
+### 🎯 User Journey
+
+#### New User Registration
 
 ```
+Landing Page → Sign Up Form → Email Verification → Trial Activation → Dashboard
+```
+
+**Step-by-Step Flow:**
+
+1. **Discovery**: User visits landing page, sees features and pricing
+2. **Registration**: Enters name, email, password
+3. **Verification**: Receives confirmation email, clicks link
+4. **Auto-Setup**: Trial subscription (3 days, 10 invoices) created automatically
+5. **Welcome**: Redirected to dashboard with onboarding hints
+
+#### Returning User Login
+
+```
+Login Form → Instant Authentication → Dashboard (No Loading)
+```
+
+**Smart Session Management:**
+
+- Session cached locally for instant access
+- Admin status and subscription loaded in parallel
+- Zero loading spinners on tab navigation
+- Automatic token refresh in background
+
+#### Password Recovery
+
+```
+Forgot Password → OTP Request → Email Verification → New Password → Login
+```
+
+**Security Features:**
+
+- 60-second cooldown between OTP requests
+- Secure token-based verification
+- Rate limiting to prevent abuse
+
+---
+
+## 📄 Invoice Creation & Management
+
+### ✨ Key Features
+
+- **9 Professional Templates**: Modern, GST-compliant designs
+- **Real-Time Calculations**: Auto-compute taxes, totals, round-offs
+- **Smart Invoice Numbers**: Secure non-sequential format (INV-YY-RANDOM6)
+- **Dual Invoice Types**: Proforma and Tax Invoice support
+- **PDF Export**: High-quality downloads with template preservation
+
+### 🎯 Invoice Creation Flow
+
+#### Template Selection & Customization
+
+```
+Dashboard → Template Gallery → Preview → Customize → Generate
+```
+
+**Template Features:**
+
+- **Template 3** (Default): Clean, professional layout
+- **9 Unique Designs**: From minimal to detailed layouts
+- **GST Compliance**: All templates include required tax fields
+- **Brand Integration**: Auto-fills company details from branding settings
+
+#### Data Entry & Validation
+
+```
+Company Details → Bill To → Items → Tax Configuration → Review → Save
+```
+
+**Smart Form Features:**
+
+1. **Auto-Fill Company Info**: Pulls from branding settings
+2. **Customer Quick-Add**: Save frequently used customer details
+3. **Item Management**: Description, quantity, unit price with real-time totals
+4. **Tax Options**: IGST, CGST+SGST, or Standard tax types
+5. **Currency Support**: Multiple currencies with symbol display
+
+#### Real-Time Calculations
+
+```javascript
+// Live calculation engine
 subtotal = Σ (quantity × unit_price)
 taxAmount = subtotal × (taxPercentage / 100)
 grandTotal = subtotal + taxAmount
-if enableRoundOff: grandTotal = Math.round(grandTotal)
+if (enableRoundOff) grandTotal = Math.round(grandTotal)
 ```
 
-### Save Invoice
+### 🎯 Invoice Management Flow
+
+#### History & Status Tracking
 
 ```
-User clicks "Save Invoice"
-    ↓
-Validate: billTo.name, billTo.email, items, grandTotal > 0
-    ↓
-Check usage limit (Trial: 10, Pro: unlimited, Admin: bypass)
-    ↓
-INSERT INTO invoices:
-    user_id, invoice_number,
-    subtotal, grand_total, tax,
-    notes, template_name,
-    bill_to (JSONB), ship_to (JSONB),
-    from_details (JSONB),
-    items (JSONB),
-    invoice_details (JSONB):
-        { number, date, paymentDate, invoiceMode,
-          status: 'draft', taxType, taxAmount,
-          enableRoundOff, roundOffAmount,
-          currency, currency_symbol }
-    ↓
-supabase.rpc('increment_invoice_usage')
-    ↓
-Toast: "Invoice saved successfully!"
+Invoice List → Filter/Search → Status Updates → Actions
 ```
 
-### Template Preview & PDF
+**Management Features:**
 
-```
-User clicks template icon
-    ↓
-Selects template (1–9), default: Template 3
-    ↓
-selectedTemplateId saved in state
-    ↓
-Navigate to /template with formData
-    ↓
-User previews rendered invoice
-    ↓
-Clicks Download → generatePDF(formData, templateNumber)
-    ↓
-ReactDOMServer.renderToString → html2canvas → jsPDF → save
-```
+- **Smart Filtering**: By status, type, date range, customer
+- **Bulk Actions**: Status updates, exports, deletions
+- **Payment Tracking**: Record payments, mark as paid
+- **Conversion Tools**: Proforma → Tax Invoice with one click
+
+#### Advanced Actions
+
+1. **View & Edit**: Load invoice back into editor
+2. **Download PDF**: Generate with original template
+3. **Send Email**: Direct delivery to customers
+4. **Duplicate**: Create similar invoices quickly
+5. **Convert**: Proforma to Tax Invoice (prevents duplicates)
 
 ---
 
-## Invoice History Flow
+## 📧 Smart Email Delivery System
 
-### Loading
+### ✨ Key Features
 
-```
-User navigates to /invoice-history
-    ↓
-SELECT * FROM invoices
-WHERE user_id = auth.uid()
-ORDER BY created_at DESC
-    ↓
-Display table with:
-    - Invoice # | Date (from invoice_details.date) | Client | Status | Amount | Actions
-```
+- **Dual Delivery Methods**: Gmail API + EmailJS fallback
+- **Plan-Based Limits**: Automatic enforcement with upgrade prompts
+- **Professional Templates**: Branded email layouts
+- **Delivery Tracking**: Success/failure notifications
 
-### Status Change
+### 🎯 Email Flow Decision Tree
+
+#### Intelligent Routing
 
 ```
-User changes status dropdown
-    ↓
-Optimistic UI update (instant)
-    ↓
-Fetch current invoice_details from DB
-    ↓
-Merge: { ...invoice_details, status: newStatus }
-    ↓
-UPDATE invoices SET invoice_details = merged
-    ↓
-Toast confirmation
-    (on failure: revert + reload)
+Send Request → Plan Check → Method Selection → Delivery → Logging
 ```
 
-### Download from History
+**Routing Logic:**
 
 ```
-User clicks Download
-    ↓
-Compute: taxAmt = subtotal × tax / 100
-    ↓
-Parse template: parseInt(template_name.replace('template_','')) || 3
-    ↓
-generatePDF({
-    billTo, shipTo,
-    invoice: { ...invoice_details, number: invoice_number },
-    yourCompany: from_details,
-    items, taxPercentage, taxAmount, subTotal, grandTotal,
-    notes, selectedCurrency
-}, templateNumber)
+Admin Users → Unlimited via any method
+Pro Users → Gmail API (if connected) → EmailJS fallback
+Trial Users → EmailJS (3 email limit) → Upgrade prompt
 ```
 
-### Convert Proforma → Tax Invoice
+#### Gmail Integration Flow
 
 ```
-User clicks convert button (proforma only, not already converted)
-    ↓
-Confirm dialog
-    ↓
-Generate new invoice number
-    ↓
-INSERT new invoice with:
-    invoiceMode: 'tax_invoice', status: 'paid'
-    converted_from_id: original.id (in invoice_details)
-    ↓
-UPDATE original invoice_details: { status: 'converted' }
-    ↓
-Toast: "Tax Invoice INV-XX-XXXXX created!"
+Connect Gmail → OAuth Consent → Token Exchange → Secure Storage → Send Emails
 ```
 
-### Record Payment
+**Security Implementation:**
+
+1. **OAuth 2.0**: Secure Google authentication
+2. **Server-Side Secrets**: Client secret never in browser
+3. **Token Management**: Automatic refresh via Edge Functions
+4. **Fallback System**: EmailJS if Gmail fails
+
+#### Email Composition
 
 ```
-User clicks $ button on unpaid invoice
-    ↓
-Payment modal: amount, method, date, notes
-    ↓
-If amount >= grand_total:
-    → handleStatusChange(id, 'paid')
-    ↓
-Toast: "Payment recorded successfully"
+Invoice Data → Template Selection → Personalization → Delivery
 ```
+
+**Email Features:**
+
+- **Professional Templates**: Branded with company details
+- **PDF Attachment**: Invoice automatically attached
+- **Custom Messages**: Personalized notes and terms
+- **Delivery Confirmation**: Real-time status updates
 
 ---
 
-## Email Delivery Flow
+## 💼 Business Branding & Customization
 
-### Decision Tree
+### ✨ Key Features
 
-```
-User clicks "Send Mail"
-    ↓
-validateInvoiceForEmail() — checks billTo.email, items, total
-    ↓
-validateEmailSendRequest()
-    ├─ Admin → unlimited, any method
-    ├─ Pro → check Gmail connection
-    │         ├─ Connected → Gmail API
-    │         └─ Not connected → EmailJS
-    └─ Trial → check email limit
-               ├─ Under limit → EmailJS
-               └─ Over limit → show upgrade prompt
-    ↓
-Send → logEmailUsage() → update UI stats
-```
+- **Complete Brand Identity**: Logo, colors, company details
+- **Auto-Fill Integration**: Seamless invoice population
+- **Multi-Currency Support**: Global business ready
+- **Email Preferences**: Choose delivery methods
 
-### Gmail Path
+### 🎯 Branding Setup Flow
+
+#### Initial Configuration
 
 ```
-getValidAccessToken()
-    ↓
-If expired → supabase.functions.invoke('gmail-token-refresh')
-    ↓
-Create RFC 2822 message → base64url encode
-    ↓
-POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send
-    ↓
-On failure → fallback to EmailJS
+Profile Setup → Company Details → Logo Upload → Preferences → Integration
 ```
 
-### EmailJS Path
+**Branding Elements:**
+
+1. **Company Identity**: Name, logo, website, tagline
+2. **Contact Information**: Address, phone, email
+3. **Business Settings**: Currency, tax rates, invoice prefix
+4. **Email Configuration**: Gmail connection, preferences
+
+#### Dashboard Integration
 
 ```
-emailjs.send(serviceId, templateId, params)
-    ↓
-On success → logEmailUsage()
-    ↓
-Update remaining email count in UI
+Branding Settings → Auto-Fill → Invoice Creation → Consistent Experience
 ```
+
+**Smart Integration:**
+
+- **One-Time Setup**: Branding applied automatically to new invoices
+- **Consistent Experience**: Same details across all invoices
+- **Easy Updates**: Change once, applies everywhere
+- **Professional Appearance**: Branded emails and invoices
 
 ---
 
-## Gmail Integration Flow
+## 💳 Subscription & Payment Flow
 
-### OAuth Setup
+### ✨ Key Features
 
-```
-User goes to /branding → Email Configuration → Gmail
-    ↓
-Clicks "Connect Gmail"
-    ↓
-Redirect to Google OAuth consent screen:
-    client_id, redirect_uri, scope: gmail.send + userinfo
-    ↓
-User grants permissions
-    ↓
-Google redirects to /gmail-callback?code=...
-    ↓
-supabase.functions.invoke('gmail-token-exchange', { code, redirect_uri })
-    (client secret stays server-side — never in bundle)
-    ↓
-Receive access_token + refresh_token
-    ↓
-GET https://www.googleapis.com/oauth2/v2/userinfo → get email
-    ↓
-UPSERT branding_settings:
-    gmail_access_token, gmail_refresh_token,
-    gmail_token_expires, gmail_email
-    ↓
-Redirect to /branding — "Gmail connected!"
-```
+- **Flexible Plans**: Trial, Monthly Pro, Yearly Pro, Enterprise
+- **UPI Integration**: Indian payment methods
+- **Usage Tracking**: Real-time limits and notifications
+- **Admin Verification**: Manual payment confirmation
 
-### Token Refresh
+### 🎯 Subscription Journey
+
+#### Plan Selection
 
 ```
-Token expired?
-    ↓
-supabase.functions.invoke('gmail-token-refresh', { refresh_token })
-    ↓
-New access_token → update branding_settings
-    ↓
-Continue with email send
+Trial Experience → Usage Limits → Upgrade Prompt → Plan Selection → Payment
 ```
+
+**Plan Comparison:**
+| Feature | Trial | Pro Monthly | Pro Yearly | Enterprise |
+|---------|-------|-------------|------------|------------|
+| Duration | 3 days | Monthly | Yearly | Custom |
+| Invoices | 10 | Unlimited | Unlimited | Unlimited |
+| Emails | 3 | Unlimited | Unlimited | Unlimited |
+| Gmail API | ❌ | ✅ | ✅ | ✅ |
+| Support | Basic | Priority | Priority | Dedicated |
+
+#### Payment Process
+
+```
+Plan Selection → UPI QR Code → Payment → Transaction ID → Admin Verification → Activation
+```
+
+**Payment Features:**
+
+1. **UPI Integration**: QR code generation for instant payments
+2. **Manual Verification**: Admin confirms payments
+3. **Instant Activation**: Immediate access after verification
+4. **Billing Toggle**: Monthly/Yearly switching
 
 ---
 
-## Subscription Management Flow
+## 👥 Customer & Inventory Management
 
-### Trial (default)
+### ✨ Key Features
 
-```
-New confirmed user, no subscription found
-    ↓
-UPSERT user_subscriptions:
-    plan_id: 1, status: 'trialing'
-    current_period_end: now + 3 days
-    ↓
-Invoice limit: 10
-Email limit: 3 (via check_email_limit RPC)
-```
+- **Customer Database**: Store frequently used customer details
+- **Product Catalog**: Manage inventory with pricing
+- **Quick Selection**: Fast invoice population
+- **Data Security**: User-specific data isolation
 
-### Plan Enforcement
+### 🎯 Management Flow
+
+#### Customer Management
 
 ```
-checkEmailUsageLimit()
-    ↓
-isAdminUser() → user_roles DB query
-    ↓
-If admin → unlimited
-    ↓
-Else → supabase.rpc('check_email_limit')
-    → { can_send_email, current_usage, email_limit, plan_name, is_pro }
+Add Customer → Store Details → Quick Select → Invoice Population
 ```
 
-### Pro Upgrade
+**Customer Features:**
+
+- **Complete Profiles**: Name, email, address, phone
+- **Quick Access**: Select from dropdown during invoice creation
+- **Bulk Operations**: Import/export customer data
+- **Soft Delete**: Maintain history while removing active customers
+
+#### Product Inventory
 
 ```
-User selects Pro plan on /subscription
-    ↓
-UPI QR code generated (qrcode.js)
-    ↓
-User pays → enters transaction ID
-    ↓
-INSERT subscription_requests:
-    { user_id, plan_id (resolved by slug), message, status: 'pending' }
-    ↓
-Admin verifies → manually activates plan
-    ↓
-user_subscriptions updated: status: 'active'
+Add Products → Set Pricing → Category Management → Invoice Integration
 ```
+
+**Inventory Features:**
+
+- **Product Catalog**: Name, description, unit price
+- **Category Organization**: Group related products
+- **Quick Add**: Select products during invoice creation
+- **Price Management**: Update pricing across all invoices
 
 ---
 
-## Branding Settings Flow
+## 📊 Analytics & Admin Features
 
-### Load
+### ✨ Key Features
 
-```
-User navigates to /branding
-    ↓
-SELECT * FROM branding_settings WHERE user_id = ?
-    ↓
-Map columns:
-    company_name → settings.company_name
-    logo_url     → settings.logo_url
-    website      → settings.company_website
-    metadata     → { tagline, email, phone, address,
-                     invoice_prefix, currency, tax_rate,
-                     preferred_email_method }
-```
+- **Revenue Analytics**: MRR tracking and growth metrics
+- **User Management**: Subscription and role management
+- **Audit Logging**: Activity tracking and security
+- **Payment Verification**: Manual subscription activation
 
-### Save
+### 🎯 Admin Dashboard Flow
+
+#### Analytics Overview
 
 ```
-User fills form → clicks Save
-    ↓
-UPSERT branding_settings:
-    company_name, logo_url, website,
-    metadata: {
-        tagline, email, phone, address,
-        invoice_prefix, currency, tax_rate,
-        preferred_email_method
-    }
-    ↓
-Toast: "Settings saved"
+Login → Admin Dashboard → Revenue Metrics → User Analytics → Growth Insights
 ```
 
-### Dashboard Auto-fill
+**Key Metrics:**
+
+1. **Monthly Recurring Revenue (MRR)**: Subscription revenue tracking
+2. **Plan Distribution**: User distribution across plans
+3. **Invoice Statistics**: Creation and delivery metrics
+4. **Growth Trends**: User acquisition and retention
+
+#### User Management
 
 ```
-Dashboard mounts → fetch branding_settings
-    ↓
-brandingAppliedRef.current = false
-    ↓
-useEffect fires once:
-    setYourCompany({
-        name: branding.company_name,
-        website: branding.website,
-        address: branding.metadata.address,
-        phone: branding.metadata.phone
-    })
-    ↓
-brandingAppliedRef.current = true (never runs again)
+User List → Subscription Status → Manual Verification → Plan Activation
 ```
+
+**Admin Capabilities:**
+
+- **Subscription Management**: Activate/deactivate plans
+- **Payment Verification**: Confirm UPI transactions
+- **User Roles**: Assign admin privileges
+- **Usage Monitoring**: Track limits and overages
 
 ---
 
-## Customer Management Flow
+## 🔄 Advanced Workflows
 
-### CRUD
+### ✨ Key Features
+
+- **Proforma to Tax Invoice**: Seamless conversion workflow
+- **Bulk Operations**: Mass actions on multiple invoices
+- **Public Verification**: Customer invoice verification
+- **Data Export**: Comprehensive reporting
+
+### 🎯 Advanced Use Cases
+
+#### Proforma to Tax Invoice Conversion
 
 ```
-/customers page
-    ↓
-Load: SELECT * FROM customers WHERE user_id = ? AND is_active = true
-    ↓
-Add: INSERT INTO customers { user_id, name, email, phone, address, ... }
-    ↓
-Edit: UPDATE customers SET ... WHERE id = ?
-    ↓
-Delete (soft): UPDATE customers SET is_active = false WHERE id = ?
+Create Proforma → Send to Customer → Receive Approval → Convert to Tax Invoice → Mark Paid
 ```
 
-> Note: `customers` table may not exist in the current DB. If queries fail, the page shows an empty state gracefully.
+**Conversion Features:**
+
+- **One-Click Conversion**: Automatic tax invoice generation
+- **Duplicate Prevention**: Original marked as converted
+- **New Invoice Number**: Fresh numbering for tax invoice
+- **Status Tracking**: Clear workflow progression
+
+#### Public Invoice Verification
+
+```
+Customer Receives Invoice → Verification Link → Public Lookup → Authenticity Confirmed
+```
+
+**Verification System:**
+
+- **Public Access**: No login required for customers
+- **Secure Lookup**: Database verification without exposing data
+- **Trust Building**: Customers can verify invoice authenticity
+- **Fraud Prevention**: Reduces fake invoice risks
+
+#### Bulk Invoice Management
+
+```
+Select Multiple → Bulk Actions → Status Updates → Export Reports
+```
+
+**Bulk Capabilities:**
+
+- **Mass Status Updates**: Change multiple invoice statuses
+- **Bulk Email Sending**: Send multiple invoices at once
+- **Export Operations**: Generate reports for accounting
+- **Archive Management**: Organize old invoices
 
 ---
 
-## Authentication Data Flow
+## 🎯 User Experience Highlights
 
-```
-App mounts → AuthProvider
-    ↓
-supabase.auth.getSession() [instant, from cache]
-    ├─ No session → authLoading = false, user = null
-    └─ Session found →
-         Promise.allSettled([
-             user_roles query  → isAdmin
-             user_subscriptions → subscriptionStatus
-         ])
-         → authLoading = false, resolvedRef = true
-    ↓
-onAuthStateChange (background)
-    ├─ SIGNED_OUT       → clear all state
-    ├─ TOKEN_REFRESHED  → update user only
-    ├─ INITIAL_SESSION  → skip (already resolved)
-    └─ SIGNED_IN        → resolve fresh (new login)
-    ↓
-Context: { user, isAdmin, subscriptionStatus, authLoading }
-    ↓
-Guards read from context — zero DB calls on navigation
-    ↓
-LandingPage: if (!authLoading && user) → navigate('/dashboard')
-```
+### Performance Optimizations
+
+- **Instant Navigation**: Zero loading between authenticated pages
+- **Smart Caching**: Session and data caching for speed
+- **Optimistic Updates**: UI updates before server confirmation
+- **Progressive Loading**: Critical content first, details follow
+
+### Mobile Experience
+
+- **Responsive Design**: Works perfectly on all devices
+- **Touch Optimized**: Mobile-friendly interactions
+- **Offline Capable**: Core features work without internet
+- **App-Like Feel**: PWA capabilities for mobile users
+
+### Security & Compliance
+
+- **GST Compliance**: All templates meet Indian tax requirements
+- **Data Encryption**: End-to-end security for sensitive data
+- **Role-Based Access**: Proper permission management
+- **Audit Trails**: Complete activity logging for compliance
