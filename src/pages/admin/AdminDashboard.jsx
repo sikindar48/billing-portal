@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Users, AlertCircle, Trash2, Inbox, Check, X, Settings } from 'lucide-react';
 import { format, addMonths, addYears } from 'date-fns';
 import { toast } from 'sonner';
-import { sendOrderConfirmationEmail } from '@/utils/emailService';
+import { supabase } from '@/integrations/supabase/client';
 
 const PLAN_OPTIONS = [
     { id: 1, name: 'Starter', slug: 'trial' },
@@ -213,18 +213,19 @@ const AdminDashboard = () => {
                 billingCycle = 'Custom';
               }
 
-              const orderDetails = {
-                orderNumber: `ORD-${Date.now()}`,
-                orderDate: new Date().toLocaleDateString(),
-                planName: request.subscription_plans.name,
-                amountPaid: amountPaid,
-                paymentMethod: 'Admin Approved',
-                billingCycle: billingCycle,
-                nextBillingDate: endDate.toLocaleDateString()
-              };
-              
-              await sendOrderConfirmationEmail(userEmail, userName, orderDetails);
-              console.log('Order confirmation email sent successfully');
+              // Send subscription confirmation email via Resend
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'subscription_confirmation',
+                  to: userEmail,
+                  user_name: userName,
+                  plan_name: request.subscription_plans.name,
+                  amount: amountPaid,
+                  billing_cycle: billingCycle,
+                  period_end: endDate.toISOString()
+                }
+              });
+              console.log('Subscription confirmation email sent successfully');
             }
           } catch (emailError) {
             console.warn('Failed to send order confirmation email:', emailError);
@@ -299,18 +300,19 @@ const AdminDashboard = () => {
                 billingCycle = 'Custom';
               }
               
-              const orderDetails = {
-                orderNumber: `UPG-${Date.now()}`,
-                orderDate: new Date().toLocaleDateString(),
-                planName: newPlanName,
-                amountPaid: amountPaid,
-                paymentMethod: 'Admin Upgrade',
-                billingCycle: billingCycle,
-                nextBillingDate: endDate.toLocaleDateString()
-              };
-              
-              await sendOrderConfirmationEmail(userEmail, userName, orderDetails);
-              console.log('Order confirmation email sent successfully');
+              // Send subscription confirmation email via Resend
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'subscription_confirmation',
+                  to: userEmail,
+                  user_name: userName,
+                  plan_name: newPlanName,
+                  amount: amountPaid,
+                  billing_cycle: billingCycle,
+                  period_end: endDate.toISOString()
+                }
+              });
+              console.log('Subscription confirmation email sent successfully');
             }
           } catch (emailError) {
             console.warn('Failed to send email notification:', emailError);
