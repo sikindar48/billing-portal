@@ -8,10 +8,8 @@ const SubscriptionGuard = ({ children }) => {
   const { subscriptionStatus, authLoading } = useAuth();
   const location = useLocation();
 
-  // Only block if we're still waiting for the very first auth resolution
-  // (no cached session). Once authLoading is false, never show a spinner —
-  // subscription status resolves in the background.
-  if (authLoading) {
+  // Wait for both auth and subscription to finish loading
+  if (authLoading || subscriptionStatus === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />

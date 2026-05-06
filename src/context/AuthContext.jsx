@@ -131,6 +131,7 @@ export const AuthProvider = ({ children }) => {
       // SIGNED_IN (new login) — resolve fresh
       if (event === 'SIGNED_IN') {
         setUser(sessionUser);
+        setSubscriptionStatus('loading'); // Ensure it shows loading during resolution
         try {
           const { adminStatus, subStatus } = await resolveUserData(sessionUser);
           if (!mounted) return;

@@ -1,35 +1,37 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 
-// Import components
-import AuthPage from "./pages/auth/AuthPage";
-import Index from "./pages/public/Index"; // Now the landing page
-import Dashboard from "./pages/dashboard/Dashboard"; // The invoice creation form
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import BrandingSettings from "./pages/settings/BrandingSettings";
-import ConfirmEmail from "./pages/auth/ConfirmEmail";
-import GmailCallback from "./pages/public/GmailCallback";
-import OTPVerification from "./pages/auth/OTPVerification";
-import InvoiceHistory from "./pages/dashboard/InvoiceHistory";
-import ProductInventory from "./pages/management/ProductInventory";
-import Customers from "./pages/management/Customers";
-import Profile from "./pages/settings/Profile";
-import SubscriptionPage from "./pages/subscription/SubscriptionPage";
-import TemplatePage from "./pages/dashboard/TemplatePage";
-import Analytics from "./pages/admin/Analytics";
-import AuditLogs from "./pages/admin/AuditLogs";
-import InvoiceVerify from "./pages/public/InvoiceVerify";
-import AdminVerifyPayment from "./pages/admin/AdminVerifyPayment";
+// Always-loaded (small, needed immediately)
 import ProtectedRoute from "./components/ProtectedRoute";
 import SubscriptionGuard from "./components/SubscriptionGuard";
 import AdminGuard from "./components/AdminGuard";
 import Navigation from "./components/Navigation";
 import AppLoader from "./components/AppLoader";
 import { AuthProvider } from "./context/AuthContext";
+
+// Lazy-loaded pages — each becomes its own chunk
+const Index            = lazy(() => import("./pages/public/Index"));
+const AuthPage         = lazy(() => import("./pages/auth/AuthPage"));
+const ConfirmEmail     = lazy(() => import("./pages/auth/ConfirmEmail"));
+const OTPVerification  = lazy(() => import("./pages/auth/OTPVerification"));
+const GmailCallback    = lazy(() => import("./pages/public/GmailCallback"));
+const InvoiceVerify    = lazy(() => import("./pages/public/InvoiceVerify"));
+const Dashboard        = lazy(() => import("./pages/dashboard/Dashboard"));
+const InvoiceHistory   = lazy(() => import("./pages/dashboard/InvoiceHistory"));
+const TemplatePage     = lazy(() => import("./pages/dashboard/TemplatePage"));
+const BrandingSettings = lazy(() => import("./pages/settings/BrandingSettings"));
+const Profile          = lazy(() => import("./pages/settings/Profile"));
+const ProductInventory = lazy(() => import("./pages/management/ProductInventory"));
+const Customers        = lazy(() => import("./pages/management/Customers"));
+const SubscriptionPage = lazy(() => import("./pages/subscription/SubscriptionPage"));
+const AdminDashboard   = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminVerifyPayment = lazy(() => import("./pages/admin/AdminVerifyPayment"));
+const Analytics        = lazy(() => import("./pages/admin/Analytics"));
+const AuditLogs        = lazy(() => import("./pages/admin/AuditLogs"));
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,7 @@ const App = () => {
           <BrowserRouter>
             <AuthProvider>
               <AppLoader>
+                <Suspense fallback={null}>
                 <Routes>
             {/* Public Routes - No Navigation */}
             <Route path="/" element={<Index />} /> {/* Landing page with auth form */}
@@ -228,6 +231,7 @@ const App = () => {
             
             <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              </Suspense>
               </AppLoader>
             </AuthProvider>
           </BrowserRouter>

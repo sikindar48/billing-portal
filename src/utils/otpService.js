@@ -1,12 +1,34 @@
 import { supabase } from '@/integrations/supabase/client';
-import emailjs from '@emailjs/browser';
 
-// EmailJS configuration
-const EMAILJS_CONFIG = {
-  serviceId: import.meta.env.VITE_EMAILJS_SERVICE_ID,
-  publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
-  privateKey: import.meta.env.VITE_EMAILJS_PRIVATE_KEY,
-  otpTemplateId: import.meta.env.VITE_EMAILJS_PASSWORD_RESET_TEMPLATE_ID, // Reuse password reset template for OTP
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+/**
+ * Send OTP email via the Resend-backed Supabase edge function.
+ */
+const sendOTPEmail = async (email, otpCode, purpose, expiresIn = '10 minutes') => {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({
+      type: 'otp',
+      to: email,
+      otp_code: otpCode,
+      purpose,
+      expires_in: expiresIn,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Email send failed (${res.status})`);
+  }
+
+  return await res.json();
 };
 
 /**
@@ -44,22 +66,9 @@ export const sendOTP = async (email, purpose = 'password_reset') => {
       return { success: false, error: 'Failed to generate OTP. Please try again.' };
     }
 
-    // Send OTP via EmailJS
-    const templateParams = {
-      to_email: email,
-      user_email: email,
-      otp_code: otpCode,
-      expires_in: '10 minutes',
-      purpose: purpose === 'password_reset' ? 'Password Reset' : 'Email Verification',
-    };
-
+    // Send OTP via Resend (through Supabase edge function)
     try {
-      await emailjs.send(
-        EMAILJS_CONFIG.serviceId,
-        EMAILJS_CONFIG.otpTemplateId,
-        templateParams,
-        EMAILJS_CONFIG.publicKey
-      );
+      await sendOTPEmail(email, otpCode, purpose);
 
       return { 
         success: true, 
@@ -67,7 +76,7 @@ export const sendOTP = async (email, purpose = 'password_reset') => {
         message: 'OTP sent successfully to your email address.' 
       };
     } catch (emailError) {
-      console.error('EmailJS error:', emailError);
+      console.error('Resend OTP error:', emailError);
       
       // Clean up the OTP record if email failed
       await supabase

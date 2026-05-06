@@ -26,4 +26,37 @@ export default defineConfig(({ mode }) => ({
       },
     ],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React core — loaded first, cached forever
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // Supabase
+          'vendor-supabase': ['@supabase/supabase-js'],
+          // UI primitives (Radix)
+          'vendor-radix': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-select',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-alert-dialog',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-switch',
+            '@radix-ui/react-label',
+            '@radix-ui/react-slot',
+          ],
+          // PDF / canvas — heavy, only needed when generating PDFs
+          // NOT listed here so they stay in the lazy pdfGenerator chunk
+          // Charts
+          'vendor-charts': ['recharts'],
+          // Misc utilities
+          'vendor-misc': ['date-fns', 'canvas-confetti', 'sonner', 'framer-motion'],
+        },
+      },
+    },
+  },
 }));

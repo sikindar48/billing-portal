@@ -278,6 +278,33 @@ const SubscriptionPage = () => {
     setProcessing(true);
     const toastId = toast.loading('Verifying payment…');
 
+    const sendSubscriptionEmail = async (planName, planPrice, planSlug, periodEnd) => {
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({
+            type: 'subscription_confirmation',
+            to: session.user.email,
+            user_name: session.user.user_metadata?.full_name || session.user.email,
+            plan_name: planName,
+            amount: planPrice,
+            billing_cycle: planSlug === 'monthly' ? 'Monthly' : 'Yearly',
+            period_end: periodEnd,
+          }),
+        });
+      } catch (err) {
+        // Non-critical — don't block the UI flow if email fails
+        console.warn('Subscription confirmation email failed:', err.message);
+      }
+    };
+
     const activateUI = (planSlug, planName) => {
       const now = new Date();
       const end = new Date(now);
@@ -296,6 +323,10 @@ const SubscriptionPage = () => {
       triggerCelebration();
       toast.success(`🎉 Welcome to ${planName}! Your plan is now active.`, { duration: 6000 });
       if (typeof refreshSubscription === 'function') refreshSubscription();
+
+      // Send confirmation email (fire-and-forget)
+      const selectedPlan = PLANS.find(p => p.slug === planSlug);
+      sendSubscriptionEmail(planName, selectedPlan?.price ?? 0, planSlug, end.toISOString());
 
       // Sync real data from DB after 3s
       setTimeout(async () => {

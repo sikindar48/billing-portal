@@ -6,8 +6,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import InvoiceTemplate from '@/components/InvoiceTemplate';
-import { generatePDF } from '@/utils/pdfGenerator';
-import { templates } from '@/utils/templateRegistry';
 import SEO from '@/components/SEO';
 
 const TemplatePage = () => {
@@ -83,6 +81,7 @@ const TemplatePage = () => {
 
     setIsDownloading(true);
     try {
+      const { generatePDF } = await import('@/utils/pdfGenerator');
       await generatePDF(formData, currentTemplate);
       
       // Increment Count if NOT unlimited

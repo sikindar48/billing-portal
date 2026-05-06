@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +29,7 @@ const OTPVerification = () => {
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [step, setStep] = useState('verify'); // 'verify' or 'reset'
+  const [verifiedOtpId, setVerifiedOtpId] = useState(null);
   
   const [timeLeft, setTimeLeft] = useState(0);
   const [canResend, setCanResend] = useState(true);
@@ -78,9 +78,9 @@ const OTPVerification = () => {
         toast.success('OTP verified successfully!');
         
         if (purpose === 'password_reset') {
+          setVerifiedOtpId(result.otpId);
           setStep('reset');
         } else {
-          // For other purposes, redirect to appropriate page
           navigate('/dashboard', { replace: true });
         }
       } else {
@@ -141,18 +141,33 @@ const OTPVerification = () => {
 
     setLoading(true);
     try {
-      // Update password using Supabase Auth
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          action: 'reset',
+          email,
+          new_password: newPassword,
+          otp_id: verifiedOtpId,
+        }),
       });
 
-      if (error) {
-        throw error;
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to update password');
       }
 
-      toast.success('Password updated successfully!');
+      toast.success('Password updated successfully! Please sign in.');
       navigate('/', { replace: true });
-      
+
     } catch (error) {
       console.error('Password reset error:', error);
       toast.error(error.message || 'Failed to update password');

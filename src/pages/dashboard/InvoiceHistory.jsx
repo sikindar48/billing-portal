@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Loader2, Eye, Trash2, Download, Search, FileText, Calendar, DollarSign, CheckCircle2, Clock, AlertCircle, XCircle, Mail, ArrowRightLeft } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatCurrency';
-import { generatePDF } from '@/utils/pdfGenerator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -172,6 +171,7 @@ const InvoiceHistory = () => {
             ? parseInt(invoice.template_name.replace('template_', ''), 10) || 3
             : 3;
 
+        const { generatePDF } = await import('@/utils/pdfGenerator');
         await generatePDF(formData, templateNumber);
         toast.success("Invoice downloaded!");
     } catch (error) {

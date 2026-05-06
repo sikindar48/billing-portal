@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-// Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
-// import { sendWelcomeEmail } from '@/utils/emailService';
 import SEO from '@/components/SEO';
 import { 
   Loader2, Mail, Lock, ArrowRight, LayoutDashboard, CheckCircle2, 
@@ -115,10 +113,7 @@ const AuthPage = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-          // Provide specific error messages
-          if (error.message.includes('Email not confirmed')) {
-            throw new Error('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
-          } else if (error.message.includes('Invalid login credentials')) {
+          if (error.message.includes('Invalid login credentials')) {
             throw new Error('Invalid email or password. Please try again.');
           }
           throw error;
@@ -126,32 +121,42 @@ const AuthPage = () => {
         toast.success('Welcome back!', { duration: 1500 });
         navigate('/dashboard', { replace: true });
       } else {
-        // Use Supabase default email confirmation (reliable)
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { 
-            emailRedirectTo: `${window.location.origin}/`,
-            data: { full_name: name }
-          },
+          options: { data: { full_name: name } },
         });
         if (error) {
-          // Handle specific signup errors
           if (error.message.includes('already registered')) {
             throw new Error('This email is already registered. Please log in instead.');
           }
           throw error;
         }
 
-        // Supabase returns identities=[] when email already exists (unconfirmed)
+        // Supabase returns identities=[] when email already exists
         if (data?.user && data.user.identities?.length === 0) {
           throw new Error('This email is already registered. Please log in instead.');
         }
 
-        toast.success('Account created! Please check your email to confirm your account.', { duration: 4000 });
-        
-        // Don't navigate yet - user needs to confirm email first
-        // Welcome email will be sent via EmailJS after email confirmation
+        // Fire welcome email (fire-and-forget)
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'apikey': supabaseAnonKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'welcome',
+            to: email,
+            user_name: name || email,
+          }),
+        }).catch(() => {}); // don't block signup on email failure
+
+        toast.success('Account created! Welcome to InvoicePort 🎉', { duration: 3000 });
+        navigate('/dashboard', { replace: true });
       }
     } catch (error) {
       console.error('Auth error:', error);
@@ -172,6 +177,23 @@ const AuthPage = () => {
     }
     setLoading(true);
     try {
+        // Check account exists before sending OTP
+        const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const checkRes = await fetch(`${supabaseUrl}/functions/v1/reset-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({ action: 'check', email }),
+        });
+        if (!checkRes.ok) {
+          const err = await checkRes.json();
+          throw new Error(err.error || 'No account found with this email address.');
+        }
+
         const result = await sendOTP(email, 'password_reset');
         if (!result.success) {
             throw new Error(result.error || 'Failed to send OTP');

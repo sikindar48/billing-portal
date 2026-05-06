@@ -48,8 +48,11 @@ const Navigation = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
     setIsMenuOpen(false);
+    // Redirect immediately for fast UX
+    navigate('/', { replace: true });
+    // Sign out in the background (fire-and-forget)
+    supabase.auth.signOut().catch(err => console.error('Logout error:', err));
   };
 
   const handleNavigation = (path) => {
