@@ -2,12 +2,6 @@
   command = "npm run build"
   publish = "dist"
 
-# Redirect non-www to www (canonical domain)
-[[redirects]]
-  from = "https://invoiceport.live/*"
-  to = "https://www.invoiceport.live/:splat"
-  status = 301
-  force = true
 
 # SPA fallback — must be last
 [[redirects]]
