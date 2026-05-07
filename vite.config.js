@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === 'development' && componentTagger(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Changed from 'autoUpdate' to 'prompt' - gives user control
       includeAssets: ['favicon.ico', 'robots.txt', 'sitemap.xml'],
       manifest: {
         name: 'InvoicePort - Invoice Generator',
@@ -44,16 +44,20 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
+        // Don't cache index.html - always fetch fresh
+        navigateFallback: null,
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
-            // Cache Supabase API calls
+            // Supabase API - ALWAYS use network first, short cache
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-api-cache',
+              networkTimeoutSeconds: 10, // Fail fast if network is slow
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 5 * 60 // 5 minutes
+                maxAgeSeconds: 60 // Only 1 minute cache for API
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -61,38 +65,52 @@ export default defineConfig(({ mode }) => ({
             }
           },
           {
-            // Cache images
+            // HTML pages - NetworkFirst with short cache
+            urlPattern: /\.html$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-cache',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 // Only 1 minute
+              }
+            }
+          },
+          {
+            // Images - CacheFirst but with reasonable expiration
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'images-cache',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 30 * 24 * 60 * 60 // 30 days
+                maxAgeSeconds: 7 * 24 * 60 * 60 // 7 days (reduced from 30)
               }
             }
           },
           {
-            // Cache fonts
+            // Fonts - CacheFirst
             urlPattern: /\.(?:woff|woff2|ttf|otf)$/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'fonts-cache',
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 365 * 24 * 60 * 60 // 1 year
+                maxAgeSeconds: 30 * 24 * 60 * 60 // 30 days
               }
             }
           },
           {
-            // Cache static assets
+            // JS/CSS - NetworkFirst with fallback to cache
             urlPattern: /\.(?:js|css)$/i,
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'static-resources',
+              networkTimeoutSeconds: 5,
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 7 * 24 * 60 * 60 // 7 days
+                maxAgeSeconds: 24 * 60 * 60 // 1 day (reduced from 7)
               }
             }
           }
@@ -102,7 +120,7 @@ export default defineConfig(({ mode }) => ({
         clientsClaim: true
       },
       devOptions: {
-        enabled: false // Disable in development for faster builds
+        enabled: false // Disable in development
       }
     })
   ].filter(Boolean),

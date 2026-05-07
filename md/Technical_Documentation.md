@@ -1,6 +1,6 @@
 # InvoicePort — Technical Architecture & Features
 
-> Last updated: May 6, 2026 — Production-ready platform architecture
+> Last updated: May 7, 2026 — Production-ready platform architecture
 
 ---
 
@@ -160,6 +160,33 @@ Frontend                 Edge Function           Google OAuth
 - Secure storage in Supabase database
 - Fallback to EmailJS on failure
 
+### Gmail Management Components
+
+**New modular architecture for Gmail integration**
+
+```javascript
+// Component hierarchy
+GmailConnect (UI Component)
+    ↓
+gmailAuth.js (Core Logic)
+    ↓
+├─ startGmailAuth() - Initiate OAuth flow
+├─ handleGmailCallback() - Process OAuth response
+├─ checkGmailConnection() - Verify connection status
+├─ getValidAccessToken() - Get/refresh tokens
+├─ disconnectGmail() - Remove integration
+└─ sendGmailEmail() - Send via Gmail API
+```
+
+**Features:**
+
+- Visual connection status with color indicators
+- Real-time connection checking
+- Test email functionality
+- One-click disconnect with confirmation
+- Automatic token refresh handling
+- Clear error messages and recovery
+
 ### Email Template System
 
 ```javascript
@@ -181,11 +208,33 @@ Invoice Data + Branding → Email Template → Personalization → Delivery
 // Plan hierarchy and limits
 const planLimits = {
   trial: { invoices: 10, emails: 3, duration: "3 days" },
-  pro_monthly: { invoices: "unlimited", emails: "unlimited" },
-  pro_yearly: { invoices: "unlimited", emails: "unlimited" },
+  pro_monthly: { invoices: "unlimited", emails: "unlimited", price: 149 },
+  pro_yearly: { invoices: "unlimited", emails: "unlimited", price: 1499 },
   enterprise: { invoices: "unlimited", emails: "unlimited", admin: true },
 };
 ```
+
+### Payment Integration Architecture
+
+**Razorpay with automatic subscription activation**
+
+```javascript
+// Payment flow
+Plan Selection → Confirmation Modal → Razorpay Checkout → Payment Processing
+     ↓                ↓                  ↓                 ↓
+User Intent → Price Display → Secure Payment → Edge Function Verification
+     ↓                ↓                  ↓                 ↓
+Celebration ← Email Confirmation ← Activation ← Signature Validation
+```
+
+**Key Components:**
+
+- Razorpay script loading with error handling
+- Edge Function for server-side payment verification
+- Automatic subscription activation after successful payment
+- Fallback RPC activation for reliability
+- Confetti animation for user delight
+- Email confirmation via Resend API
 
 ### Usage Tracking & Enforcement
 
@@ -392,14 +441,25 @@ const supportedBrowsers = {
 
 ### Error Boundary System
 
+**Application-wide error catching and recovery**
+
 ```javascript
-// Graceful error handling
+// Graceful error handling with ErrorBoundary component
 <ErrorBoundary fallback={<ErrorFallback />}>
   <Suspense fallback={<LoadingSpinner />}>
     <RouteComponent />
   </Suspense>
 </ErrorBoundary>
 ```
+
+**Error Boundary Features:**
+
+- Catches React component errors
+- Prevents entire app from crashing
+- Displays user-friendly error messages
+- Shows technical details for debugging
+- Provides reload and navigation options
+- Logs errors for monitoring
 
 ### Performance Monitoring
 
@@ -475,5 +535,7 @@ const services = {
 - ✅ **Data Privacy**: User data protection measures
 - ✅ **Security Standards**: Industry best practices
 - ✅ **Accessibility**: WCAG compliance guidelines
+- ✅ **Legal Transparency**: Privacy Policy and Terms of Service
+- ✅ **Google API Compliance**: Adheres to Google API Services User Data Policy
 
 **InvoicePort's technical architecture is designed for scalability, security, and performance, providing a solid foundation for current operations and future growth.**

@@ -1,6 +1,6 @@
 # InvoicePort — Features & User Flow Guide
 
-> Last updated: May 6, 2026
+> Last updated: May 7, 2026
 
 ## 🚀 Platform Overview
 
@@ -23,26 +23,26 @@ InvoicePort is a comprehensive GST-compliant invoice generation platform designe
 
 ### ✨ Key Features
 
-- **Instant Trial Access**: 3-day trial with 10 invoices and 3 emails
-- **Secure Email Verification**: Supabase-powered authentication
+- **Instant Trial Access**: 3-day trial with 10 invoices, 3 emails, and 5 downloads
+- **Simple Registration**: Email and password signup with automatic trial activation
 - **Smart Password Recovery**: OTP-based reset with rate limiting
 - **Zero-Flash Navigation**: Cached session for instant page loads
+- **Auth Timeout Protection**: 3-second safety timeout prevents infinite loading
 
 ### 🎯 User Journey
 
 #### New User Registration
 
 ```
-Landing Page → Sign Up Form → Email Verification → Trial Activation → Dashboard
+Landing Page → Sign Up Form → Trial Activation → Dashboard
 ```
 
 **Step-by-Step Flow:**
 
 1. **Discovery**: User visits landing page, sees features and pricing
 2. **Registration**: Enters name, email, password
-3. **Verification**: Receives confirmation email, clicks link
-4. **Auto-Setup**: Trial subscription (3 days, 10 invoices) created automatically
-5. **Welcome**: Redirected to dashboard with onboarding hints
+3. **Auto-Setup**: Trial subscription (3 days, 10 invoices) created automatically
+4. **Welcome**: Redirected to dashboard with onboarding hints
 
 #### Returning User Login
 
@@ -153,6 +153,8 @@ Invoice List → Filter/Search → Status Updates → Actions
 - **Plan-Based Limits**: Automatic enforcement with upgrade prompts
 - **Professional Templates**: Branded email layouts
 - **Delivery Tracking**: Success/failure notifications
+- **Gmail Management**: Easy connect/disconnect with visual status
+- **Test Functionality**: Send test emails to verify integration
 
 ### 🎯 Email Flow Decision Tree
 
@@ -182,6 +184,18 @@ Connect Gmail → OAuth Consent → Token Exchange → Secure Storage → Send E
 2. **Server-Side Secrets**: Client secret never in browser
 3. **Token Management**: Automatic refresh via Edge Functions
 4. **Fallback System**: EmailJS if Gmail fails
+5. **Easy Disconnect**: One-click Gmail disconnection from settings
+
+#### Gmail Connection Component
+
+**New Features:**
+
+- Visual connection status with color-coded indicators
+- Real-time connection checking
+- Test email functionality to verify integration
+- One-click disconnect with confirmation
+- Automatic token refresh handling
+- Clear error messages and troubleshooting
 
 #### Email Composition
 
@@ -241,10 +255,12 @@ Branding Settings → Auto-Fill → Invoice Creation → Consistent Experience
 
 ### ✨ Key Features
 
-- **Flexible Plans**: Trial, Monthly Pro, Yearly Pro, Enterprise
-- **UPI Integration**: Indian payment methods
+- **Flexible Plans**: Trial, Monthly Pro, Yearly Pro
+- **Razorpay Integration**: Secure payment processing with UPI support
 - **Usage Tracking**: Real-time limits and notifications
-- **Admin Verification**: Manual payment confirmation
+- **Automatic Activation**: Instant subscription activation after payment
+- **Celebration Experience**: Confetti animation on successful upgrade
+- **Order Tracking**: Payment orders stored for replay attack prevention
 
 ### 🎯 Subscription Journey
 
@@ -255,26 +271,31 @@ Trial Experience → Usage Limits → Upgrade Prompt → Plan Selection → Paym
 ```
 
 **Plan Comparison:**
-| Feature | Trial | Pro Monthly | Pro Yearly | Enterprise |
-|---------|-------|-------------|------------|------------|
-| Duration | 3 days | Monthly | Yearly | Custom |
-| Invoices | 10 | Unlimited | Unlimited | Unlimited |
-| Emails | 3 | Unlimited | Unlimited | Unlimited |
-| Gmail API | ❌ | ✅ | ✅ | ✅ |
-| Support | Basic | Priority | Priority | Dedicated |
+| Feature | Trial | Pro Monthly | Pro Yearly |
+|---------|-------|-------------|------------|
+| Duration | 3 days | Monthly | Yearly |
+| Invoices | 10 | Unlimited | Unlimited |
+| Emails | 3 | Unlimited | Unlimited |
+| Downloads | 5 | Unlimited | Unlimited |
+| Gmail API | ❌ | ✅ | ✅ |
+| Support | Basic | Priority | Priority |
+| Price | Free | ₹149/month | ₹1499/year |
 
 #### Payment Process
 
 ```
-Plan Selection → UPI QR Code → Payment → Transaction ID → Admin Verification → Activation
+Plan Selection → Confirmation Modal → Razorpay Checkout → Payment Processing → Automatic Activation → Celebration
 ```
 
 **Payment Features:**
 
-1. **UPI Integration**: QR code generation for instant payments
-2. **Manual Verification**: Admin confirms payments
-3. **Instant Activation**: Immediate access after verification
-4. **Billing Toggle**: Monthly/Yearly switching
+1. **Razorpay Integration**: Secure payment gateway with multiple methods
+2. **UPI Support**: UPI payments through Razorpay interface
+3. **Automatic Activation**: Immediate access after successful payment
+4. **Edge Function Verification**: Server-side payment validation
+5. **Fallback RPC**: Manual activation if Edge Function fails
+6. **Email Confirmation**: Receipt sent via Resend API
+7. **Celebration Animation**: Confetti effect on successful upgrade
 
 ---
 
@@ -328,31 +349,36 @@ Add Products → Set Pricing → Category Management → Invoice Integration
 
 ### 🎯 Admin Dashboard Flow
 
-#### Analytics Overview
+#### Dashboard Overview
 
 ```
-Login → Admin Dashboard → Revenue Metrics → User Analytics → Growth Insights
+Login → Admin Dashboard → User Management → Subscription Control → Request Queue
 ```
 
 **Key Metrics:**
 
-1. **Monthly Recurring Revenue (MRR)**: Subscription revenue tracking
-2. **Plan Distribution**: User distribution across plans
-3. **Invoice Statistics**: Creation and delivery metrics
-4. **Growth Trends**: User acquisition and retention
+1. **User Statistics**: Total users, active subscriptions, trialing users
+2. **Pending Requests**: Payment verification queue
+3. **Subscription Management**: Manual plan activation and updates
+4. **User Actions**: Delete users, update plans, approve payments
 
 #### User Management
 
 ```
-User List → Subscription Status → Manual Verification → Plan Activation
+User List → Subscription Status → Manual Updates → Plan Activation
 ```
 
 **Admin Capabilities:**
 
 - **Subscription Management**: Activate/deactivate plans
-- **Payment Verification**: Confirm UPI transactions
-- **User Roles**: Assign admin privileges
-- **Usage Monitoring**: Track limits and overages
+- **Payment Verification**: Approve pending subscription requests
+- **User Roles**: Assign admin privileges (via database)
+- **Plan Updates**: Change user plans with custom duration
+- **User Deletion**: Remove users from the system
+- **Email Notifications**: Send approval confirmations
+- **Unlimited Email Access**: Admin users bypass all email limits
+
+**Note:** Revenue analytics (MRR tracking) and comprehensive audit logging are planned features not yet implemented in the admin dashboard.
 
 ---
 
@@ -430,3 +456,5 @@ Select Multiple → Bulk Actions → Status Updates → Export Reports
 - **Data Encryption**: End-to-end security for sensitive data
 - **Role-Based Access**: Proper permission management
 - **Audit Trails**: Complete activity logging for compliance
+- **Error Boundaries**: Graceful error handling prevents app crashes
+- **Legal Pages**: Privacy Policy and Terms of Service for transparency

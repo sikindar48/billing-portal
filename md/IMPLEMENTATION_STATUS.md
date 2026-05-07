@@ -1,6 +1,6 @@
 # InvoicePort — Feature Implementation Status
 
-> Last updated: May 6, 2026 — All core features implemented and operational
+> Last updated: May 7, 2026 — All core features implemented and operational
 
 ---
 
@@ -18,11 +18,11 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 ### 🔐 Authentication & User Management
 
-- ✅ **Secure Registration**: Email verification with Supabase Auth
+- ✅ **Secure Registration**: Email and password signup with Supabase Auth
 - ✅ **Instant Login**: Cached sessions for zero-loading navigation
 - ✅ **Password Recovery**: OTP-based reset with rate limiting
 - ✅ **Role Management**: Admin privileges via database roles
-- ✅ **Trial Activation**: Automatic 3-day trial with 10 invoices + 3 emails
+- ✅ **Trial Activation**: Automatic 3-day trial with 10 invoices, 3 emails, and 5 downloads
 
 **User Experience Highlights:**
 
@@ -53,6 +53,9 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 - ✅ **Automatic Fallback**: Gmail → EmailJS on failure
 - ✅ **Plan-Based Limits**: Trial (3), Pro (unlimited), Admin (unlimited)
 - ✅ **Professional Templates**: Branded email layouts with PDF attachments
+- ✅ **Gmail Management UI**: Visual connection status and controls
+- ✅ **Test Email Feature**: Verify Gmail integration with test sends
+- ✅ **Easy Disconnect**: One-click Gmail disconnection
 
 **Email Features:**
 
@@ -60,6 +63,8 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 - Custom message personalization
 - Automatic usage tracking and limits
 - Secure token refresh via Edge Functions
+- Visual connection status indicators
+- Test functionality for troubleshooting
 
 ### 💼 Business Branding & Customization
 
@@ -71,18 +76,25 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 ### 💳 Subscription & Payment Management
 
-- ✅ **Flexible Plans**: Trial → Pro Monthly (₹149) → Pro Yearly (₹1499) → Enterprise
-- ✅ **UPI Integration**: QR code payments for Indian market
-- ✅ **Manual Verification**: Admin-confirmed payment activation
+- ✅ **Flexible Plans**: Trial → Pro Monthly (₹149) → Pro Yearly (₹1499)
+- ✅ **Razorpay Integration**: Secure payment processing with UPI support
+- ✅ **Automatic Activation**: Instant subscription activation after payment
 - ✅ **Usage Tracking**: Real-time limits with upgrade prompts
 - ✅ **Plan Enforcement**: Automatic feature gating based on subscription
+- ✅ **Celebration Experience**: Confetti animation on successful upgrade
+- ✅ **Order Tracking**: Payment orders stored for replay attack prevention
 
 **Payment Flow:**
 
-- Instant UPI QR code generation
-- Transaction ID verification system
-- Immediate plan activation after confirmation
-- Billing period management
+- Razorpay checkout with multiple payment methods
+- Server-side payment verification via Edge Functions
+- Automatic subscription activation after successful payment
+- Fallback RPC activation if Edge Function fails
+- Email confirmation via Resend API
+- Celebration animation for user delight
+- 30-second safety timeout for processing overlay
+
+**Note:** Database contains test pricing (₹29/month, ₹290/year) that needs updating to match frontend (₹149/month, ₹1499/year).
 
 ### 📊 Invoice Management & History
 
@@ -113,11 +125,16 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 ### 📈 Analytics & Admin Dashboard
 
-- ✅ **Revenue Analytics**: Monthly Recurring Revenue (MRR) tracking
-- ✅ **User Management**: Subscription status and role management
-- ✅ **Plan Distribution**: Visual breakdown of user plans
-- ✅ **Invoice Statistics**: Creation and delivery metrics
-- ✅ **Payment Verification**: Manual subscription activation workflow
+- ✅ **User Management**: View, manage, and delete users
+- ✅ **Subscription Management**: Activate/deactivate plans manually
+- ✅ **Pending Requests**: Approve/reject subscription requests
+- ✅ **Manual Verification**: Confirm UPI transactions
+- ✅ **Plan Updates**: Change user plans with custom duration
+- ✅ **Email Notifications**: Automatic notifications on approval
+- ✅ **Real-time Stats**: Total users, active subscriptions, pending requests
+- ✅ **Admin Email Bypass**: Admin users have unlimited email access
+- ❌ **Revenue Analytics (MRR)**: Planned but not yet implemented
+- ❌ **Comprehensive Audit Logging**: Planned but not yet implemented
 
 ### 🔒 Security & Compliance
 
@@ -126,6 +143,8 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 - ✅ **Row-Level Security**: Users only access their own data
 - ✅ **Role-Based Access**: Proper admin and user permission management
 - ✅ **Secure Token Management**: Gmail secrets never in browser bundle
+- ✅ **Error Boundaries**: Graceful error handling prevents app crashes
+- ✅ **Legal Compliance**: Privacy Policy and Terms of Service pages
 
 ### 🌐 SEO & Public Features
 
@@ -134,6 +153,9 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 - ✅ **Mobile Responsive**: Perfect experience on all devices
 - ✅ **PWA Capabilities**: App-like experience for mobile users
 - ✅ **Performance Optimized**: Fast loading and smooth navigation
+- ✅ **404 Page**: Professional not found page with navigation
+- ✅ **Privacy Policy**: Comprehensive privacy and data protection disclosure
+- ✅ **Terms of Service**: Clear terms and conditions for users
 
 ---
 
@@ -144,13 +166,19 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 | Table                   | Purpose                                  | Status    |
 | ----------------------- | ---------------------------------------- | --------- |
 | `auth.users`            | Supabase managed authentication          | ✅ Active |
-| `branding_settings`     | Company branding and preferences         | ✅ Active |
-| `invoices`              | Invoice master records with JSONB fields | ✅ Active |
 | `profiles`              | User display names and avatars           | ✅ Active |
+| `branding_settings`     | Company branding and Gmail tokens        | ✅ Active |
+| `invoices`              | Invoice master records with JSONB fields | ✅ Active |
 | `subscription_plans`    | Plan definitions and pricing             | ✅ Active |
+| `user_subscriptions`    | Active plan status and periods           | ✅ Active |
 | `subscription_requests` | Payment verification queue               | ✅ Active |
 | `user_roles`            | Admin role assignments                   | ✅ Active |
-| `user_subscriptions`    | Active plan status and periods           | ✅ Active |
+| `payment_orders`        | Razorpay order tracking                  | ✅ Active |
+| `email_usage_log`       | Email delivery tracking                  | ✅ Active |
+| `audit_logs`            | Activity logging for compliance          | ✅ Active |
+| `invoice_items`         | Line items normalization                 | ✅ Active |
+| `clients`               | Customer management                      | ✅ Active |
+| `services`              | Product catalog                          | ✅ Active |
 
 ### Data Security
 
@@ -177,6 +205,10 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 - ✅ `gmail-token-exchange`: OAuth code to token conversion
 - ✅ `gmail-token-refresh`: Automatic token renewal
+- ✅ `razorpay-create-order`: Server-side order creation
+- ✅ `verify-payment-and-activate`: Payment verification & subscription activation
+- ✅ `reset-password`: Password reset flow
+- ✅ `send-email`: Email sending via Resend API
 - ✅ Secure secret management via Supabase
 
 ### Performance Metrics
@@ -238,13 +270,18 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 ## 🔄 Continuous Improvements
 
-### Recent Enhancements (Phase 5 Complete)
+### Recent Enhancements (Latest Updates - May 7, 2026)
 
-- ✅ **Schema Alignment**: All database operations optimized
-- ✅ **UI Consistency**: AlertDialog replacements for all confirmations
-- ✅ **Navigation Guards**: Proper admin access control
-- ✅ **Date Formatting**: Consistent DD/MM/YYYY throughout
-- ✅ **Error Handling**: Graceful fallbacks for all operations
+- ✅ **Enhanced Gmail OAuth**: Improved authentication flow with better error handling
+- ✅ **Gmail Management UI**: New GmailConnect component with visual status
+- ✅ **Error Boundaries**: Application-wide error catching and recovery
+- ✅ **Gmail Debugger**: Advanced debugging tools for OAuth troubleshooting
+- ✅ **Legal Pages**: Privacy Policy and Terms of Service added
+- ✅ **404 Page**: Professional not found page with helpful navigation
+- ✅ **Gmail Auth Utility**: Centralized authentication logic in gmailAuth.js
+- ✅ **Test Email Feature**: Verify Gmail integration with test sends
+- ✅ **Connection Status**: Real-time Gmail connection monitoring
+- ✅ **Easy Disconnect**: One-click Gmail disconnection from settings
 
 ### Quality Assurance
 
