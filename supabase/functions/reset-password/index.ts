@@ -16,18 +16,20 @@ function json(data: unknown, status = 200) {
 // Looks up a user by email using the Supabase Admin client
 async function findUserByEmail(adminClient: any, email: string) {
   try {
+    const normalizedEmail = email.toLowerCase().trim();
+    
     let page = 1;
     let hasMore = true;
     while (hasMore) {
-      const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 50 });
+      const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
       if (error || !data || !data.users) {
         console.error("Error listing users:", error);
         return null;
       }
-      const user = data.users.find((u: { email: string }) => u.email?.toLowerCase() === email);
+      const user = data.users.find((u: { email: string }) => u.email?.toLowerCase().trim() === normalizedEmail);
       if (user) return user;
       
-      hasMore = data.users.length === 50;
+      hasMore = data.users.length === 1000;
       page++;
     }
     return null;
