@@ -7,12 +7,13 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState('loading');
+  const [subscription, setSubscription] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   // Tracks whether we've resolved admin+sub at least once for this session
   const resolvedRef = React.useRef(false);
 
   const resolveUserData = async (u) => {
-    if (!u) return { adminStatus: false, subStatus: 'expired' };
+    if (!u) return { adminStatus: false, subStatus: 'expired', subscriptionData: null };
 
     const timeoutPromise = new Promise((resolve) => 
       setTimeout(() => resolve('TIMEOUT'), 5000)
@@ -24,39 +25,48 @@ export const AuthProvider = ({ children }) => {
         .catch(() => false),
 
       supabase.from('user_subscriptions')
-        .select('status, current_period_end')
+        .select('*, subscription_plans(*)')
         .eq('user_id', u.id)
         .maybeSingle()
         .then(({ data: sub }) => {
-          if (!sub) return 'expired';
+          if (!sub) return { subStatus: 'expired', subscriptionData: null };
           const now = new Date();
           const end = new Date(sub.current_period_end);
-          if (sub.status === 'active' || (sub.status === 'trialing' && end > now)) return 'allowed';
-          return 'expired';
+          if (sub.status === 'active' || (sub.status === 'trialing' && end > now)) {
+            return { subStatus: 'allowed', subscriptionData: sub };
+          }
+          return { subStatus: 'expired', subscriptionData: sub };
         })
-        .catch(() => 'allowed'),
+        .catch(() => ({ subStatus: 'allowed', subscriptionData: null })),
     ]);
 
     const result = await Promise.race([dataPromise, timeoutPromise]);
 
     if (result === 'TIMEOUT') {
       console.warn('resolveUserData timed out after 5 seconds');
-      return { adminStatus: false, subStatus: 'allowed' };
+      return { adminStatus: false, subStatus: 'allowed', subscriptionData: null };
     }
 
     const [adminResult, subResult] = result;
     const adminStatus = adminResult.status === 'fulfilled' ? adminResult.value : false;
-    const subStatus = adminStatus ? 'allowed' : (subResult.status === 'fulfilled' ? subResult.value : 'allowed');
-    return { adminStatus, subStatus };
+    
+    let subStatus = 'allowed';
+    let subscriptionData = null;
+    
+    if (subResult.status === 'fulfilled') {
+      subStatus = subResult.value.subStatus;
+      subscriptionData = subResult.value.subscriptionData;
+    }
+    
+    if (adminStatus) subStatus = 'allowed';
+    
+    return { adminStatus, subStatus, subscriptionData };
   };
 
   useEffect(() => {
     let mounted = true;
     let authResolved = false;
 
-    // Safety net — only fires if BOTH getSession AND onAuthStateChange fail to resolve.
-    // 3 seconds is sufficient for most connections but prevents infinite spinner.
-    // Does NOT set user to null — avoids false logouts on slow networks.
     const authTimeout = setTimeout(() => {
       if (mounted && !authResolved) {
         console.warn('Auth timeout reached - forcing authLoading to false');
@@ -65,8 +75,6 @@ export const AuthProvider = ({ children }) => {
       }
     }, 3000);
 
-    // getSession reads from local storage — fast, no network call.
-    // Resolves the user immediately on refresh without waiting for the network.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       const sessionUser = session?.user ?? null;
@@ -76,16 +84,17 @@ export const AuthProvider = ({ children }) => {
         clearTimeout(authTimeout);
         setAuthLoading(false);
         setSubscriptionStatus('expired');
+        setSubscription(null);
         authResolved = true;
         return;
       }
 
-      // Resolve admin + subscription once on startup
       try {
-        const { adminStatus, subStatus } = await resolveUserData(sessionUser);
+        const { adminStatus, subStatus, subscriptionData } = await resolveUserData(sessionUser);
         if (!mounted) return;
         setIsAdmin(adminStatus);
         setSubscriptionStatus(subStatus);
+        setSubscription(subscriptionData);
         resolvedRef.current = true;
       } catch {
         if (!mounted) return;
@@ -98,7 +107,6 @@ export const AuthProvider = ({ children }) => {
         }
       }
     }).catch((err) => {
-      // getSession itself failed — clear timeout and unblock the app
       console.error('getSession error:', err);
       clearTimeout(authTimeout);
       if (mounted) {
@@ -107,13 +115,14 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setIsAdmin(false);
         setSubscriptionStatus('expired');
+        setSubscription(null);
         resolvedRef.current = false;
         setAuthLoading(false);
         authResolved = true;
@@ -126,13 +135,12 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setIsAdmin(false);
         setSubscriptionStatus('expired');
+        setSubscription(null);
         setAuthLoading(false);
         authResolved = true;
         return;
       }
 
-      // TOKEN_REFRESHED or INITIAL_SESSION after getSession already ran —
-      // just update the user object, skip redundant DB calls
       if (event === 'TOKEN_REFRESHED' || (event === 'INITIAL_SESSION' && resolvedRef.current)) {
         setUser(sessionUser);
         setAuthLoading(false);
@@ -140,15 +148,15 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // SIGNED_IN (new login) — resolve fresh
       if (event === 'SIGNED_IN') {
         setUser(sessionUser);
-        setSubscriptionStatus('loading'); // Ensure it shows loading during resolution
+        setSubscriptionStatus('loading');
         try {
-          const { adminStatus, subStatus } = await resolveUserData(sessionUser);
+          const { adminStatus, subStatus, subscriptionData } = await resolveUserData(sessionUser);
           if (!mounted) return;
           setIsAdmin(adminStatus);
           setSubscriptionStatus(subStatus);
+          setSubscription(subscriptionData);
           resolvedRef.current = true;
         } catch {
           if (!mounted) return;
@@ -165,25 +173,25 @@ export const AuthProvider = ({ children }) => {
     return () => {
       mounted = false;
       clearTimeout(authTimeout);
-      subscription.unsubscribe();
+      authListener.unsubscribe();
     };
   }, []);
 
-  // Call this after a successful payment to re-check subscription status
   const refreshSubscription = async () => {
     const currentUser = user;
     if (!currentUser) return;
     try {
-      const { adminStatus, subStatus } = await resolveUserData(currentUser);
+      const { adminStatus, subStatus, subscriptionData } = await resolveUserData(currentUser);
       setIsAdmin(adminStatus);
       setSubscriptionStatus(subStatus);
+      setSubscription(subscriptionData);
     } catch {
       setSubscriptionStatus('allowed');
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, subscriptionStatus, authLoading, refreshSubscription }}>
+    <AuthContext.Provider value={{ user, isAdmin, subscriptionStatus, subscription, setSubscription, authLoading, refreshSubscription }}>
       {children}
     </AuthContext.Provider>
   );

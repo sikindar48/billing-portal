@@ -172,9 +172,8 @@ const ProcessingOverlay = ({ onDismiss }) => (
 // Main Component
 // ---------------------------------------------------------------------------
 const SubscriptionPage = () => {
-  const { user, refreshSubscription } = useAuth();
-  const [subscription, setSubscription] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, subscription, setSubscription, refreshSubscription } = useAuth();
+  const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [modal, setModal] = useState({ open: false, plan: null });
   const safetyTimer = useRef(null);
@@ -191,35 +190,6 @@ const SubscriptionPage = () => {
     }
     return () => clearTimeout(safetyTimer.current);
   }, [processing]);
-
-  // Load current subscription
-  useEffect(() => {
-    if (!user?.id) { setLoading(false); return; }
-
-    let isMounted = true;
-    const fallbackTimer = setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 5000);
-
-    supabase
-      .from('user_subscriptions')
-      .select('*, subscription_plans(*)')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (isMounted) setSubscription(data);
-      })
-      .catch(console.error)
-      .finally(() => {
-        clearTimeout(fallbackTimer);
-        if (isMounted) setLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-      clearTimeout(fallbackTimer);
-    };
-  }, [user]);
 
   // -------------------------------------------------------------------------
   // Core payment flow

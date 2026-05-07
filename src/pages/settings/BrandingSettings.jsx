@@ -9,10 +9,9 @@ import { Loader2, Save, Building2, Mail, FileText } from 'lucide-react';
 import GmailConnect from '@/components/GmailConnect';
 
 const BrandingSettings = () => {
-  const { user } = useAuth();
+  const { user, subscription } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [subscription, setSubscription] = useState(null);
   const [settings, setSettings] = useState({
     company_name: '',
     company_tagline: '',
@@ -54,15 +53,6 @@ const BrandingSettings = () => {
             preferred_email_method: data.metadata?.preferred_email_method || 'emailjs',
           }));
         }
-
-        // Fetch subscription to check if user has Pro plan
-        const { data: sub } = await supabase
-          .from('user_subscriptions')
-          .select('*, subscription_plans(slug, name)')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        setSubscription(sub);
       } catch (e) {
         toast.error('Failed to load settings');
       } finally {

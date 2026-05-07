@@ -55,7 +55,7 @@ const getInitialItems = () => ([{ name: "", description: "", quantity: 0, amount
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAdmin } = useAuth(); // Read from context — no extra network calls
+  const { user, isAdmin, subscription } = useAuth(); // Read from context — no extra network calls
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailUsageStats, setEmailUsageStats] = useState(null);
@@ -109,6 +109,22 @@ const Index = () => {
     setNotes(noteOptions[randomIndex]);
   };
 
+  // Process subscription from context whenever it changes
+  useEffect(() => {
+    if (!subscription && user?.email_confirmed_at) {
+        setUsageStats({ count: 0, limit: 10, planName: 'Free Trial', daysLeft: 3 });
+    } else if (subscription) {
+        const end = new Date(subscription.current_period_end);
+        const daysLeft = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
+        setUsageStats({
+            count: subscription.invoice_usage_count || 0,
+            limit: subscription.subscription_plans?.slug === 'trial' ? 10 : 10000,
+            planName: subscription.subscription_plans?.name || 'Free Trial',
+            daysLeft,
+        });
+    }
+  }, [subscription, user]);
+
   // 1. INITIAL DATA FETCH — user & isAdmin come from AuthContext (no extra network calls)
   useEffect(() => {
     if (!user) return;
@@ -117,18 +133,11 @@ const Index = () => {
             setInitError(null);
             
             // Fetch all data in parallel for better performance
-            const [brandingResult, subResult, emailStatsResult] = await Promise.allSettled([
+            const [brandingResult, emailStatsResult] = await Promise.allSettled([
               // Fetch branding (uses the real 'branding_settings' table)
               supabase
                 .from('branding_settings')
                 .select('*')
-                .eq('user_id', user.id)
-                .maybeSingle(),
-              
-              // Fetch subscription
-              supabase
-                .from('user_subscriptions')
-                .select('*, subscription_plans(*)')
                 .eq('user_id', user.id)
                 .maybeSingle(),
               
@@ -150,32 +159,6 @@ const Index = () => {
                 });
                 if (branding.metadata?.currency) {
                     setSelectedCurrency(branding.metadata.currency);
-                }
-            }
-
-            // Process subscription
-            if (subResult.status === 'fulfilled') {
-                const sub = subResult.value.data;
-                if (!sub && user.email_confirmed_at) {
-                    const trialEndDate = new Date();
-                    trialEndDate.setDate(trialEndDate.getDate() + 3);
-                    const { error: subError } = await supabase.from('user_subscriptions').upsert({
-                        user_id: user.id,
-                        plan_id: 1,
-                        status: 'trialing',
-                        current_period_end: trialEndDate.toISOString()
-                    }, { onConflict: 'user_id' });
-                    if (!subError) toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
-                    setUsageStats({ count: 0, limit: 10, planName: 'Free Trial', daysLeft: 3 });
-                } else if (sub) {
-                    const end = new Date(sub.current_period_end);
-                    const daysLeft = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
-                    setUsageStats({
-                        count: sub.invoice_usage_count || 0,
-                        limit: sub.subscription_plans?.slug === 'trial' ? 10 : 10000,
-                        planName: sub.subscription_plans?.name || 'Free Trial',
-                        daysLeft,
-                    });
                 }
             }
 
@@ -217,6 +200,8 @@ const Index = () => {
     };
     initData();
   }, [user]);
+
+
 
   // 3. APPLY BRANDING — runs once when branding loads, not on every keystroke
   useEffect(() => {

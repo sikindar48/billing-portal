@@ -11,7 +11,7 @@ import SEO from '@/components/SEO';
 const TemplatePage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, subscription } = useAuth();
   const [formData, setFormData] = useState(null);
   const [currentTemplate, setCurrentTemplate] = useState(1);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -34,7 +34,7 @@ const TemplatePage = () => {
     }
 
     // 2. Check Subscription & Download Count
-    const checkAccess = async () => {
+    const checkAccess = () => {
         const savedCount = parseInt(localStorage.getItem('pdf_download_count') || '0');
         setDownloadCount(savedCount);
 
@@ -46,19 +46,13 @@ const TemplatePage = () => {
             return;
         }
 
-        // Check subscription plan — one DB call only
-        const { data: sub } = await supabase
-            .from('user_subscriptions')
-            .select('subscription_plans(slug)')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-        if (sub?.subscription_plans?.slug !== 'trial') {
+        // Use context subscription directly
+        if (subscription && subscription.subscription_plans?.slug !== 'trial') {
             setIsUnlimited(true);
         }
     };
     checkAccess();
-  }, [location.state, user]);
+  }, [location.state, user, subscription, isAdmin]);
 
   const handleTemplateChange = (templateNumber) => {
     setCurrentTemplate(templateNumber);
