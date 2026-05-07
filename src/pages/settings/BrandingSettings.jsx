@@ -24,6 +24,8 @@ const BrandingSettings = () => {
     currency: 'INR',
     tax_rate: 18,
     preferred_email_method: 'emailjs',
+    upi_id: '',
+    gst_number: '',
   });
 
   useEffect(() => {
@@ -51,6 +53,8 @@ const BrandingSettings = () => {
             currency: data.metadata?.currency || 'INR',
             tax_rate: data.metadata?.tax_rate ?? 18,
             preferred_email_method: data.metadata?.preferred_email_method || 'emailjs',
+            upi_id: data.metadata?.upi_id || '',
+            gst_number: data.metadata?.gst_number || '',
           }));
         }
       } catch (e) {
@@ -83,6 +87,8 @@ const BrandingSettings = () => {
             currency: settings.currency,
             tax_rate: settings.tax_rate,
             preferred_email_method: settings.preferred_email_method,
+            upi_id: settings.upi_id,
+            gst_number: settings.gst_number,
           },
         }, { onConflict: 'user_id' });
       if (error) throw error;
@@ -234,6 +240,15 @@ const BrandingSettings = () => {
                 <div>
                   <Label className="text-xs text-gray-500">Address</Label>
                   <Input value={settings.address_line1 || ''} onChange={e => set('address_line1', e.target.value)} placeholder="123 Main St, City, State" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">UPI ID (VPA)</Label>
+                  <Input value={settings.upi_id || ''} onChange={e => set('upi_id', e.target.value)} placeholder="yourname@bank" className="mt-1 border-indigo-100 focus:border-indigo-300" />
+                  <p className="text-[10px] text-gray-400 mt-1 italic">Used to generate free payment QR codes on invoices.</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">GST Number</Label>
+                  <Input value={settings.gst_number || ''} onChange={e => set('gst_number', e.target.value)} placeholder="27AAAAA0000A1Z5" className="mt-1" />
                 </div>
               </div>
             </div>

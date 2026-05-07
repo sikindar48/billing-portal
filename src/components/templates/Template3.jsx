@@ -1,12 +1,11 @@
 import React from 'react';
 import BaseTemplate from './BaseTemplate';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { QRCodeSVG } from 'qrcode.react'; // Import QR Code component
+import QRSection from '../QRSection';
 
 const Template3 = ({ data }) => {
   const { billTo, shipTo, invoice, yourCompany, items, taxPercentage, taxAmount, subTotal, grandTotal, notes, selectedCurrency } = data;
 
-  const qrValue = `Invoice: ${invoice.number}, Total: ${formatCurrency(grandTotal, selectedCurrency)}, Due: ${invoice.paymentDate}`;
   const blueAccent = "#3b82f6"; // Tailwind blue-500 equivalent
 
   return (
@@ -126,13 +125,7 @@ const Template3 = ({ data }) => {
 
         {/* QR CODE (Moved to the bottom right, next to notes) */}
         <div className="w-1/3 flex flex-col items-end">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Scan to Pay/Verify</h3>
-          <QRCodeSVG 
-              value={qrValue}
-              size={100}
-              level="L"
-              className="p-1 border border-gray-300 rounded"
-          />
+          <QRSection data={data} />
         </div>
       </div>
     </BaseTemplate>

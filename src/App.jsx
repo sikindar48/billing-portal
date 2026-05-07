@@ -26,6 +26,7 @@ const TermsOfService   = lazy(() => import("./pages/public/TermsOfService"));
 const NotFound         = lazy(() => import("./pages/public/NotFound"));
 const Dashboard        = lazy(() => import("./pages/dashboard/Dashboard"));
 const InvoiceHistory   = lazy(() => import("./pages/dashboard/InvoiceHistory"));
+const UserAnalytics    = lazy(() => import("./pages/dashboard/UserAnalytics"));
 const TemplatePage     = lazy(() => import("./pages/dashboard/TemplatePage"));
 const BrandingSettings = lazy(() => import("./pages/settings/BrandingSettings"));
 const Profile          = lazy(() => import("./pages/settings/Profile"));
@@ -204,6 +205,19 @@ const App = () => {
                   <ProtectedRoute>
                     <SubscriptionGuard>
                       <InvoiceHistory />
+                    </SubscriptionGuard>
+                  </ProtectedRoute>
+                </ProtectedLayout>
+              } 
+            />
+            
+            <Route 
+              path="/dashboard/analytics" 
+              element={
+                <ProtectedLayout>
+                  <ProtectedRoute>
+                    <SubscriptionGuard>
+                      <UserAnalytics />
                     </SubscriptionGuard>
                   </ProtectedRoute>
                 </ProtectedLayout>

@@ -156,6 +156,7 @@ const Index = () => {
                     address: branding.metadata?.address || '',
                     phone: branding.metadata?.phone || '',
                     currency: branding.metadata?.currency || 'INR',
+                    upiId: branding.metadata?.upi_id || '',
                 });
                 if (branding.metadata?.currency) {
                     setSelectedCurrency(branding.metadata.currency);
@@ -214,6 +215,7 @@ const Index = () => {
         website: prev.website || brandingSettings.brandingWebsite || "",
         address: prev.address || brandingSettings.address || "",
         phone: prev.phone || brandingSettings.phone || "",
+        upiId: prev.upiId || brandingSettings.upiId || "",
     }));
   }, [brandingSettings]);
 

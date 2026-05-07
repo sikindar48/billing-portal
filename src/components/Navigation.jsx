@@ -104,6 +104,10 @@ const Navigation = () => {
               <User className="mr-2 h-4 w-4" /> Customers
             </Button>
 
+            <Button variant="ghost" onClick={() => navigate('/dashboard/analytics')} className={getNavButtonClass('/dashboard/analytics')} title="Revenue Dashboard">
+              <TrendingUp className="mr-2 h-4 w-4" /> Analytics
+            </Button>
+
             {isAdmin && (
               <Button variant="ghost" onClick={() => navigate('/analytics')} className={getNavButtonClass('/analytics')} title="Analytics">
                 <TrendingUp className="mr-2 h-4 w-4" /> Analytics
@@ -185,6 +189,10 @@ const Navigation = () => {
 
           <Button variant="ghost" onClick={() => handleNavigation('/customers')} className={getMobileNavButtonClass('/customers')}>
             <User className="mr-3 h-5 w-5" /> Customers
+          </Button>
+
+          <Button variant="ghost" onClick={() => handleNavigation('/dashboard/analytics')} className={getMobileNavButtonClass('/dashboard/analytics')}>
+            <TrendingUp className="mr-3 h-5 w-5" /> Analytics
           </Button>
 
           {isAdmin && (

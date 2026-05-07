@@ -2,7 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import BaseTemplate from './BaseTemplate';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { QRCodeSVG } from 'qrcode.react';
+import QRSection from '../QRSection';
 
 const Template2 = ({ data = {} }) => {
   const { billTo = {}, shipTo = {}, invoice = {}, yourCompany = {}, items = [], taxPercentage = 0, taxAmount = 0, subTotal = 0, grandTotal = 0, notes = '', selectedCurrency } = data;
@@ -12,8 +12,6 @@ const Template2 = ({ data = {} }) => {
   const ACCENT_SECONDARY = '#FBBC05'; // Lighter Orange (Subtle background/Table header)
   const DARK_TEXT = '#313131';   // Dark Gray Text
   const LIGHT_BACKGROUND = '#FFBF001A'; // Very light transparent background using secondary accent
-
-  const qrValue = `Invoice: ${invoice.number}, Total: ${formatCurrency(grandTotal, selectedCurrency)}, Due: ${invoice.paymentDate}`;
 
   return (
     <BaseTemplate data={data}>
@@ -147,13 +145,8 @@ const Template2 = ({ data = {} }) => {
                 </div>
               )}
               
-              <div className="mt-4">
-                  <h3 className="text-lg font-semibold mb-2" style={{ color: ACCENT_PRIMARY }}>Scan to Verify</h3>
-                  <QRCodeSVG 
-                      value={qrValue}
-                      size={100}
-                      level="L"
-                  />
+              <div className="mt-4 flex justify-start">
+                  <QRSection data={data} />
               </div>
             </div>
 

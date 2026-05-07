@@ -334,3 +334,15 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 - Security and compliance features
 
 **Ready for:** New user acquisition, marketing campaigns, feature expansion, and business growth.
+
+## 🔮 Future Roadmap & Opportunities
+
+Based on current implementation and market needs, the following features and improvements have been identified to further scale InvoicePort:
+
+| Category | Feature / Improvement | Type | Priority | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Payments** | **UPI QR Code** | **Free** | ✅ Done | Auto-generate UPI payment QR codes on invoices (or verification codes if UPI ID is missing). |
+| **Communication**| **WhatsApp Quick Share** | **Free** | ✅ Done | Integrated `wa.me` sharing with auto-verification links in `InvoiceHistory`. |
+| **Compliance** | **GSTR-1 Excel Export** | **Free** | ✅ Done | Export monthly data to Excel (client-side) with GSTIN and taxable value details. |
+| **Data Integrity**| **Payment Persistence** | **Gap** | ✅ Done | `handleRecordPayment` now stores transaction details in `invoice_payments` table. |
+| **Reporting** | **Revenue Dashboard** | Analytics | ✅ Done | Visual charts for MRR, Top Customers, and Monthly Revenue growth for users. |

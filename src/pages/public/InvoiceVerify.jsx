@@ -1,21 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Loader2, Search, CheckCircle2, XCircle, FileText, Building2, User, DollarSign, Calendar, AlertCircle, BadgeCheck } from 'lucide-react';
+import { Loader2, Search, CheckCircle2, XCircle, FileText, Building2, User, DollarSign, Calendar, AlertCircle, BadgeCheck, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { format } from 'date-fns';
 import FloatingLabelInput from '@/components/FloatingLabelInput';
 
 const InvoiceVerify = () => {
+  const location = useLocation();
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
-  const handleVerify = async () => {
-    if (!invoiceNumber.trim()) {
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+    const number = params.get('number');
+    const searchParam = id || number;
+
+    if (searchParam) {
+      setInvoiceNumber(searchParam);
+      handleVerify(searchParam);
+    }
+  }, [location]);
+
+  const handleVerify = async (manualTerm = null) => {
+    const searchTerm = (manualTerm || invoiceNumber).trim();
+    if (!searchTerm) {
       toast.error('Please enter an invoice number or ID');
       return;
     }
@@ -25,14 +40,18 @@ const InvoiceVerify = () => {
     setNotFound(false);
 
     try {
-      const searchTerm = invoiceNumber.trim();
+      // Safely query based on whether the search term is a UUID or an invoice number
+      let query = supabase.from('invoices').select('*');
       
-      // Try to fetch invoice by invoice_number OR by UUID
-      const { data, error } = await supabase
-        .from('invoices')
-        .select('*')
-        .or(`invoice_number.eq.${searchTerm},id.eq.${searchTerm}`)
-        .maybeSingle();
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchTerm);
+      
+      if (isUUID) {
+        query = query.or(`id.eq.${searchTerm},invoice_number.eq.${searchTerm}`);
+      } else {
+        query = query.eq('invoice_number', searchTerm);
+      }
+
+      const { data, error } = await query.maybeSingle();
 
       if (error) throw error;
 
@@ -49,6 +68,13 @@ const InvoiceVerify = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!invoice) return;
+    const shareLink = window.location.href;
+    const message = `Hi, I've verified this invoice #${invoice.invoice_number} from ${invoice.from_details?.name || 'our system'}. You can view the verification status here: ${shareLink}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   const getStatusBadge = (status) => {
@@ -156,16 +182,24 @@ const InvoiceVerify = () => {
         {invoice && (
           <div className="space-y-6">
             {/* Verification Success Banner */}
-            <Card className="border-green-200 bg-green-50">
+            <Card className="border-green-200 bg-green-50 shadow-sm">
               <CardContent className="p-6">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="font-semibold text-green-900 mb-1">Invoice Verified</h3>
-                    <p className="text-sm text-green-700">
-                      This invoice has been verified as authentic and belongs to a registered business.
-                    </p>
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="font-semibold text-green-900 mb-1 text-lg">Invoice Verified</h3>
+                      <p className="text-sm text-green-700">
+                        This document is authentic and recorded in our secure billing portal.
+                      </p>
+                    </div>
                   </div>
+                  <Button 
+                    onClick={handleShareWhatsApp}
+                    className="bg-[#25D366] hover:bg-[#128C7E] text-white gap-2 h-11 px-6 font-semibold"
+                  >
+                    <MessageCircle className="h-5 w-5" /> Share Verification
+                  </Button>
                 </div>
               </CardContent>
             </Card>

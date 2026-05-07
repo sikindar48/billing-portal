@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Loader2, Eye, Trash2, Download, Search, FileText, Calendar, DollarSign, CheckCircle2, Clock, AlertCircle, XCircle, Mail, ArrowRightLeft } from 'lucide-react';
+import { Loader2, Eye, Trash2, Download, Search, FileText, Calendar, DollarSign, CheckCircle2, Clock, AlertCircle, XCircle, Mail, ArrowRightLeft, MessageCircle, FileSpreadsheet } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -112,6 +112,55 @@ const InvoiceHistory = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    if (invoices.length === 0) {
+      toast.error("No invoices to export");
+      return;
+    }
+
+    try {
+      const headers = [
+        "Invoice Number", "Date", "Status", "Mode", "Client Name", "Client GSTIN", 
+        "Subtotal", "Tax %", "Tax Amount", "Grand Total", "Currency"
+      ];
+
+      const csvRows = [headers.join(",")];
+
+      filteredInvoices.forEach(inv => {
+        const row = [
+          `"${inv.invoice_number}"`,
+          `"${inv.invoice_details?.date || ''}"`,
+          `"${inv.status}"`,
+          `"${inv.invoice_mode || 'standard'}"`,
+          `"${inv.bill_to?.name || ''}"`,
+          `"${inv.bill_to?.taxId || ''}"`,
+          inv.subtotal,
+          inv.tax || 0,
+          ((inv.subtotal * (inv.tax || 0)) / 100).toFixed(2),
+          inv.grand_total,
+          `"${inv.invoice_details?.selectedCurrency || 'INR'}"`
+        ];
+        csvRows.push(row.join(","));
+      });
+
+      const csvContent = csvRows.join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Invoices_Export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("Invoices exported successfully!");
+    } catch (err) {
+      console.error("Export error:", err);
+      toast.error("Failed to export invoices");
+    }
+  };
+
   const handleDelete = async (id) => {
     setProcessingId(id);
     try {
@@ -211,7 +260,7 @@ const InvoiceHistory = () => {
     const Icon = config.icon;
 
     return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${config.color}`}>
+      <span className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border leading-none ${config.color}`}>
         <Icon className="h-3 w-3" />
         {config.label}
       </span>
@@ -283,18 +332,34 @@ const InvoiceHistory = () => {
 
     setSavingPayment(true);
     try {
-      // Mark invoice as paid if full amount received
+      // 1. Persist the payment details in the dedicated table
+      const { error: paymentError } = await supabase
+        .from('invoice_payments')
+        .insert({
+          invoice_id: selectedInvoice.id,
+          user_id: user.id,
+          amount: parseFloat(paymentData.amount),
+          payment_date: paymentData.payment_date,
+          payment_method: paymentData.payment_method,
+          transaction_id: paymentData.transaction_id || null,
+          reference_number: paymentData.reference_number || null,
+          notes: paymentData.notes || null
+        });
+
+      if (paymentError) throw paymentError;
+
+      // 2. Mark invoice as paid if full amount received
       const invoiceAmount = selectedInvoice.grand_total || 0;
       if (parseFloat(paymentData.amount) >= invoiceAmount) {
         await handleStatusChange(selectedInvoice.id, 'paid', user.id);
       }
 
-      toast.success('Payment recorded successfully');
+      toast.success('Payment recorded and persisted successfully');
       setIsPaymentModalOpen(false);
       loadInvoices();
     } catch (error) {
       console.error('Error recording payment:', error);
-      toast.error('Failed to record payment');
+      toast.error('Failed to record payment: ' + (error.message || 'Unknown error'));
     } finally {
       setSavingPayment(false);
     }
@@ -452,13 +517,30 @@ const InvoiceHistory = () => {
         
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-             <div>
-                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Invoice History</h1>
-                <p className="text-gray-500 text-sm mt-1">Manage and track all your generated documents.</p>
-             </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <FileText className="text-indigo-600 h-6 w-6" /> Invoice History
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">Manage and track all your generated documents.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleExportCSV}
+                className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                <span className="hidden sm:inline">Export GSTR-1</span>
+                <span className="sm:hidden">Export</span>
+              </Button>
+              <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg border border-indigo-100 text-sm font-medium shadow-sm">
+                Total: {filteredInvoices.length} {filteredInvoices.length === 1 ? 'Invoice' : 'Invoices'}
+              </div>
+            </div>
+        </div>
 
              {/* Search & Filter */}
-             <div className="flex gap-3 w-full md:w-auto">
+             <div className="flex flex-col md:flex-row gap-4 mb-8 w-full">
                  <div className="relative flex-1 md:min-w-[250px]">
                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                      <input 
@@ -495,7 +577,6 @@ const InvoiceHistory = () => {
                     </SelectContent>
                 </Select>
              </div>
-        </div>
 
         {/* Content Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -547,7 +628,7 @@ const InvoiceHistory = () => {
                                             value={invoice.invoice_details?.status || 'draft'}
                                             onValueChange={(value) => handleStatusChange(invoice.id, value)}
                                         >
-                                            <SelectTrigger className="w-[130px] h-8 border-0 focus:ring-0">
+                                            <SelectTrigger className="w-[130px] h-9 border-gray-100 bg-transparent hover:bg-gray-50/50 transition-colors focus:ring-0 px-2 rounded-lg">
                                                 <SelectValue>
                                                     {getStatusBadge(invoice.invoice_details?.status || 'draft')}
                                                 </SelectValue>
@@ -609,6 +690,20 @@ const InvoiceHistory = () => {
                                                 className="text-gray-400 hover:text-green-600 hover:bg-green-50"
                                             >
                                                 {processingId === invoice.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                            </Button>
+
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                  const shareLink = `${window.location.origin}/verify-invoice?number=${invoice.invoice_number}`;
+                                                  const message = `Hi, here is your invoice #${invoice.invoice_number} for ${formatCurrency(invoice.grand_total, invoice.currency || 'INR')}. You can verify and view it here: ${shareLink}`;
+                                                  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+                                                }}
+                                                title="Share via WhatsApp"
+                                                className="text-gray-400 hover:text-green-500 hover:bg-green-50"
+                                            >
+                                                <MessageCircle className="h-4 w-4" />
                                             </Button>
 
                                             <Button
