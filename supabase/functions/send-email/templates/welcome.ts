@@ -12,207 +12,143 @@ export function welcomeEmailHtml(userName: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Welcome to InvoicePort</title>
   <style>
-    /* RESET STYLES */
-    body { margin: 0; padding: 0; min-width: 100%; width: 100% !important; height: 100% !important; background-color: #f8fafc; }
-    table { border-spacing: 0; border-collapse: collapse; table-layout: fixed; margin: 0 auto; }
-    img { border: 0; line-height: 100%; outline: none; text-decoration: none; }
+    body { margin: 0; padding: 0; background-color: #f4f7fa; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    table { border-collapse: collapse; }
+    .main-card { background-color: #ffffff; border: 1px solid #e1e8f0; border-radius: 12px; overflow: hidden; }
     
     @media only screen and (max-width: 600px) {
-      .container { width: 100% !important; padding-left: 10px !important; padding-right: 10px !important; }
-      .content-wrap { padding: 30px 20px !important; }
-      .hero-title { font-size: 28px !important; line-height: 1.2 !important; }
-      .hero-sub { font-size: 15px !important; }
-      .stat-item { width: 100% !important; display: block !important; margin-bottom: 12px !important; }
-      .stat-spacer { display: none !important; }
-      .step-icon-col { width: 44px !important; }
-      .step-text-col { padding-left: 12px !important; }
-      .pro-card { width: 100% !important; display: block !important; padding-right: 0 !important; padding-left: 0 !important; margin-bottom: 15px !important; }
-      .pro-spacer { display: none !important; }
-      .btn-primary { width: 100% !important; display: block !important; box-sizing: border-box !important; }
+      .container { width: 100% !important; padding: 10px !important; }
+      .content { padding: 30px 20px !important; }
+      .hero-h1 { font-size: 24px !important; }
+      .feature-card { width: 100% !important; display: block !important; margin-bottom: 16px !important; }
+      .hide-mobile { display: none !important; }
     }
   </style>
 </head>
-<body style="background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+<body style="background-color: #f4f7fa; padding: 40px 0;">
 
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; padding: 40px 0;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f7fa;">
   <tr>
     <td align="center">
-      <!-- MAIN CONTAINER -->
-      <table class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.05); border: 1px solid #eef2f6;">
+      <table class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width: 600px; margin: 0 auto;">
         
-        <!-- HERO SECTION -->
+        <!-- LOGO -->
         <tr>
-          <td style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); padding: 60px 40px 40px;" class="content-wrap">
-            <img src="${LOGO_URL}" width="72" height="72" alt="InvoicePort" style="display: block; margin: 0 auto 24px; border-radius: 18px; box-shadow: 0 10px 20px rgba(0,0,0,0.2);" />
-            <h1 class="hero-title" style="margin: 0 0 12px; color: #ffffff; font-size: 36px; font-weight: 800; text-align: center; letter-spacing: -0.02em;">Welcome to the family! 🎉</h1>
-            <p class="hero-sub" style="margin: 0 0 32px; color: rgba(255,255,255,0.9); font-size: 17px; line-height: 1.6; text-align: center; max-width: 440px; margin-left: auto; margin-right: auto;">
-              Hi ${name}, your InvoicePort account is ready. Let's make your billing process as smooth as silk.
-            </p>
-            <div align="center">
-              <a href="${SITE_URL}/dashboard" class="btn-primary" style="display: inline-block; background-color: #ffffff; color: #6366f1; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.15); transition: transform 0.2s ease;">Create Your First Invoice</a>
-            </div>
+          <td align="center" style="padding-bottom: 24px;">
+            <img src="${LOGO_URL}" width="48" height="48" alt="InvoicePort" style="border-radius: 10px;" />
           </td>
         </tr>
 
-        <!-- STATS / HIGHLIGHTS -->
+        <!-- MAIN CARD -->
         <tr>
-          <td style="background-color: #4f46e5; padding: 0 40px 30px;" class="content-wrap">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td class="stat-item" width="31%" align="center" style="background: rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 10px;">
-                  <div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">&lt; 2 min</div>
-                  <div style="font-size: 11px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">To generate</div>
-                </td>
-                <td class="stat-spacer" width="3.5%"></td>
-                <td class="stat-item" width="31%" align="center" style="background: rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 10px;">
-                  <div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">12+</div>
-                  <div style="font-size: 11px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Premium UI</div>
-                </td>
-                <td class="stat-spacer" width="3.5%"></td>
-                <td class="stat-item" width="31%" align="center" style="background: rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 10px;">
-                  <div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">₹0</div>
-                  <div style="font-size: 11px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">To Start</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- HOW IT WORKS -->
-        <tr>
-          <td style="padding: 48px 40px 24px;" class="content-wrap">
-            <h2 style="margin: 0 0 28px; color: #0f172a; font-size: 20px; font-weight: 800; letter-spacing: -0.01em;">Quick Start Guide 🚀</h2>
+          <td class="main-card" style="background-color: #ffffff; border: 1px solid #e1e8f0; border-radius: 12px; overflow: hidden;">
             
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+            <!-- HERO -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-bottom: 1px solid #f0f4f8;">
               <tr>
-                <td class="step-icon-col" width="56" valign="top">
-                  <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); border-radius: 12px; color: #6366f1; text-align: center; line-height: 40px; font-weight: 800; font-size: 16px; border: 1px solid #c7d2fe;">1</div>
-                </td>
-                <td class="step-text-col" style="padding-left: 20px; padding-bottom: 24px;">
-                  <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Choose your vibe</div>
-                  <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">Pick from our curated list of professional, high-fidelity invoice templates.</p>
-                </td>
-              </tr>
-              <tr>
-                <td class="step-icon-col" valign="top">
-                  <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border-radius: 12px; color: #8b5cf6; text-align: center; line-height: 40px; font-weight: 800; font-size: 16px; border: 1px solid #ddd6fe;">2</div>
-                </td>
-                <td class="step-text-col" style="padding-left: 20px; padding-bottom: 24px;">
-                  <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Fill in the blanks</div>
-                  <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">Our smart editor helps you add items, clients, and taxes in record time.</p>
-                </td>
-              </tr>
-              <tr>
-                <td class="step-icon-col" valign="top">
-                  <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; color: #10b981; text-align: center; line-height: 40px; font-weight: 800; font-size: 16px; border: 1px solid #a7f3d0;">3</div>
-                </td>
-                <td class="step-text-col" style="padding-left: 20px;">
-                  <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Send & Get Paid</div>
-                  <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">Download as a premium PDF or send directly via email to your clients.</p>
+                <td class="content" style="padding: 48px 40px; text-align: center;">
+                  <h1 class="hero-h1" style="margin: 0 0 16px; color: #1a202c; font-size: 28px; font-weight: 700; letter-spacing: -0.02em;">Welcome to InvoicePort, ${name}</h1>
+                  <p style="margin: 0 0 32px; color: #4a5568; font-size: 16px; line-height: 1.6; max-width: 480px; margin-left: auto; margin-right: auto;">
+                    We're excited to help you streamline your billing process. Your account is now active and ready for your first professional invoice.
+                  </p>
+                  <a href="${SITE_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);">
+                    Go to Dashboard
+                  </a>
                 </td>
               </tr>
             </table>
-          </td>
-        </tr>
 
-        <!-- DIVIDER -->
-        <tr>
-          <td style="padding: 0 40px;"><div style="height: 1px; background-color: #f1f5f9;"></div></td>
-        </tr>
-
-        <!-- PRO FEATURES -->
-        <tr>
-          <td style="padding: 40px 40px 10px;" class="content-wrap">
-            <div style="text-align: center; margin-bottom: 32px;">
-              <span style="background-color: #fffbeb; color: #d97706; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 4px 12px; border-radius: 20px; border: 1px solid #fef3c7;">Pro Features</span>
-              <h2 style="margin: 12px 0 0; color: #0f172a; font-size: 20px; font-weight: 800;">Scale your business ⚡</h2>
-            </div>
-
+            <!-- STEPS -->
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td class="pro-card" width="48%" style="padding-bottom: 20px;">
-                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border-radius: 16px; border: 1px solid #f1f5f9; padding: 20px;">
+                <td class="content" style="padding: 40px;">
+                  <h2 style="margin: 0 0 24px; color: #1a202c; font-size: 18px; font-weight: 600;">Getting Started is Simple</h2>
+                  
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <!-- Step 1 -->
                     <tr>
-                      <td>
-                        <div style="font-size: 24px; margin-bottom: 12px;">📧</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Gmail Sync</div>
-                        <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">Send invoices from your own professional domain.</p>
+                      <td width="32" valign="top" style="padding-top: 4px;">
+                        <div style="width: 24px; height: 24px; background-color: #eef2ff; border-radius: 50%; color: #4f46e5; text-align: center; line-height: 24px; font-size: 13px; font-weight: 700;">1</div>
+                      </td>
+                      <td style="padding-left: 16px; padding-bottom: 24px;">
+                        <div style="font-size: 15px; font-weight: 600; color: #2d3748; margin-bottom: 4px;">Customize Your Profile</div>
+                        <p style="margin: 0; font-size: 14px; color: #718096; line-height: 1.5;">Add your business details and logo in settings to personalize your invoices.</p>
                       </td>
                     </tr>
-                  </table>
-                </td>
-                <td class="pro-spacer" width="4%"></td>
-                <td class="pro-card" width="48%" style="padding-bottom: 20px;">
-                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border-radius: 16px; border: 1px solid #f1f5f9; padding: 20px;">
+                    <!-- Step 2 -->
                     <tr>
-                      <td>
-                        <div style="font-size: 24px; margin-bottom: 12px;">🎨</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Custom Brand</div>
-                        <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">Your logo, your colors, your rules. Zero InvoicePort ads.</p>
+                      <td width="32" valign="top" style="padding-top: 4px;">
+                        <div style="width: 24px; height: 24px; background-color: #eef2ff; border-radius: 50%; color: #4f46e5; text-align: center; line-height: 24px; font-size: 13px; font-weight: 700;">2</div>
+                      </td>
+                      <td style="padding-left: 16px; padding-bottom: 24px;">
+                        <div style="font-size: 15px; font-weight: 600; color: #2d3748; margin-bottom: 4px;">Create an Invoice</div>
+                        <p style="margin: 0; font-size: 14px; color: #718096; line-height: 1.5;">Choose from our professional templates and fill in your client details.</p>
                       </td>
                     </tr>
-                  </table>
-                </td>
-              </tr>
-              <tr>
-                <td class="pro-card" width="48%" style="padding-bottom: 20px;">
-                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border-radius: 16px; border: 1px solid #f1f5f9; padding: 20px;">
+                    <!-- Step 3 -->
                     <tr>
-                      <td>
-                        <div style="font-size: 24px; margin-bottom: 12px;">♾️</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Unlimited</div>
-                        <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">No limits on invoices, downloads, or templates.</p>
+                      <td width="32" valign="top" style="padding-top: 4px;">
+                        <div style="width: 24px; height: 24px; background-color: #eef2ff; border-radius: 50%; color: #4f46e5; text-align: center; line-height: 24px; font-size: 13px; font-weight: 700;">3</div>
                       </td>
-                    </tr>
-                  </table>
-                </td>
-                <td class="pro-spacer" width="4%"></td>
-                <td class="pro-card" width="48%" style="padding-bottom: 20px;">
-                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border-radius: 16px; border: 1px solid #f1f5f9; padding: 20px;">
-                    <tr>
-                      <td>
-                        <div style="font-size: 24px; margin-bottom: 12px;">🛠️</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Smart Tools</div>
-                        <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">Advanced analytics and bulk invoice generation.</p>
+                      <td style="padding-left: 16px;">
+                        <div style="font-size: 15px; font-weight: 600; color: #2d3748; margin-bottom: 4px;">Send and Get Paid</div>
+                        <p style="margin: 0; font-size: 14px; color: #718096; line-height: 1.5;">Download your invoice as a PDF or send it directly to your client via email.</p>
                       </td>
                     </tr>
                   </table>
                 </td>
               </tr>
             </table>
-          </td>
-        </tr>
 
-        <!-- SUBSCRIPTION CTA -->
-        <tr>
-          <td style="padding: 20px 40px 60px;" class="content-wrap">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fcd34d; border-radius: 20px; padding: 30px 24px; text-align: center;">
+            <!-- PRO SECTION -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border-top: 1px solid #f0f4f8; border-bottom: 1px solid #f0f4f8;">
               <tr>
-                <td>
-                  <p style="margin: 0 0 16px; color: #92400e; font-size: 14px; font-weight: 600; line-height: 1.5;">Professional billing without the monthly headache. No auto-renewals, just pure value.</p>
-                  <a href="${SITE_URL}/subscription" style="display: inline-block; background: linear-gradient(to right, #d97706, #f59e0b); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 700; box-shadow: 0 8px 16px rgba(217,119,6,0.2);">Upgrade to Pro</a>
+                <td class="content" style="padding: 40px;">
+                  <div style="text-align: center; margin-bottom: 24px;">
+                    <span style="font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; background-color: #eef2ff; padding: 4px 10px; border-radius: 4px;">Pro Advantage</span>
+                    <h2 style="margin: 12px 0 0; color: #1a202c; font-size: 20px; font-weight: 600;">Take your billing to the next level</h2>
+                  </div>
+
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td class="feature-card" width="50%" valign="top" style="padding-right: 10px;">
+                        <div style="background-color: #ffffff; border: 1px solid #edf2f7; border-radius: 8px; padding: 20px; min-height: 120px;">
+                          <div style="font-size: 18px; margin-bottom: 12px;">📥</div>
+                          <div style="font-size: 14px; font-weight: 600; color: #2d3748; margin-bottom: 6px;">Unlimited PDF</div>
+                          <p style="margin: 0; font-size: 12px; color: #718096; line-height: 1.5;">Download as many invoices as you need with no restrictions.</p>
+                        </div>
+                      </td>
+                      <td class="feature-card" width="50%" valign="top" style="padding-left: 10px;">
+                        <div style="background-color: #ffffff; border: 1px solid #edf2f7; border-radius: 8px; padding: 20px; min-height: 120px;">
+                          <div style="font-size: 18px; margin-bottom: 12px;">📧</div>
+                          <div style="font-size: 14px; font-weight: 600; color: #2d3748; margin-bottom: 6px;">Gmail Sync</div>
+                          <p style="margin: 0; font-size: 12px; color: #718096; line-height: 1.5;">Send invoices directly from your own Gmail account.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                  
+                  <div style="text-align: center; margin-top: 32px;">
+                    <a href="${SITE_URL}/subscription" style="color: #4f46e5; text-decoration: none; font-size: 14px; font-weight: 600;">
+                      Explore Pro Plans &rarr;
+                    </a>
+                  </div>
                 </td>
               </tr>
             </table>
+
           </td>
         </tr>
 
         <!-- FOOTER -->
         <tr>
-          <td style="background-color: #f8fafc; padding: 40px; border-top: 1px solid #f1f5f9;" class="content-wrap">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td align="center">
-                  <div style="margin-bottom: 20px;">
-                    <a href="${SITE_URL}" style="text-decoration: none; color: #6366f1; font-weight: 700; font-size: 14px;">InvoicePort</a>
-                    <span style="color: #cbd5e1; margin: 0 10px;">•</span>
-                    <a href="mailto:${SUPPORT_EMAIL}" style="text-decoration: none; color: #6366f1; font-weight: 700; font-size: 14px;">Support</a>
-                  </div>
-                  <p style="margin: 0 0 8px; color: #64748b; font-size: 13px; line-height: 1.5;">Questions? Just reply to this email. We read every message.</p>
-                  <p style="margin: 0; color: #94a3b8; font-size: 12px;">© ${CURRENT_YEAR} InvoicePort. All rights reserved.</p>
-                </td>
-              </tr>
-            </table>
+          <td align="center" style="padding: 32px 0;">
+            <p style="margin: 0 0 12px; color: #718096; font-size: 13px; line-height: 1.5;">
+              Need help? Reply to this email or visit our <a href="${SITE_URL}" style="color: #4f46e5; text-decoration: none;">Help Center</a>.
+            </p>
+            <p style="margin: 0; color: #a0aec0; font-size: 12px;">
+              &copy; ${CURRENT_YEAR} InvoicePort. All rights reserved.
+            </p>
           </td>
         </tr>
 
@@ -224,4 +160,3 @@ export function welcomeEmailHtml(userName: string): string {
 </body>
 </html>`;
 }
-
