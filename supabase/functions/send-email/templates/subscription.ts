@@ -1,8 +1,8 @@
 // ─── Subscription Confirmation Email Template ─────────────────────────────────
 
-import { subscriptionStyles } from '../shared/styles';
-import { pageWrapper, emailCard, headerBanner, emailFooter, ctaButton } from '../shared/components';
-import { SITE_URL, formatIndianCurrency, formatDate } from '../shared/utils';
+import { subscriptionStyles } from '../shared/styles.ts';
+import { pageWrapper, emailCard, headerBanner, emailFooter, ctaButton } from '../shared/components.ts';
+import { SITE_URL, formatIndianCurrency, formatDate } from '../shared/utils.ts';
 
 const FEATURES = [
   { icon: '📄', text: 'Unlimited Invoices',   desc: 'Create as many invoices as you need'   },

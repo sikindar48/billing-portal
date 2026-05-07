@@ -13,21 +13,28 @@ function json(data: unknown, status = 200) {
   });
 }
 
-// Looks up a user by email using the Supabase Admin REST API
-async function findUserByEmail(supabaseUrl: string, serviceRoleKey: string, email: string) {
-  const res = await fetch(
-    `${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`,
-    {
-      headers: {
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
+// Looks up a user by email using the Supabase Admin client
+async function findUserByEmail(adminClient: any, email: string) {
+  try {
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 50 });
+      if (error || !data || !data.users) {
+        console.error("Error listing users:", error);
+        return null;
+      }
+      const user = data.users.find((u: { email: string }) => u.email?.toLowerCase() === email);
+      if (user) return user;
+      
+      hasMore = data.users.length === 50;
+      page++;
     }
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  const list = Array.isArray(data) ? data : (data.users ?? []);
-  return list.find((u: { email: string }) => u.email?.toLowerCase() === email) ?? null;
+    return null;
+  } catch (err) {
+    console.error("findUserByEmail error:", err);
+    return null;
+  }
 }
 
 serve(async (req) => {
@@ -54,7 +61,10 @@ serve(async (req) => {
         return json({ error: 'Missing email' }, 400);
       }
       const normalizedEmail = email.toLowerCase().trim();
-      const user = await findUserByEmail(SUPABASE_URL, SERVICE_ROLE_KEY, normalizedEmail);
+      const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const user = await findUserByEmail(adminClient, normalizedEmail);
       if (!user) {
         return json({ exists: false, error: 'No account found with this email address.' }, 404);
       }
@@ -98,7 +108,7 @@ serve(async (req) => {
       }
 
       // Find the user
-      const user = await findUserByEmail(SUPABASE_URL, SERVICE_ROLE_KEY, normalizedEmail);
+      const user = await findUserByEmail(adminClient, normalizedEmail);
       if (!user) {
         return json({ error: 'No account found for this email address.' }, 404);
       }

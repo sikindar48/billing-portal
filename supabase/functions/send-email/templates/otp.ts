@@ -1,8 +1,8 @@
 // ─── Password Reset Email Template ────────────────────────────────────────────
 
-import { otpStyles } from '../shared/styles';
-import { pageWrapper, emailCard } from '../shared/components';
-import { SUPPORT_EMAIL, CURRENT_YEAR } from '../shared/utils';
+import { otpStyles } from '../shared/styles.ts';
+import { pageWrapper, emailCard } from '../shared/components.ts';
+import { SUPPORT_EMAIL, CURRENT_YEAR } from '../shared/utils.ts';
 
 export function otpEmailHtml(otpCode: string, expiresIn: string): string {
   const body = emailCard(`

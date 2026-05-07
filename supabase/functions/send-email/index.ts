@@ -1,9 +1,9 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { serve } from 'https://deno.land/std@0.168.0/http/server';
 
-import { welcomeEmailHtml }            from './templates/welcome';
-import { otpEmailHtml }                from './templates/otp';
+import { welcomeEmailHtml } from './templates/welcome';
+import { otpEmailHtml } from './templates/otp';
 import { subscriptionConfirmationHtml } from './templates/subscription';
-import type { EmailRequest }           from './types';
+import type { EmailRequest } from './types';
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 
@@ -35,16 +35,16 @@ serve(async (req) => {
 
     // ── Build subject + html per type ────────────────────────────────────
     let subject = '';
-    let html    = '';
+    let html = '';
 
     if (type === 'welcome') {
       subject = "🎉 Welcome to InvoicePort – Let's Get Started!";
-      html    = welcomeEmailHtml(body.user_name ?? '');
+      html = welcomeEmailHtml(body.user_name ?? '');
 
     } else if (type === 'otp') {
       if (!body.otp_code) return json({ error: 'Missing otp_code' }, 400);
       subject = `${body.otp_code} is your InvoicePort Password Reset code`;
-      html    = otpEmailHtml(body.otp_code, body.expires_in ?? '10 minutes');
+      html = otpEmailHtml(body.otp_code, body.expires_in ?? '10 minutes');
 
     } else if (type === 'subscription_confirmation') {
       const { plan_name, amount, period_end } = body;
@@ -52,7 +52,7 @@ serve(async (req) => {
         return json({ error: 'Missing fields: plan_name, amount, period_end' }, 400);
       }
       subject = `🎉 You're on ${plan_name} – InvoicePort`;
-      html    = subscriptionConfirmationHtml(
+      html = subscriptionConfirmationHtml(
         body.user_name ?? '',
         plan_name,
         amount,
@@ -73,7 +73,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: 'InvoicePort <info@invoiceport.live>',
-        to:   Array.isArray(to) ? to : [to],
+        to: Array.isArray(to) ? to : [to],
         subject,
         html,
       }),
