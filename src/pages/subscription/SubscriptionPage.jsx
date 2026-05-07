@@ -196,14 +196,29 @@ const SubscriptionPage = () => {
   useEffect(() => {
     if (!user?.id) { setLoading(false); return; }
 
+    let isMounted = true;
+    const fallbackTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 5000);
+
     supabase
       .from('user_subscriptions')
       .select('*, subscription_plans(*)')
       .eq('user_id', user.id)
       .maybeSingle()
-      .then(({ data }) => setSubscription(data))
+      .then(({ data }) => {
+        if (isMounted) setSubscription(data);
+      })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        clearTimeout(fallbackTimer);
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(fallbackTimer);
+    };
   }, [user]);
 
   // -------------------------------------------------------------------------

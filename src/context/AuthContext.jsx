@@ -14,7 +14,11 @@ export const AuthProvider = ({ children }) => {
   const resolveUserData = async (u) => {
     if (!u) return { adminStatus: false, subStatus: 'expired' };
 
-    const [adminResult, subResult] = await Promise.allSettled([
+    const timeoutPromise = new Promise((resolve) => 
+      setTimeout(() => resolve('TIMEOUT'), 5000)
+    );
+
+    const dataPromise = Promise.allSettled([
       supabase.from('user_roles').select('role').eq('user_id', u.id).eq('role', 'admin').maybeSingle()
         .then(({ data }) => !!data)
         .catch(() => false),
@@ -33,6 +37,14 @@ export const AuthProvider = ({ children }) => {
         .catch(() => 'allowed'),
     ]);
 
+    const result = await Promise.race([dataPromise, timeoutPromise]);
+
+    if (result === 'TIMEOUT') {
+      console.warn('resolveUserData timed out after 5 seconds');
+      return { adminStatus: false, subStatus: 'allowed' };
+    }
+
+    const [adminResult, subResult] = result;
     const adminStatus = adminResult.status === 'fulfilled' ? adminResult.value : false;
     const subStatus = adminStatus ? 'allowed' : (subResult.status === 'fulfilled' ? subResult.value : 'allowed');
     return { adminStatus, subStatus };
