@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, Save, Building2, Mail, FileText } from 'lucide-react';
-import GmailTestButtonFixed from '@/components/GmailTestButtonFixed';
+import GmailConnect from '@/components/GmailConnect';
 
 const BrandingSettings = () => {
   const { user } = useAuth();
@@ -304,7 +304,7 @@ const BrandingSettings = () => {
               {settings.preferred_email_method === 'gmail' && (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro') && (
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-xs text-gray-500 mb-3">Connect your Gmail account to send invoices professionally.</p>
-                  <GmailTestButtonFixed />
+                  <GmailConnect />
                 </div>
               )}
 

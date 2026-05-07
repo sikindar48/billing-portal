@@ -30,58 +30,68 @@ const isAdminUser = async () => {
  */
 export const checkEmailUsageLimit = async () => {
   try {
-    // Check if user is admin first
-    const isAdmin = await isAdminUser();
-    if (isAdmin) {
-      return {
-        canSendEmail: true,
-        currentUsage: 0,
-        emailLimit: 999999,
-        planName: 'Admin',
-        isPro: true,
-        isAdmin: true
-      };
-    }
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Email usage check timeout')), 5000)
+    );
     
-    const { data, error } = await supabase.rpc('check_email_limit');
-    
-    if (error) {
-      // Default to trial limits on error
-      return {
-        canSendEmail: false,
-        currentUsage: 0,
-        emailLimit: 3,
-        planName: 'Trial',
-        isPro: false,
-        isAdmin: false,
-        error: error.message
-      };
-    }
+    const checkPromise = (async () => {
+      // Check if user is admin first
+      const isAdmin = await isAdminUser();
+      if (isAdmin) {
+        return {
+          canSendEmail: true,
+          currentUsage: 0,
+          emailLimit: 999999,
+          planName: 'Admin',
+          isPro: true,
+          isAdmin: true
+        };
+      }
+      
+      const { data, error } = await supabase.rpc('check_email_limit');
+      
+      if (error) {
+        // Default to trial limits on error
+        return {
+          canSendEmail: false,
+          currentUsage: 0,
+          emailLimit: 3,
+          planName: 'Trial',
+          isPro: false,
+          isAdmin: false,
+          error: error.message
+        };
+      }
 
-    if (!data || data.length === 0) {
+      if (!data || data.length === 0) {
+        return {
+          canSendEmail: false,
+          currentUsage: 0,
+          emailLimit: 3,
+          planName: 'No Plan',
+          isPro: false,
+          isAdmin: false
+        };
+      }
+
+      const result = data[0];
+
       return {
-        canSendEmail: false,
-        currentUsage: 0,
-        emailLimit: 3,
-        planName: 'No Plan',
-        isPro: false,
+        canSendEmail: result.can_send_email,
+        currentUsage: result.current_usage,
+        emailLimit: result.email_limit,
+        planName: result.plan_name,
+        isPro: result.is_pro,
         isAdmin: false
       };
-    }
-
-    const result = data[0];
-
-    return {
-      canSendEmail: result.can_send_email,
-      currentUsage: result.current_usage,
-      emailLimit: result.email_limit,
-      planName: result.plan_name,
-      isPro: result.is_pro,
-      isAdmin: false
-    };
+    })();
+    
+    return await Promise.race([checkPromise, timeoutPromise]);
   } catch (error) {
+    console.warn('Email usage check failed:', error.message);
     return {
-      canSendEmail: false,
+      canSendEmail: true, // Fail open to not block users
       currentUsage: 0,
       emailLimit: 3,
       planName: 'Error',

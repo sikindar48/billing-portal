@@ -66,12 +66,64 @@ export const exchangeCodeForTokens = async (authCode) => {
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke('gmail-token-exchange', {
+    const response = await supabase.functions.invoke('gmail-token-exchange', {
       body: { code: authCode, redirect_uri: REDIRECT_URI }
     });
 
-    if (error) throw new Error(error.message || 'Token exchange failed');
-    if (data?.error) throw new Error(data.error_description || data.error);
+    console.log('=== TOKEN EXCHANGE DEBUG ===');
+    console.log('Full response:', response);
+    console.log('Response data:', response.data);
+    console.log('Response error:', response.error);
+    console.log('===========================');
+
+    const { data, error } = response;
+
+    // Check for FunctionsHttpError - this means the function returned non-2xx
+    if (error) {
+      console.error('Supabase function error:', error);
+      
+      // Try to get more details from the error context
+      if (error.context) {
+        console.error('Error context:', error.context);
+      }
+      
+      // If we have data despite the error, it might contain the actual error message
+      if (data) {
+        console.error('Error data:', data);
+        
+        if (data.error === 'server_config_error') {
+          throw new Error('❌ Server Configuration Error\n\nGmail credentials (GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET) are not set in Supabase secrets.\n\nFix:\n1. Go to Supabase Dashboard → Edge Functions → Secrets\n2. Add both secrets\n3. Try again');
+        } else if (data.error === 'invalid_grant') {
+          throw new Error('⏱️ Authorization Code Expired\n\nThe authorization code from Google has expired (they only last 10 minutes).\n\nFix: Try connecting Gmail again.');
+        } else if (data.error_description) {
+          throw new Error(`Google OAuth Error: ${data.error_description}`);
+        } else if (data.error) {
+          throw new Error(`OAuth Error: ${data.error}`);
+        }
+      }
+      
+      throw new Error(`Edge Function Error: ${error.message || 'Unknown error'}\n\nCheck browser console for details.`);
+    }
+    
+    if (data?.error) {
+      console.error('OAuth error from Google:', data);
+      
+      // Provide helpful error messages
+      if (data.error === 'server_config_error') {
+        throw new Error('❌ Server Configuration Error\n\nGmail credentials not set in Supabase secrets.\n\nSee FIX_GMAIL_OAUTH.md for instructions.');
+      } else if (data.error === 'invalid_grant') {
+        throw new Error('⏱️ Authorization code expired (10 min limit).\n\nPlease try connecting Gmail again.');
+      } else if (data.error === 'redirect_uri_mismatch') {
+        throw new Error('❌ Redirect URI Mismatch\n\nThe redirect URI doesn\'t match Google Console configuration.\n\nExpected: ' + REDIRECT_URI);
+      } else {
+        throw new Error(data.error_description || data.error);
+      }
+    }
+
+    if (!data || !data.access_token) {
+      console.error('Invalid token response:', data);
+      throw new Error('No access token received from server');
+    }
 
     return data;
   } catch (error) {

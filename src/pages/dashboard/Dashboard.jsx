@@ -59,6 +59,7 @@ const Index = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailUsageStats, setEmailUsageStats] = useState(null);
+  const [isLoadingEmailStats, setIsLoadingEmailStats] = useState(true);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState(3);
   // brandingApplied ref prevents the branding effect from re-running on every keystroke
@@ -114,13 +115,30 @@ const Index = () => {
     const initData = async () => {
         try {
             setInitError(null);
-            // Fetch branding (uses the real 'branding_settings' table)
-            const { data: branding } = await supabase
+            
+            // Fetch all data in parallel for better performance
+            const [brandingResult, subResult, emailStatsResult] = await Promise.allSettled([
+              // Fetch branding (uses the real 'branding_settings' table)
+              supabase
                 .from('branding_settings')
                 .select('*')
                 .eq('user_id', user.id)
-                .maybeSingle();
-            if (branding) {
+                .maybeSingle(),
+              
+              // Fetch subscription
+              supabase
+                .from('user_subscriptions')
+                .select('*, subscription_plans(*)')
+                .eq('user_id', user.id)
+                .maybeSingle(),
+              
+              // Fetch email usage stats
+              checkEmailUsageLimit()
+            ]);
+
+            // Process branding
+            if (brandingResult.status === 'fulfilled' && brandingResult.value.data) {
+                const branding = brandingResult.value.data;
                 setBrandingSettings({
                     logoUrl: branding.logo_url || '',
                     brandingCompanyName: branding.company_name || '',
@@ -135,34 +153,37 @@ const Index = () => {
                 }
             }
 
-            // Fetch subscription
-            const { data: sub } = await supabase
-                .from('user_subscriptions')
-                .select('*, subscription_plans(*)')
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            if (!sub && user.email_confirmed_at) {
-                const trialEndDate = new Date();
-                trialEndDate.setDate(trialEndDate.getDate() + 3);
-                const { error: subError } = await supabase.from('user_subscriptions').upsert({
-                    user_id: user.id,
-                    plan_id: 1,
-                    status: 'trialing',
-                    current_period_end: trialEndDate.toISOString()
-                }, { onConflict: 'user_id' });
-                if (!subError) toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
-                setUsageStats({ count: 0, limit: 10, planName: 'Free Trial', daysLeft: 3 });
-            } else if (sub) {
-                const end = new Date(sub.current_period_end);
-                const daysLeft = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
-                setUsageStats({
-                    count: sub.invoice_usage_count || 0,
-                    limit: sub.subscription_plans?.slug === 'trial' ? 10 : 10000,
-                    planName: sub.subscription_plans?.name || 'Free Trial',
-                    daysLeft,
-                });
+            // Process subscription
+            if (subResult.status === 'fulfilled') {
+                const sub = subResult.value.data;
+                if (!sub && user.email_confirmed_at) {
+                    const trialEndDate = new Date();
+                    trialEndDate.setDate(trialEndDate.getDate() + 3);
+                    const { error: subError } = await supabase.from('user_subscriptions').upsert({
+                        user_id: user.id,
+                        plan_id: 1,
+                        status: 'trialing',
+                        current_period_end: trialEndDate.toISOString()
+                    }, { onConflict: 'user_id' });
+                    if (!subError) toast.success('Welcome to InvoicePort! 🎉', { duration: 3000 });
+                    setUsageStats({ count: 0, limit: 10, planName: 'Free Trial', daysLeft: 3 });
+                } else if (sub) {
+                    const end = new Date(sub.current_period_end);
+                    const daysLeft = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
+                    setUsageStats({
+                        count: sub.invoice_usage_count || 0,
+                        limit: sub.subscription_plans?.slug === 'trial' ? 10 : 10000,
+                        planName: sub.subscription_plans?.name || 'Free Trial',
+                        daysLeft,
+                    });
+                }
             }
+
+            // Process email stats
+            if (emailStatsResult.status === 'fulfilled') {
+                setEmailUsageStats(emailStatsResult.value);
+            }
+            setIsLoadingEmailStats(false);
 
             // Load from navigation state (view from history)
             if (location.state?.invoiceData) {
@@ -191,6 +212,7 @@ const Index = () => {
         } catch (error) {
             console.error("Error initializing data:", error);
             setInitError(error.message || 'Failed to load dashboard data');
+            setIsLoadingEmailStats(false);
         }
     };
     initData();
@@ -511,9 +533,9 @@ const Index = () => {
                 {/* Send Mail Button */}
                 <Button 
                     onClick={handleSendEmail} 
-                    disabled={isSendingEmail || !billTo.email || !user?.id || (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)}
+                    disabled={isSendingEmail || isLoadingEmailStats || !billTo.email || !user?.id || (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)}
                     className={`w-full font-bold h-11 text-md shadow-md transition-all ${
-                        !billTo.email 
+                        !billTo.email || isLoadingEmailStats
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                             : (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)
                             ? 'bg-red-300 text-red-700 cursor-not-allowed'
@@ -525,6 +547,11 @@ const Index = () => {
                             <Loader2 size={18} className="animate-spin mr-2" />
                             Sending...
                         </>
+                    ) : isLoadingEmailStats ? (
+                        <>
+                            <Loader2 size={18} className="animate-spin mr-2" />
+                            Loading...
+                        </>
                     ) : (
                         <>
                             <Mail size={18} className="mr-2" />
@@ -534,13 +561,19 @@ const Index = () => {
                 </Button>
 
                 {/* Email Status Info */}
-                {!billTo.email && (
+                {!billTo.email && !isLoadingEmailStats && (
                     <div className="text-xs text-gray-500 text-center">
                         Add customer email to send invoice
                     </div>
                 )}
                 
-                {billTo.email && emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin && (
+                {isLoadingEmailStats && (
+                    <div className="text-xs text-gray-500 text-center">
+                        Checking email availability...
+                    </div>
+                )}
+                
+                {billTo.email && !isLoadingEmailStats && emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin && (
                     <div className="text-xs text-center">
                         <div className="text-red-600 font-medium">
                             Email limit reached ({emailUsageStats.currentUsage}/{emailUsageStats.emailLimit})
@@ -551,7 +584,7 @@ const Index = () => {
                     </div>
                 )}
                 
-                {billTo.email && emailUsageStats && (emailUsageStats.canSendEmail || emailUsageStats.isAdmin) && (
+                {billTo.email && !isLoadingEmailStats && emailUsageStats && (emailUsageStats.canSendEmail || emailUsageStats.isAdmin) && (
                     <div className="text-xs text-center">
                         {emailUsageStats.isAdmin ? (
                             <div className="text-emerald-600 font-medium">

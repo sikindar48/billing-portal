@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -23,29 +23,29 @@ const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Helper function to check if a path is active
-  const isActivePath = (path) => {
+  const isActivePath = useMemo(() => (path) => {
     if (path === '/') {
       return location.pathname === '/';
     }
     return location.pathname.startsWith(path);
-  };
+  }, [location.pathname]);
 
   // Helper function to get button classes with active state
-  const getNavButtonClass = (path) => {
+  const getNavButtonClass = useMemo(() => (path) => {
     const baseClass = "text-white rounded-full transition-all duration-200";
     const activeClass = "bg-indigo-800/70 shadow-lg border border-indigo-400/50";
     const inactiveClass = "hover:bg-indigo-500/50";
     
     return `${baseClass} ${isActivePath(path) ? activeClass : inactiveClass}`;
-  };
+  }, [isActivePath]);
 
-  const getMobileNavButtonClass = (path) => {
+  const getMobileNavButtonClass = useMemo(() => (path) => {
     const baseClass = "w-full justify-start text-white text-left transition-all duration-200";
     const activeClass = "bg-indigo-800/70 shadow-lg border border-indigo-400/30";
     const inactiveClass = "hover:bg-indigo-600/50";
     
     return `${baseClass} ${isActivePath(path) ? activeClass : inactiveClass}`;
-  };
+  }, [isActivePath]);
 
   const handleLogout = async () => {
     setIsMenuOpen(false);
@@ -73,6 +73,8 @@ const Navigation = () => {
               src="https://twfoqvxlhxhdulqchjbq.supabase.co/storage/v1/object/public/icon/invoice_logo.webp" 
               alt="InvoicePort Logo" 
               className="h-6 w-auto"
+              loading="lazy"
+              decoding="async"
             />
             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide">Invoice Port</h1>
           </div>
@@ -224,4 +226,4 @@ const Navigation = () => {
   );
 };
 
-export default Navigation;
+export default React.memo(Navigation);

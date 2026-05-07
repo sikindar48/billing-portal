@@ -412,12 +412,12 @@ const AuthPage = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  <FeatureCard icon={<Zap className="w-6 h-6" />} title="Instant Generation" desc="Create high-fidelity PDF invoices in milliseconds. Our optimized rendering engine ensures no lag." color="indigo" />
-                  <FeatureCard icon={<ShieldCheck className="w-6 h-6" />} title="Bank-Grade Security" desc="AES-256 encryption for all financial data. Your client information is isolated and secure." color="emerald" />
+                  <FeatureCard icon={<Zap className="w-6 h-6" />} title="Instant Generation" desc="Create high-fidelity PDF invoices in milliseconds. Fast rendering ensures smooth workflow." color="indigo" />
+                  <FeatureCard icon={<ShieldCheck className="w-6 h-6" />} title="Bank-Grade Security" desc="Enterprise-grade encryption for all financial data. Your client information is isolated and secure." color="emerald" />
                   <FeatureCard icon={<BarChart3 className="w-6 h-6" />} title="Live Analytics" desc="Visualize revenue, track outstanding payments, and monitor growth with real-time dashboards." color="blue" />
-                  <FeatureCard icon={<Globe className="w-6 h-6" />} title="Multi-Currency" desc="Support for USD, EUR, INR, and 150+ other currencies. Exchange rates handled automatically." color="purple" />
-                  <FeatureCard icon={<Repeat className="w-6 h-6" />} title="Recurring Billing" desc="Set it and forget it. Automatically generate and send invoices for your retainer clients." color="orange" />
-                  <FeatureCard icon={<FileText className="w-6 h-6" />} title="Custom Templates" desc="Professional templates that match your brand. Upload logos, change colors, and adjust layouts." color="pink" />
+                  <FeatureCard icon={<Globe className="w-6 h-6" />} title="Multi-Currency Support" desc="Create invoices in major currencies (INR, USD, EUR) with proper currency symbols and formatting." color="purple" />
+                  <FeatureCard icon={<FileText className="w-6 h-6" />} title="9 Professional Templates" desc="Choose from 9 GST-compliant templates that match your brand. Upload logos and customize branding." color="pink" />
+                  <FeatureCard icon={<Repeat className="w-6 h-6" />} title="Payment Tracking" desc="Record payments, track transaction details, and automatically update invoice status to paid." color="orange" />
               </div>
           </div>
       </section>
@@ -554,28 +554,9 @@ const AuthPage = () => {
               <div className="text-center mb-20">
                   <h2 className="text-indigo-400 font-semibold tracking-widest uppercase text-sm mb-3">Pricing</h2>
                   <h3 className="text-3xl md:text-5xl font-bold text-white mb-8">Simple, transparent pricing.</h3>
-                  
-                  {/* Toggle */}
-                  <div className="inline-flex items-center p-1 bg-slate-900/50 border border-white/10 rounded-full backdrop-blur-md relative">
-                       <button 
-                        onClick={() => setBillingCycle('monthly')}
-                        className={`px-6 py-2 rounded-full text-sm font-medium transition-all relative z-10 ${billingCycle === 'monthly' ? 'text-white' : 'text-slate-400 hover:text-white'}`}
-                       >
-                           Monthly
-                       </button>
-                       <button 
-                        onClick={() => setBillingCycle('yearly')}
-                        className={`px-6 py-2 rounded-full text-sm font-medium transition-all relative z-10 ${billingCycle === 'yearly' ? 'text-white' : 'text-slate-400 hover:text-white'}`}
-                       >
-                           Yearly
-                       </button>
-                       <div className={`absolute top-1 bottom-1 w-[50%] bg-indigo-600 rounded-full transition-all duration-300 shadow-lg shadow-indigo-500/25 ${billingCycle === 'monthly' ? 'left-1' : 'left-[50%]'}`}></div>
-                  </div>
-                  {billingCycle === 'yearly' && (
-                        <span className="block mt-4 text-xs font-bold text-emerald-400 animate-pulse">
-                            Save ~16% on yearly plans
-                        </span>
-                  )}
+                  <p className="text-slate-400 max-w-2xl mx-auto text-lg">
+                      Start free, then upgrade to unlock unlimited access. No hidden fees.
+                  </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -598,40 +579,44 @@ const AuthPage = () => {
                       <Button onClick={focusSignup} className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10">Start Free</Button>
                   </div>
 
-                  {/* PRO TIER */}
-                  <div className="p-8 rounded-3xl border border-indigo-500/50 bg-slate-800/60 shadow-2xl shadow-indigo-500/10 relative flex flex-col scale-105 z-10">
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg shadow-indigo-500/50">Popular</div>
+                  {/* PRO MONTHLY */}
+                  <div className="p-8 rounded-3xl border border-white/5 bg-slate-900/40 flex flex-col hover:border-white/10 transition-all">
                       <div className="mb-6">
-                          <span className="text-indigo-400 font-bold text-sm uppercase tracking-wider">Pro</span>
+                          <span className="text-indigo-400 font-bold text-sm uppercase tracking-wider">Pro Monthly</span>
                           <div className="mt-2 flex items-baseline">
-                              <span className="text-5xl font-bold text-white">₹{billingCycle === 'monthly' ? '149' : '1499'}</span>
-                              <span className="text-slate-400 ml-2">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                              <span className="text-4xl font-bold text-white">₹149</span>
+                              <span className="text-slate-400 ml-2">/month</span>
                           </div>
-                          <p className="text-indigo-100/80 text-sm mt-4">For growing businesses that need power.</p>
+                          <p className="text-slate-400 text-sm mt-4">For freelancers & growing businesses.</p>
+                      </div>
+                      <ul className="space-y-4 mb-8 flex-1">
+                          {['Unlimited Invoices', 'Unlimited Downloads', 'Email Integration', 'Priority Support', 'Custom Branding'].map(f => (
+                              <li key={f} className="flex gap-3 text-sm text-slate-300"><Check className="w-4 h-4 text-indigo-400 shrink-0" /> {f}</li>
+                          ))}
+                      </ul>
+                      <Button onClick={focusSignup} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-500/25">Get Started</Button>
+                  </div>
+
+                  {/* PRO YEARLY */}
+                  <div className="p-8 rounded-3xl border border-indigo-500/50 bg-slate-800/60 shadow-2xl shadow-indigo-500/10 relative flex flex-col scale-105 z-10">
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg shadow-indigo-500/50">Best Value</div>
+                      <div className="mb-6">
+                          <span className="text-indigo-400 font-bold text-sm uppercase tracking-wider">Pro Yearly</span>
+                          <div className="mt-2 flex items-baseline">
+                              <span className="text-5xl font-bold text-white">₹1499</span>
+                              <span className="text-slate-400 ml-2">/year</span>
+                          </div>
+                          <p className="text-indigo-100/80 text-sm mt-4">Best value for committed users.</p>
+                          <span className="inline-block mt-2 text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
+                              Save ₹289/year
+                          </span>
                       </div>
                       <ul className="space-y-4 mb-8 flex-1">
                           {['Unlimited Invoices', 'Unlimited Downloads', 'Email Integration', 'Priority Support', 'Custom Branding'].map(f => (
                               <li key={f} className="flex gap-3 text-sm text-white"><Check className="w-4 h-4 text-indigo-400 shrink-0" /> {f}</li>
                           ))}
                       </ul>
-                      <Button onClick={focusSignup} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-500/25">Get Started</Button>
-                  </div>
-
-                  {/* ENTERPRISE */}
-                  <div className="p-8 rounded-3xl border border-white/5 bg-slate-900/40 flex flex-col hover:border-white/10 transition-all">
-                      <div className="mb-6">
-                          <span className="text-white font-bold text-sm uppercase tracking-wider">Enterprise</span>
-                          <div className="mt-2 flex items-baseline">
-                              <span className="text-4xl font-bold text-white">Custom</span>
-                          </div>
-                          <p className="text-slate-400 text-sm mt-4">For large teams and agencies.</p>
-                      </div>
-                      <ul className="space-y-4 mb-8 flex-1">
-                          {['Dedicated Manager', 'SLA Support', 'Custom Templates', 'API Access'].map(f => (
-                              <li key={f} className="flex gap-3 text-sm text-slate-300"><Check className="w-4 h-4 text-white shrink-0" /> {f}</li>
-                          ))}
-                      </ul>
-                      <Button onClick={() => window.location.href = "mailto:sales@invoiceport.com"} className="w-full bg-white text-black hover:bg-slate-200 font-semibold">Contact Sales</Button>
+                      <Button onClick={focusSignup} className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold shadow-lg shadow-indigo-500/25">Get Started</Button>
                   </div>
 
               </div>

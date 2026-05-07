@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import BaseTemplate from './BaseTemplate';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { QRCodeSVG } from 'qrcode.react'; // Import QR Code component
@@ -18,7 +18,11 @@ const Template1 = ({ data }) => {
     selectedCurrency 
   } = data;
 
-  const qrValue = `Invoice: ${invoice.number}, Total: ${formatCurrency(grandTotal, selectedCurrency)}, Due: ${invoice.paymentDate}`;
+  // Memoize QR code value to prevent regeneration on every render
+  const qrValue = useMemo(() => 
+    `Invoice: ${invoice.number}, Total: ${formatCurrency(grandTotal, selectedCurrency)}, Due: ${invoice.paymentDate}`,
+    [invoice.number, invoice.paymentDate, grandTotal, selectedCurrency]
+  );
 
   return (
     <BaseTemplate data={data}>
@@ -38,8 +42,9 @@ const Template1 = ({ data }) => {
                                 maxHeight: '90px', 
                                 objectFit: 'contain' 
                             }} 
-                            // REMOVED: className="p-1 border border-gray-200"
                             className=""
+                            loading="lazy"
+                            decoding="async"
                         />
                     </div>
                 )}
@@ -156,4 +161,10 @@ const Template1 = ({ data }) => {
   );
 };
 
-export default Template1;
+export default React.memo(Template1, (prevProps, nextProps) => {
+  // Only re-render if invoice number or grand total changes
+  return (
+    prevProps.data.invoice.number === nextProps.data.invoice.number &&
+    prevProps.data.grandTotal === nextProps.data.grandTotal
+  );
+});

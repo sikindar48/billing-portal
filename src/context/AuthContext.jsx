@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
     let authResolved = false;
 
     // Safety net — only fires if BOTH getSession AND onAuthStateChange fail to resolve.
-    // 8 seconds is generous enough for slow connections but prevents infinite spinner.
+    // 3 seconds is sufficient for most connections but prevents infinite spinner.
     // Does NOT set user to null — avoids false logouts on slow networks.
     const authTimeout = setTimeout(() => {
       if (mounted && !authResolved) {
@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }) => {
         setAuthLoading(false);
         authResolved = true;
       }
-    }, 8000);
+    }, 3000);
 
     // getSession reads from local storage — fast, no network call.
     // Resolves the user immediately on refresh without waiting for the network.

@@ -3,131 +3,62 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { 
-  exchangeCodeForTokens, 
-  saveGmailTokens, 
-  getGmailProfile 
-} from '@/utils/gmailOAuthService';
+import { handleGmailCallback } from '@/utils/gmailAuth';
 
-const GmailCallback = () => {
+/**
+ * Gmail OAuth Callback Handler - Simplified and Robust
+ */
+const GmailCallbackNew = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState('processing'); // processing, success, error
+  const [status, setStatus] = useState('processing');
   const [message, setMessage] = useState('Processing Gmail connection...');
   const [details, setDetails] = useState('');
 
   useEffect(() => {
-    handleOAuthCallback();
+    processCallback();
   }, []);
 
-  const handleOAuthCallback = async () => {
+  const processCallback = async () => {
     try {
-      // First, check if user is authenticated — use getSession (local cache, no network hang)
-      setMessage('Checking authentication...');
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.user) {
-        throw new Error('You must be logged in to connect Gmail. Please log in and try again.');
-      }
-
-      // Check if user has Pro plan
-      setMessage('Verifying subscription...');
-      const { data: subscription } = await supabase
-        .from('user_subscriptions')
-        .select('*, subscription_plans(slug)')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      const isPro = subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro';
-      
-      if (!isPro) {
-        throw new Error('Gmail integration is only available for Pro plan users. Please upgrade to Pro to use this feature.');
-      }
-
-      // Get authorization code from URL parameters
-      const authCode = searchParams.get('code');
+      // Check for OAuth error
       const error = searchParams.get('error');
-
       if (error) {
         throw new Error(`OAuth error: ${error}`);
       }
 
-      if (!authCode) {
-        throw new Error('No authorization code received');
+      // Get authorization code and state
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
+
+      if (!code) {
+        throw new Error('No authorization code received from Google');
       }
 
-      setMessage('Exchanging authorization code for tokens...');
-      console.log('Authorization code:', authCode);
-      console.log('Redirect URI:', window.location.origin + '/gmail-callback');
-
-      // Exchange code for tokens
-      const tokens = await exchangeCodeForTokens(authCode);
-      console.log('Tokens received successfully:', tokens);
+      setMessage('Verifying authentication...');
       
-      // Check if we got an error response
-      if (!tokens || !tokens.access_token) {
-        throw new Error('No access token received from token exchange');
-      }
+      // Handle the callback
+      const result = await handleGmailCallback(code, state);
 
-      setMessage('Getting Gmail profile information...');
-
-      // Get user's Gmail profile to get email address
-      let userEmail;
-      try {
-        const profile = await getGmailProfile(tokens.access_token);
-        userEmail = profile.emailAddress;
-        console.log('Gmail profile retrieved:', userEmail);
-      } catch (profileError) {
-        console.error('Profile error:', profileError);
-        
-        // Fallback: Ask user for their email
-        const manualEmail = prompt(
-          'We couldn\'t automatically detect your Gmail address.\n\n' +
-          'Please enter your Gmail address manually:',
-          'your-email@gmail.com'
-        );
-        
-        if (!manualEmail || !manualEmail.includes('@')) {
-          throw new Error('Valid Gmail address is required to continue');
-        }
-        
-        userEmail = manualEmail.trim();
-        console.log('Using manually entered email:', userEmail);
-      }
-
-      if (!userEmail) {
-        throw new Error('No email address provided');
-      }
-
-      setMessage('Saving Gmail connection...');
-
-      // Save tokens to database
-      await saveGmailTokens(tokens, userEmail);
-
+      // Success!
       setStatus('success');
       setMessage('Gmail connected successfully!');
-      setDetails(`Your account ${userEmail} is now connected. You can send invoices from your Gmail address.`);
+      setDetails(`Your account ${result.email} is now connected. You can send invoices from your Gmail address.`);
+      
+      toast.success(`Gmail connected: ${result.email}`);
 
-      toast.success(`Gmail connected: ${userEmail}`);
-
-      // Redirect to business settings after 3 seconds
+      // Redirect after 2 seconds
       setTimeout(() => {
         navigate('/branding');
-      }, 3000);
+      }, 2000);
 
     } catch (error) {
-      console.error('Gmail OAuth callback error:', error);
+      console.error('Gmail callback error:', error);
       setStatus('error');
       setMessage('Failed to connect Gmail');
       setDetails(error.message);
-      toast.error(`Gmail connection failed: ${error.message}`);
+      toast.error(error.message);
     }
-  };
-
-  const handleRetry = () => {
-    navigate('/dashboard/settings');
   };
 
   return (
@@ -177,7 +108,7 @@ const GmailCallback = () => {
           </p>
         )}
 
-        {/* Progress indicator for processing */}
+        {/* Progress for processing */}
         {status === 'processing' && (
           <div className="mb-6">
             <div className="w-full bg-slate-700 rounded-full h-2">
@@ -186,11 +117,11 @@ const GmailCallback = () => {
           </div>
         )}
 
-        {/* Success message */}
+        {/* Success redirect message */}
         {status === 'success' && (
           <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
             <p className="text-emerald-300 text-sm">
-              Redirecting to settings in 3 seconds...
+              Redirecting to settings...
             </p>
           </div>
         )}
@@ -199,7 +130,7 @@ const GmailCallback = () => {
         <div className="space-y-3">
           {status === 'success' && (
             <Button
-              onClick={() => navigate('/dashboard/settings')}
+              onClick={() => navigate('/branding')}
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white"
             >
               Go to Settings
@@ -214,16 +145,6 @@ const GmailCallback = () => {
               >
                 Try Again
               </Button>
-              
-              {(details.includes('logged in') || details.includes('authenticated')) && (
-                <Button
-                  onClick={() => navigate('/auth')}
-                  variant="outline"
-                  className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
-                >
-                  Go to Login
-                </Button>
-              )}
               
               <Button
                 onClick={() => navigate('/branding')}
@@ -240,7 +161,7 @@ const GmailCallback = () => {
         {/* Help Text */}
         <div className="mt-8 pt-6 border-t border-slate-700">
           <p className="text-xs text-slate-500">
-            Having trouble? Make sure you granted permission to send emails and try again.
+            Having trouble? Make sure you granted permission to send emails.
           </p>
         </div>
       </div>
@@ -248,4 +169,4 @@ const GmailCallback = () => {
   );
 };
 
-export default GmailCallback;
+export default GmailCallbackNew;

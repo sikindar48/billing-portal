@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +10,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import FloatingLabelInput from '@/components/FloatingLabelInput';
+
+// Debounce utility function
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 // Loading skeleton for the invoice table
 const InvoiceTableSkeleton = () => (
@@ -47,6 +64,7 @@ const InvoiceHistory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300); // Debounce search by 300ms
   const [processingId, setProcessingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [modeFilter, setModeFilter] = useState('all');
@@ -380,17 +398,19 @@ const InvoiceHistory = () => {
     }
   };
 
-  const filteredInvoices = invoices.filter(inv => {
-    const matchesSearch = 
-      inv.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.bill_to?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || (inv.invoice_details?.status || 'draft') === statusFilter;
-    const matchesMode = modeFilter === 'all' || (inv.invoice_details?.invoiceMode || 'proforma') === modeFilter;
-    
-    return matchesSearch && matchesStatus && matchesMode;
-  });
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      const matchesSearch = 
+        inv.invoice_number?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        inv.customer_name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        inv.bill_to?.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || (inv.invoice_details?.status || 'draft') === statusFilter;
+      const matchesMode = modeFilter === 'all' || (inv.invoice_details?.invoiceMode || 'proforma') === modeFilter;
+      
+      return matchesSearch && matchesStatus && matchesMode;
+    });
+  }, [invoices, debouncedSearchTerm, statusFilter, modeFilter]);
 
   if (loading) {
     return (

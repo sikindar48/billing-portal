@@ -11,6 +11,7 @@ import SubscriptionGuard from "./components/SubscriptionGuard";
 import AdminGuard from "./components/AdminGuard";
 import Navigation from "./components/Navigation";
 import AppLoader from "./components/AppLoader";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
 
 // Lazy-loaded pages — each becomes its own chunk
@@ -18,8 +19,11 @@ const Index            = lazy(() => import("./pages/public/Index"));
 const AuthPage         = lazy(() => import("./pages/auth/AuthPage"));
 const ConfirmEmail     = lazy(() => import("./pages/auth/ConfirmEmail"));
 const OTPVerification  = lazy(() => import("./pages/auth/OTPVerification"));
-const GmailCallback    = lazy(() => import("./pages/public/GmailCallback"));
+const GmailCallback    = lazy(() => import("./pages/public/GmailCallbackNew"));
 const InvoiceVerify    = lazy(() => import("./pages/public/InvoiceVerify"));
+const PrivacyPolicy    = lazy(() => import("./pages/public/PrivacyPolicy"));
+const TermsOfService   = lazy(() => import("./pages/public/TermsOfService"));
+const NotFound         = lazy(() => import("./pages/public/NotFound"));
 const Dashboard        = lazy(() => import("./pages/dashboard/Dashboard"));
 const InvoiceHistory   = lazy(() => import("./pages/dashboard/InvoiceHistory"));
 const TemplatePage     = lazy(() => import("./pages/dashboard/TemplatePage"));
@@ -33,7 +37,18 @@ const AdminVerifyPayment = lazy(() => import("./pages/admin/AdminVerifyPayment")
 const Analytics        = lazy(() => import("./pages/admin/Analytics"));
 const AuditLogs        = lazy(() => import("./pages/admin/AuditLogs"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh
+      cacheTime: 1000 * 60 * 10, // 10 minutes - cache persists
+      refetchOnWindowFocus: false, // Don't refetch on window focus
+      refetchOnReconnect: false, // Don't refetch on reconnect
+      retry: 1, // Only retry once on failure
+      retryDelay: 1000, // Wait 1 second before retry
+    },
+  },
+});
 
 // Wrapper component to include Navigation with protected routes
 const ProtectedLayout = ({ children }) => {
@@ -47,20 +62,21 @@ const ProtectedLayout = ({ children }) => {
 
 const App = () => {
   return (
-    <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster 
-            position="top-center" 
-            duration={2000}
-            closeButton={true}
-            richColors={true}
-          />
-          <BrowserRouter>
-            <AuthProvider>
-              <AppLoader>
-                <Suspense fallback={null}>
-                <Routes>
+    <ErrorBoundary>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster 
+              position="top-center" 
+              duration={2000}
+              closeButton={true}
+              richColors={true}
+            />
+            <BrowserRouter>
+              <AuthProvider>
+                <AppLoader>
+                  <Suspense fallback={null}>
+                  <Routes>
             {/* Public Routes - No Navigation */}
             <Route path="/" element={<Index />} /> {/* Landing page with auth form */}
             <Route path="/auth" element={<AuthPage />} /> {/* Keep for backward compatibility */}
@@ -68,6 +84,8 @@ const App = () => {
             <Route path="/gmail-callback" element={<GmailCallback />} /> {/* Gmail OAuth callback */}
             <Route path="/otp-verification" element={<OTPVerification />} /> {/* OTP verification */}
             <Route path="/verify-invoice" element={<InvoiceVerify />} /> {/* Public invoice verification */}
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} /> {/* Privacy Policy */}
+            <Route path="/terms-of-service" element={<TermsOfService />} /> {/* Terms of Service */}
             
             {/* Protected Routes - With Navigation */}
             <Route 
@@ -229,7 +247,7 @@ const App = () => {
               } 
             />
             
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
               </Routes>
               </Suspense>
               </AppLoader>
@@ -238,6 +256,7 @@ const App = () => {
       </TooltipProvider>
     </QueryClientProvider>
     </HelmetProvider>
+    </ErrorBoundary>
   );
 };
 
