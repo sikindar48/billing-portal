@@ -8,9 +8,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "0.0.0.0", // Listen on all network interfaces (IPv4)
+    host: true,
     port: 8080,
-    strictPort: false, // Allow fallback to another port if 8080 is busy
+    strictPort: false,
   },
   plugins: [
     react(),
