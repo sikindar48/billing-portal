@@ -1,9 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-import { welcomeEmailHtml }            from './templates/welcome.ts';
-import { otpEmailHtml }                from './templates/otp.ts';
+import { welcomeEmailHtml } from './templates/welcome.ts';
+import { otpEmailHtml } from './templates/otp.ts';
 import { subscriptionConfirmationHtml } from './templates/subscription.ts';
-import type { EmailRequest }           from './types.ts';
+import type { EmailRequest } from './types.ts';
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 
