@@ -40,7 +40,7 @@ const GmailCallback = () => {
         .eq('user_id', session.user.id)
         .maybeSingle();
 
-      const isPro = subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro';
+      const isPro = subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly';
       
       if (!isPro) {
         throw new Error('Gmail integration is only available for Pro plan users. Please upgrade to Pro to use this feature.');

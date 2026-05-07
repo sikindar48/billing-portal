@@ -246,7 +246,7 @@ const BrandingSettings = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                 {/* Gmail Integration - Pro Only */}
                 <label className={`flex items-start gap-3 p-4 border rounded-lg transition-colors ${
-                  subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro'
+                  subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly'
                     ? `cursor-pointer ${settings.preferred_email_method === 'gmail' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`
                     : 'cursor-not-allowed opacity-60 border-gray-200'
                 }`}>
@@ -256,19 +256,19 @@ const BrandingSettings = () => {
                     value="gmail" 
                     checked={settings.preferred_email_method === 'gmail'} 
                     onChange={e => {
-                      if (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro') {
+                      if (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly') {
                         set('preferred_email_method', e.target.value);
                       } else {
                         toast.error('Gmail integration is only available for Pro plan users');
                       }
                     }} 
-                    disabled={subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly_pro'}
+                    disabled={subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly'}
                     className="mt-0.5 accent-indigo-600" 
                   />
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-gray-800">Gmail Integration</p>
-                      {subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro' ? (
+                      {subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly' ? (
                         <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Pro</span>
                       ) : (
                         <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Pro Only</span>
@@ -291,7 +291,7 @@ const BrandingSettings = () => {
               </div>
 
               {/* Gmail Info Box - Show only if Pro */}
-              {settings.preferred_email_method === 'gmail' && (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly_pro') && (
+              {settings.preferred_email_method === 'gmail' && (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly') && (
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-xs text-gray-500 mb-3">Connect your Gmail account to send invoices professionally.</p>
                   <GmailConnect />
@@ -299,7 +299,7 @@ const BrandingSettings = () => {
               )}
 
               {/* Pro Plan Required Message */}
-              {subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly_pro' && (
+              {subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly' && (
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-xs text-blue-700">
                     <strong>💡 Upgrade to Pro:</strong> Gmail integration is available for Pro plan users. Upgrade now to send invoices from your own Gmail account.

@@ -83,7 +83,7 @@ export async function handleGmailCallback(code, state) {
     .maybeSingle();
 
   const isPro = subscription?.subscription_plans?.slug === 'monthly' || 
-                subscription?.subscription_plans?.slug === 'yearly_pro';
+                subscription?.subscription_plans?.slug === 'yearly';
   
   if (!isPro) {
     throw new Error('Gmail integration requires a Pro subscription');
