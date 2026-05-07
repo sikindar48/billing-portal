@@ -404,7 +404,12 @@ const SubscriptionPage = () => {
   // -------------------------------------------------------------------------
   const handlePlanSelect = (plan) => {
     if (plan.slug === 'trial') {
-      toast.info('You are already on the free trial. Upgrade to a Pro plan for unlimited access.');
+      const currentSlug = subscription?.subscription_plans?.slug;
+      if (currentSlug === 'monthly' || currentSlug === 'yearly') {
+        toast.info('You are already on a Pro plan. Downgrading is not supported.');
+      } else {
+        toast.info('You are already on the free trial. Upgrade to a Pro plan for unlimited access.');
+      }
       return;
     }
 

@@ -48,22 +48,7 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: null,
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
-          {
-            // Supabase API - ALWAYS use network first, short cache
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              networkTimeoutSeconds: 10, // Fail fast if network is slow
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 // Only 1 minute cache for API
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
+
           {
             // HTML pages - NetworkFirst with short cache
             urlPattern: /\.html$/i,
