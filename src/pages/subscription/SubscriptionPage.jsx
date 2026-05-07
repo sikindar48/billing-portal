@@ -407,6 +407,12 @@ const SubscriptionPage = () => {
       return;
     }
 
+    // Block downgrade: yearly → monthly
+    if (currentSlug === 'yearly' && plan.slug === 'monthly' && isActive) {
+      toast.error('Downgrading from Yearly to Monthly is not supported. Your yearly plan is valid until it expires.', { duration: 4000 });
+      return;
+    }
+
     // Show confirmation modal before opening Razorpay
     setModal({ open: true, plan });
   };
@@ -457,6 +463,8 @@ const SubscriptionPage = () => {
               const isCurrent = currentSlug === plan.slug ||
                 (plan.slug === 'trial' && !subscription);
               const isActive = isCurrent && !isExpired;
+              // Prevent visual downgrade: yearly → monthly
+              const isDowngrade = currentSlug === 'yearly' && plan.slug === 'monthly' && !isExpired;
 
               return (
                 <div
@@ -465,7 +473,7 @@ const SubscriptionPage = () => {
                     plan.highlight
                       ? 'border-2 border-violet-300 shadow-xl'
                       : 'border border-gray-200 shadow-md hover:shadow-lg'
-                  } ${isActive ? 'ring-2 ring-emerald-400 ring-opacity-50' : ''}`}
+                  } ${isActive ? 'ring-2 ring-emerald-400 ring-opacity-50' : ''} ${isDowngrade ? 'opacity-50' : ''}`}
                 >
                   {/* Popular badge */}
                   {plan.highlight && (
@@ -536,24 +544,26 @@ const SubscriptionPage = () => {
                     {/* CTA */}
                     <Button
                       onClick={() => handlePlanSelect(plan)}
-                      disabled={isActive || processing}
+                      disabled={isActive || isDowngrade || processing}
                       className={`w-full h-11 rounded-xl font-medium text-sm transition-all ${
-                        isActive
+                        isActive || isDowngrade
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed hover:bg-gray-100'
                           : plan.highlight
                             ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md'
                             : 'bg-gray-900 hover:bg-gray-800 text-white'
                       }`}
                     >
-                      {isActive
-                        ? 'Current Plan'
-                        : isCurrent && isExpired
-                          ? 'Renew Plan'
-                          : subscription && !isExpired && plan.slug !== 'trial'
-                            ? `Upgrade to ${plan.name}`
-                            : plan.slug === 'trial'
-                              ? 'Free Plan'
-                              : 'Get Started'}
+                      {isDowngrade
+                        ? 'Not Available'
+                        : isActive
+                          ? 'Current Plan'
+                          : isCurrent && isExpired
+                            ? 'Renew Plan'
+                            : subscription && !isExpired && plan.slug !== 'trial'
+                              ? `Upgrade to ${plan.name}`
+                              : plan.slug === 'trial'
+                                ? 'Free Plan'
+                                : 'Get Started'}
                     </Button>
                   </div>
                 </div>
