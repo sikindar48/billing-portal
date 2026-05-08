@@ -22,9 +22,10 @@ export const AuthProvider = ({ children }) => {
   
   const [user, setUser] = useState(cache?.user || null);
   const [isAdmin, setIsAdmin] = useState(cache?.isAdmin || false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState(cache?.subscriptionStatus || 'loading');
+  const [subscriptionStatus, setSubscriptionStatus] = useState(cache?.subscriptionStatus || (cache ? 'allowed' : 'loading'));
   const [subscription, setSubscription] = useState(cache?.subscription || null);
-  const [authLoading, setAuthLoading] = useState(!cache); // If we have a cache, don't block UI
+  const [authLoading, setAuthLoading] = useState(!cache); 
+  const [isAuthResolved, setIsAuthResolved] = useState(!!cache);
   
   // Tracks whether we've resolved admin+sub at least once for this session
   const resolvedRef = React.useRef(!!cache);
@@ -38,23 +39,38 @@ export const AuthProvider = ({ children }) => {
 
     const dataPromise = Promise.allSettled([
       supabase.from('user_roles').select('role').eq('user_id', u.id).eq('role', 'admin').maybeSingle()
-        .then(({ data }) => !!data)
-        .catch(() => false),
+        .then(({ data }) => {
+          console.log('AuthContext: Admin check result:', !!data);
+          return !!data;
+        })
+        .catch((err) => {
+          console.error('AuthContext: Admin check error:', err);
+          return false;
+        }),
 
       supabase.from('user_subscriptions')
         .select('*, subscription_plans(*)')
         .eq('user_id', u.id)
         .maybeSingle()
         .then(({ data: sub }) => {
-          if (!sub) return { subStatus: 'expired', subscriptionData: null };
           const now = new Date();
+          
+          if (!sub) {
+            // New user without a subscription record yet - 3 day free trial from creation
+            const createdAt = new Date(u.created_at);
+            const trialEnd = new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000); // 3 days
+            if (now > trialEnd) return { subStatus: 'expired', subscriptionData: null };
+            return { subStatus: 'allowed', subscriptionData: null };
+          }
+          
           const end = new Date(sub.current_period_end);
-          if (sub.status === 'active' || (sub.status === 'trialing' && end > now)) {
+          // BUG FIX: Check end date for 'active' plans as well
+          if ((sub.status === 'active' || sub.status === 'trialing') && end > now) {
             return { subStatus: 'allowed', subscriptionData: sub };
           }
           return { subStatus: 'expired', subscriptionData: sub };
         })
-        .catch(() => ({ subStatus: 'allowed', subscriptionData: null })),
+        .catch(() => ({ subStatus: 'expired', subscriptionData: null })),
     ]);
 
     const result = await Promise.race([dataPromise, timeoutPromise]);
@@ -125,6 +141,7 @@ export const AuthProvider = ({ children }) => {
         setSubscriptionStatus(subStatus);
         setSubscription(subscriptionData);
         resolvedRef.current = true;
+        setIsAuthResolved(true);
         
         // Update cache for next refresh
         updateCache({
@@ -134,14 +151,16 @@ export const AuthProvider = ({ children }) => {
           subscription: subscriptionData
         });
 
-      } catch {
+      } catch (err) {
+        console.error("AuthContext: resolveUserData error:", err);
         if (!mounted) return;
+        // Fallback to allowed to not block users on transient DB errors
         setSubscriptionStatus('allowed');
       } finally {
         clearTimeout(authTimeout);
         if (mounted) {
           setAuthLoading(false);
-          authResolved = true;
+          setIsAuthResolved(true);
         }
       }
     }).catch((err) => {
@@ -162,6 +181,7 @@ export const AuthProvider = ({ children }) => {
         setSubscriptionStatus('expired');
         setSubscription(null);
         resolvedRef.current = false;
+        setIsAuthResolved(false);
         setAuthLoading(false);
         authResolved = true;
         localStorage.removeItem('invoiceport_auth_cache');
@@ -200,6 +220,7 @@ export const AuthProvider = ({ children }) => {
           setSubscriptionStatus(subStatus);
           setSubscription(subscriptionData);
           resolvedRef.current = true;
+          setIsAuthResolved(true);
           
           updateCache({
             user: sessionUser,
@@ -240,7 +261,30 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, subscriptionStatus, subscription, setSubscription, authLoading, refreshSubscription }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isAdmin, 
+      subscriptionStatus, 
+      subscription, 
+      authLoading,
+      isAuthResolved,
+      isPro: subscriptionStatus === 'allowed' || isAdmin,
+      refreshAuth: () => {
+        if (user) {
+          resolveUserData(user).then(({ adminStatus, subStatus, subscriptionData }) => {
+            setIsAdmin(adminStatus);
+            setSubscriptionStatus(subStatus);
+            setSubscription(subscriptionData);
+            updateCache({
+              user,
+              isAdmin: adminStatus,
+              subscriptionStatus: subStatus,
+              subscription: subscriptionData
+            });
+          });
+        }
+      }
+    }}>
       {children}
     </AuthContext.Provider>
   );

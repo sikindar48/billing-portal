@@ -367,7 +367,7 @@ const AdminDashboard = () => {
         .select('role')
         .eq('user_id', userId)
         .eq('role', 'admin')
-        .single();
+        .maybeSingle();
       
       if (roleCheck) {
         toast.error("Cannot delete admin users", { duration: 2000 });

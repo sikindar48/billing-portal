@@ -1,6 +1,5 @@
 // Unified Invoice Email Service - Routes to Gmail or EmailJS based on user preference and plan
 import { sendInvoiceViaGmail, isGmailConnected } from './gmailInvoiceService';
-import { sendInvoiceEmailViaEmailJS } from './userEmailService';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   checkEmailUsageLimit, 
@@ -8,6 +7,84 @@ import {
   validateEmailSendRequest,
   getAvailableEmailMethods 
 } from './emailUsageService';
+
+/**
+ * Send invoice email via InvoicePort Default Mail
+ */
+export const sendInvoiceEmailViaDefaultMail = async (invoiceData, userId, usageValidation) => {
+  try {
+    // Get user's business name for the sender info
+    const { data: business } = await supabase
+      .from('business_settings')
+      .select('company_name')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const verifyUrl = `${window.location.origin}/verify-invoice?number=${invoiceData.invoice.number}`;
+    console.log(`Email Service: Preparing to send invoice #${invoiceData.invoice.number} to ${invoiceData.billTo.email}`);
+    
+    // Ensure all required objects exist to prevent template crashes
+    const safeInvoiceData = {
+      ...invoiceData,
+      billTo: invoiceData.billTo || {},
+      shipTo: invoiceData.shipTo || {},
+      yourCompany: invoiceData.yourCompany || {},
+      items: invoiceData.items || []
+    };
+    
+    // Generate PDF attachment (Pro only after 3 emails)
+    let pdfBase64 = null;
+    const canAttachPDF = usageValidation.isPro || usageValidation.isAdmin || (usageValidation.currentUsage < 3);
+    
+    if (canAttachPDF) {
+      try {
+        console.log('Email Service: Generating PDF for attachment...');
+        const { generatePDFBase64 } = await import('./pdfGenerator');
+        pdfBase64 = await generatePDFBase64(safeInvoiceData, invoiceData.selectedTemplateId || 1);
+        
+        if (pdfBase64 && pdfBase64.length > 100) {
+          console.log(`Email Service: PDF generated successfully. Size: ${Math.round(pdfBase64.length / 1024)} KB`);
+        } else {
+          console.error('Email Service: PDF generation failed or returned empty content!');
+        }
+      } catch (pdfError) {
+        console.error('Email Service: PDF generation error:', pdfError);
+      }
+    } else {
+      console.log('Email Service: PDF attachment skipped (Trial limit reached)');
+    }
+
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        type: 'invoice',
+        to: invoiceData.billTo.email,
+        user_name: business?.company_name || 'Service Provider',
+        invoice_number: invoiceData.invoice.number,
+        amount: invoiceData.grandTotal.toString(),
+        currency: invoiceData.selectedCurrency === 'INR' ? '₹' : '$',
+        due_date: invoiceData.invoice.paymentDate,
+        verify_url: verifyUrl,
+        attachment: pdfBase64, // Will be null for free users > 3 emails
+        is_pro: usageValidation.isPro || usageValidation.isAdmin
+      }
+    });
+
+    if (error) throw error;
+
+    return { 
+      success: true, 
+      method: 'default_mail',
+      id: data.id 
+    };
+  } catch (error) {
+    console.error('Error sending email via Default Mail:', error);
+    return { 
+      success: false, 
+      error: error.message || 'Failed to send email via Default Mail',
+      method: 'default_mail'
+    };
+  }
+};
 
 /**
  * Get user's email method preference with plan restrictions
@@ -18,19 +95,19 @@ const getEmailMethodPreference = async (userId) => {
       .from('business_settings')
       .select('preferred_email_method, gmail_refresh_token')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      console.warn('Could not fetch email preferences, defaulting to EmailJS');
-      return 'emailjs';
+      console.warn('Could not fetch email preferences, defaulting to Default Mail');
+      return 'default_mail';
     }
 
     // Check plan restrictions
     const availableMethods = await getAvailableEmailMethods();
     
-    // If user prefers Gmail but doesn't have pro plan, force EmailJS
+    // If user prefers Gmail but doesn't have pro plan, force Default Mail
     if (settings.preferred_email_method === 'gmail' && !availableMethods.gmail) {
-      return 'emailjs';
+      return 'default_mail';
     }
 
     // Check if Gmail is preferred and actually connected
@@ -38,16 +115,16 @@ const getEmailMethodPreference = async (userId) => {
       return 'gmail';
     }
 
-    return 'emailjs';
+    return 'default_mail';
   } catch (error) {
     console.error('Error getting email method preference:', error);
-    return 'emailjs';
+    return 'default_mail';
   }
 };
 
 /**
  * Send invoice email using the best available method with plan restrictions
- * Priority: Gmail OAuth (Pro only) > EmailJS with branding
+ * Priority: Gmail OAuth (Pro only) > InvoicePort Default Mail
  */
 export const sendInvoiceEmail = async (invoiceData, userId) => {
   try {
@@ -95,7 +172,7 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
         .select('id')
         .eq('invoice_number', invoiceData.invoice.number)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
       invoiceId = invoice?.id;
     } catch (error) {
       console.warn('Could not find invoice ID for logging:', error);
@@ -113,9 +190,9 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
         result.success ? null : result.error
       );
       
-      // If Gmail fails, fallback to EmailJS
+      // If Gmail fails, fallback to Default Mail
       if (!result.success) {
-        result = await sendInvoiceEmailViaEmailJS(invoiceData, userId);
+        result = await sendInvoiceEmailViaDefaultMail(invoiceData, userId, usageValidation);
         result.fallbackUsed = true;
         result.originalError = result.error;
         
@@ -123,19 +200,19 @@ export const sendInvoiceEmail = async (invoiceData, userId) => {
         await logEmailUsage(
           invoiceId,
           invoiceData.billTo.email,
-          'emailjs',
+          'default_mail',
           result.success ? 'sent' : 'failed',
           result.success ? null : result.error
         );
       }
     } else {
-      result = await sendInvoiceEmailViaEmailJS(invoiceData, userId);
+      result = await sendInvoiceEmailViaDefaultMail(invoiceData, userId, usageValidation);
       
       // Log the attempt
       await logEmailUsage(
         invoiceId,
         invoiceData.billTo.email,
-        'emailjs',
+        'default_mail',
         result.success ? 'sent' : 'failed',
         result.success ? null : result.error
       );
@@ -184,9 +261,9 @@ export const getEmailCapabilities = async (userId) => {
       preferredMethod,
       availableMethods: {
         gmail: availableMethods.gmail && gmailConnected,
-        emailjs: availableMethods.emailjs
+        default_mail: true
       },
-      recommendation: (availableMethods.gmail && gmailConnected) ? 'gmail' : 'emailjs',
+      recommendation: (availableMethods.gmail && gmailConnected) ? 'gmail' : 'default_mail',
       usageStats,
       planRestrictions: {
         isPro: availableMethods.professional,
@@ -198,12 +275,12 @@ export const getEmailCapabilities = async (userId) => {
     console.error('Error getting email capabilities:', error);
     return {
       gmailConnected: false,
-      preferredMethod: 'emailjs',
+      preferredMethod: 'default_mail',
       availableMethods: {
         gmail: false,
-        emailjs: true
+        default_mail: true
       },
-      recommendation: 'emailjs',
+      recommendation: 'default_mail',
       usageStats: {
         canSendEmail: false,
         currentUsage: 0,

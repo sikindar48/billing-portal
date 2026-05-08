@@ -50,13 +50,15 @@ const Template3 = ({ data }) => {
           </div>
         </div>
         <div className="flex justify-between mb-8">
-          <div>
-            <h2 className="text-xl font-semibold mb-2">SHIP TO</h2>
-            <p className="text-sm">{shipTo.name}</p>
-            <p className="text-sm">{shipTo.address}</p>
-            <p className="text-sm">{shipTo.phone}</p>
-          </div>
-          <div className="text-right">
+          {shipTo?.name && (
+            <div>
+              <h2 className="text-xl font-semibold mb-2">SHIP TO</h2>
+              <p className="text-sm">{shipTo.name}</p>
+              <p className="text-sm">{shipTo.address}</p>
+              <p className="text-sm">{shipTo.phone}</p>
+            </div>
+          )}
+          <div className={!shipTo?.name ? 'ml-auto text-right' : 'text-right'}>
             <p className="text-sm">Invoice #: {invoice.number}</p>
             <p className="text-sm">Invoice Date: {invoice.date}</p>
             <p className="text-sm">Due Date: {invoice.paymentDate}</p>
