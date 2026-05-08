@@ -3,14 +3,31 @@ import { supabase } from '@/integrations/supabase/client';
 
 const AuthContext = createContext(null);
 
+// Helper to get initial state from localStorage for faster boot
+const getCachedAuth = () => {
+  try {
+    const cached = localStorage.getItem('invoiceport_auth_cache');
+    if (!cached) return null;
+    const data = JSON.parse(cached);
+    // Only use cache if it's less than 24 hours old
+    if (Date.now() - data.timestamp > 1000 * 60 * 60 * 24) return null;
+    return data;
+  } catch {
+    return null;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState('loading');
-  const [subscription, setSubscription] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const cache = getCachedAuth();
+  
+  const [user, setUser] = useState(cache?.user || null);
+  const [isAdmin, setIsAdmin] = useState(cache?.isAdmin || false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(cache?.subscriptionStatus || 'loading');
+  const [subscription, setSubscription] = useState(cache?.subscription || null);
+  const [authLoading, setAuthLoading] = useState(!cache); // If we have a cache, don't block UI
+  
   // Tracks whether we've resolved admin+sub at least once for this session
-  const resolvedRef = React.useRef(false);
+  const resolvedRef = React.useRef(!!cache);
 
   const resolveUserData = async (u) => {
     if (!u) return { adminStatus: false, subStatus: 'expired', subscriptionData: null };
@@ -75,6 +92,17 @@ export const AuthProvider = ({ children }) => {
       }
     }, 3000);
 
+    const updateCache = (data) => {
+      try {
+        localStorage.setItem('invoiceport_auth_cache', JSON.stringify({
+          ...data,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.warn('Failed to update auth cache', e);
+      }
+    };
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       const sessionUser = session?.user ?? null;
@@ -85,6 +113,7 @@ export const AuthProvider = ({ children }) => {
         setAuthLoading(false);
         setSubscriptionStatus('expired');
         setSubscription(null);
+        localStorage.removeItem('invoiceport_auth_cache');
         authResolved = true;
         return;
       }
@@ -96,6 +125,15 @@ export const AuthProvider = ({ children }) => {
         setSubscriptionStatus(subStatus);
         setSubscription(subscriptionData);
         resolvedRef.current = true;
+        
+        // Update cache for next refresh
+        updateCache({
+          user: sessionUser,
+          isAdmin: adminStatus,
+          subscriptionStatus: subStatus,
+          subscription: subscriptionData
+        });
+
       } catch {
         if (!mounted) return;
         setSubscriptionStatus('allowed');
@@ -126,6 +164,7 @@ export const AuthProvider = ({ children }) => {
         resolvedRef.current = false;
         setAuthLoading(false);
         authResolved = true;
+        localStorage.removeItem('invoiceport_auth_cache');
         return;
       }
 
@@ -138,6 +177,7 @@ export const AuthProvider = ({ children }) => {
         setSubscription(null);
         setAuthLoading(false);
         authResolved = true;
+        localStorage.removeItem('invoiceport_auth_cache');
         return;
       }
 
@@ -150,7 +190,9 @@ export const AuthProvider = ({ children }) => {
 
       if (event === 'SIGNED_IN') {
         setUser(sessionUser);
-        setSubscriptionStatus('loading');
+        // Don't show loading if we already have data (e.g. from cache or session update)
+        if (!resolvedRef.current) setSubscriptionStatus('loading');
+        
         try {
           const { adminStatus, subStatus, subscriptionData } = await resolveUserData(sessionUser);
           if (!mounted) return;
@@ -158,6 +200,13 @@ export const AuthProvider = ({ children }) => {
           setSubscriptionStatus(subStatus);
           setSubscription(subscriptionData);
           resolvedRef.current = true;
+          
+          updateCache({
+            user: sessionUser,
+            isAdmin: adminStatus,
+            subscriptionStatus: subStatus,
+            subscription: subscriptionData
+          });
         } catch {
           if (!mounted) return;
           setSubscriptionStatus('allowed');
