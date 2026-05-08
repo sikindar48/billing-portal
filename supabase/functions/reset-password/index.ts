@@ -18,20 +18,40 @@ async function findUserByEmail(adminClient: any, email: string) {
   try {
     const normalizedEmail = email.toLowerCase().trim();
     
+    // 1. Try direct getUserByEmail (most efficient)
+    const { data: userData, error: userError } = await adminClient.auth.admin.getUserByEmail(normalizedEmail);
+    if (userData?.user) {
+      return userData.user;
+    }
+
+    // 2. Fallback: Check business_settings table in public schema
+    // This table mirrors user emails and can be queried if listUsers/getUserByEmail has issues
+    const { data: profileData, error: profileError } = await adminClient
+      .from('business_settings')
+      .select('user_id')
+      .eq('company_email', normalizedEmail)
+      .maybeSingle();
+
+    if (profileData?.user_id) {
+      // If found in business_settings, get the full user object
+      const { data: finalUserData } = await adminClient.auth.admin.getUserById(profileData.user_id);
+      if (finalUserData?.user) return finalUserData.user;
+    }
+
+    // 3. Last resort: List users (slow but thorough)
     let page = 1;
     let hasMore = true;
     while (hasMore) {
       const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
-      if (error || !data || !data.users) {
-        console.error("Error listing users:", error);
-        return null;
-      }
-      const user = data.users.find((u: { email: string }) => u.email?.toLowerCase().trim() === normalizedEmail);
+      if (error || !data || !data.users) break;
+      
+      const user = data.users.find((u: any) => u.email?.toLowerCase().trim() === normalizedEmail);
       if (user) return user;
       
       hasMore = data.users.length === 1000;
       page++;
     }
+
     return null;
   } catch (err) {
     console.error("findUserByEmail error:", err);
