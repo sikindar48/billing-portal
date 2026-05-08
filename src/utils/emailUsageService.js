@@ -39,9 +39,16 @@ export const checkEmailUsageLimit = async () => {
       // Check if user is admin first
       const isAdmin = await isAdminUser();
       if (isAdmin) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: usageData } = await supabase
+          .from('user_subscriptions')
+          .select('email_usage_count')
+          .eq('user_id', authUser?.id)
+          .maybeSingle();
+
         return {
           canSendEmail: true,
-          currentUsage: 0,
+          currentUsage: usageData?.email_usage_count || 0,
           emailLimit: 999999,
           planName: 'Admin',
           isPro: true,
@@ -106,7 +113,7 @@ export const checkEmailUsageLimit = async () => {
  * Log email usage and increment counter
  * @param {string} invoiceId - Invoice ID (optional)
  * @param {string} recipientEmail - Recipient email address
- * @param {string} emailMethod - Email method used ('emailjs', 'gmail')
+ * @param {string} emailMethod - Email method used ('default_mail', 'gmail')
  * @param {string} status - Email status ('sent', 'failed')
  * @param {string} errorMessage - Error message if failed (optional)
  * @returns {Promise<Object>} Log result
@@ -114,11 +121,11 @@ export const checkEmailUsageLimit = async () => {
 export const logEmailUsage = async (invoiceId, recipientEmail, emailMethod, status, errorMessage = null) => {
   try {
     const { data, error } = await supabase.rpc('log_email_usage', {
-      p_invoice_id: invoiceId,
+      p_invoice_id: invoiceId || null,
       p_recipient_email: recipientEmail,
       p_email_method: emailMethod,
       p_status: status,
-      p_error_message: errorMessage
+      p_error_message: errorMessage || null
     });
 
     if (error) {
@@ -252,27 +259,27 @@ export const getAvailableEmailMethods = async () => {
     if (usageCheck.isPro || usageCheck.isAdmin) {
       // Pro users and admins get all email methods
       return {
-        emailjs: true,
+        default_mail: true,
         gmail: true,
         professional: true,
         unlimited: true,
         isAdmin: usageCheck.isAdmin
       };
     } else {
-      // Trial users get limited EmailJS only
+      // Trial users get limited Default Mail only
       return {
-        emailjs: true,
+        default_mail: true,
         gmail: false, // No Gmail for trial users
         professional: false,
         unlimited: false,
         isAdmin: false,
-        restriction: 'Trial users can only send via InvoicePort mail (EmailJS)'
+        restriction: 'Trial users can only send via InvoicePort Default Mail'
       };
     }
   } catch (error) {
     console.error('Error getting available email methods:', error);
     return {
-      emailjs: true,
+      default_mail: true,
       gmail: false,
       professional: false,
       unlimited: false,
@@ -287,7 +294,7 @@ export const getAvailableEmailMethods = async () => {
  * @param {string} emailMethod - Requested email method
  * @returns {Promise<Object>} Validation result
  */
-export const validateEmailSendRequest = async (emailMethod = 'emailjs') => {
+export const validateEmailSendRequest = async (emailMethod = 'default_mail') => {
   try {
     const usageCheck = await checkEmailUsageLimit();
     const availableMethods = await getAvailableEmailMethods();
@@ -299,7 +306,9 @@ export const validateEmailSendRequest = async (emailMethod = 'emailjs') => {
         method: emailMethod,
         remainingEmails: 'unlimited',
         planName: 'Admin',
-        isAdmin: true
+        isPro: true,
+        isAdmin: true,
+        currentUsage: usageCheck.currentUsage || 0
       };
     }
 
@@ -321,7 +330,7 @@ export const validateEmailSendRequest = async (emailMethod = 'emailjs') => {
         canSend: false,
         reason: 'method_restricted',
         message: 'Gmail integration is only available for Pro users. Upgrade to send from your professional email address.',
-        suggestedMethod: 'emailjs'
+        suggestedMethod: 'default_mail'
       };
     }
 
@@ -330,7 +339,9 @@ export const validateEmailSendRequest = async (emailMethod = 'emailjs') => {
       method: emailMethod,
       remainingEmails: usageCheck.isPro ? 'unlimited' : (usageCheck.emailLimit - usageCheck.currentUsage),
       planName: usageCheck.planName,
-      isAdmin: false
+      isPro: usageCheck.isPro, // Add this
+      isAdmin: false,
+      currentUsage: usageCheck.currentUsage // Also helpful to have
     };
   } catch (error) {
     console.error('Error validating email send request:', error);

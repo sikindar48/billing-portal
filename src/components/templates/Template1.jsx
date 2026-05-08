@@ -72,12 +72,14 @@ const Template1 = ({ data }) => {
             <p className="text-sm">{billTo.phone}</p>
             {billTo.email && <p className="text-sm">{billTo.email}</p>}
           </div>
-          <div>
-            <h3 className="font-semibold text-lg text-gray-700 mb-1">Ship To:</h3>
-            <p className="font-medium">{shipTo.name}</p>
-            <p className="text-sm">{shipTo.address}</p>
-            <p className="text-sm">{shipTo.phone}</p>
-          </div>
+          {shipTo?.name && (
+            <div>
+              <h3 className="font-semibold text-lg text-gray-700 mb-1">Ship To:</h3>
+              <p className="font-medium">{shipTo.name}</p>
+              <p className="text-sm">{shipTo.address}</p>
+              <p className="text-sm">{shipTo.phone}</p>
+            </div>
+          )}
         </div>
 
         {/* ITEMS TABLE */}

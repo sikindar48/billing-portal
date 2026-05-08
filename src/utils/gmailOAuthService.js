@@ -352,7 +352,7 @@ export const disconnectGmail = async () => {
       gmail_refresh_token: null,
       gmail_token_expires: null,
       gmail_email: null,
-      preferred_email_method: 'emailjs',
+      preferred_email_method: 'default_mail',
     };
 
     const { error } = await supabase

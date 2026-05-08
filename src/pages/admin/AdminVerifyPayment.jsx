@@ -39,7 +39,7 @@ const AdminVerifyPayment = () => {
         .select('*')
         .eq('id', requestId)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (requestError) {
         console.error('Request error:', requestError);
@@ -69,7 +69,7 @@ const AdminVerifyPayment = () => {
         .from('subscription_plans')
         .select('*')
         .eq('id', request.plan_id)
-        .single();
+        .maybeSingle();
 
       if (planError) {
         console.error('Plan error:', planError);

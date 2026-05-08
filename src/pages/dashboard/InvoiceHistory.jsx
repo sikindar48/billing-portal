@@ -284,7 +284,7 @@ const InvoiceHistory = () => {
         .select('invoice_details')
         .eq('id', invoiceId)
         .eq('user_id', uid)
-        .single();
+        .maybeSingle();
 
       if (fetchErr) throw fetchErr;
 
@@ -436,7 +436,7 @@ const InvoiceHistory = () => {
         .from('invoices')
         .insert(taxInvoiceData)
         .select()
-        .single();
+        .maybeSingle();
 
       if (invoiceError) throw invoiceError;
 
@@ -445,7 +445,7 @@ const InvoiceHistory = () => {
         .from('invoices')
         .select('invoice_details')
         .eq('id', proformaInvoice.id)
-        .single();
+        .maybeSingle();
 
       await supabase
         .from('invoices')

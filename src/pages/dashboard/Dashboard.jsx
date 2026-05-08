@@ -61,7 +61,8 @@ const Index = () => {
   const [emailUsageStats, setEmailUsageStats] = useState(null);
   const [isLoadingEmailStats, setIsLoadingEmailStats] = useState(true);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(3);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(1);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   // brandingApplied ref prevents the branding effect from re-running on every keystroke
   const brandingAppliedRef = useRef(false);
   
@@ -157,9 +158,13 @@ const Index = () => {
                     phone: branding.metadata?.phone || '',
                     currency: branding.metadata?.currency || 'INR',
                     upiId: branding.metadata?.upi_id || '',
+                    defaultTemplateId: branding.metadata?.default_template_id || 1,
                 });
                 if (branding.metadata?.currency) {
                     setSelectedCurrency(branding.metadata.currency);
+                }
+                if (branding.metadata?.default_template_id && !location.state?.invoiceData) {
+                    setSelectedTemplateId(branding.metadata.default_template_id);
                 }
             }
 
@@ -368,36 +373,70 @@ const Index = () => {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      const companyDataWithBranding = { ...yourCompany, logoUrl: brandingSettings.logoUrl, tagline: brandingSettings.brandingTagline };
+      const formData = {
+        billTo, shipTo, invoice: { ...invoice, taxType, enableRoundOff, roundOffAmount }, 
+        yourCompany: companyDataWithBranding, items, taxPercentage, taxAmount, subTotal, grandTotal, notes, selectedCurrency, invoiceMode
+      };
+      
+      const { generatePDF } = await import('@/utils/pdfGenerator');
+      await generatePDF(formData, selectedTemplateId);
+      toast.success('PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   const handleSendEmail = async () => {
     setIsSendingEmail(true);
     
     try {
-      // Validate invoice data
+      // Prepare full invoice data including template choice
       const invoiceData = {
         billTo,
         invoice,
-        yourCompany,
+        yourCompany: { 
+          ...yourCompany, 
+          logoUrl: brandingSettings.logoUrl, 
+          tagline: brandingSettings.brandingTagline,
+          upiId: brandingSettings.upiId // Added this
+        },
         items,
         grandTotal,
         selectedCurrency,
         taxAmount,
         subTotal,
-        notes
+        notes,
+        invoiceMode,
+        taxType,
+        taxPercentage,
+        enableRoundOff,
+        roundOffAmount,
+        selectedTemplateId
       };
 
+      // 1. Generate PDF
+      toast.loading('Generating invoice PDF...', { id: 'email-progress' });
       const validation = validateInvoiceForEmail(invoiceData);
       if (!validation.isValid) {
-        toast.error(validation.errors[0], { duration: 3000 });
+        toast.error(validation.errors[0], { id: 'email-progress' });
         return;
       }
 
-      // Send email with plan restrictions
+      // 2. Send email
+      toast.loading('Sending email to customer...', { id: 'email-progress' });
       const result = await sendInvoiceEmail(invoiceData, user?.id);
       
       if (result.success) {
         toast.success(
-          `Invoice sent successfully to ${result.customerEmail}!${result.fallbackUsed ? ' (via backup method)' : ''}`, 
-          { duration: 4000 }
+          `Sent to ${result.customerEmail}!`, 
+          { id: 'email-progress', duration: 4000 }
         );
         
         // Show method used and remaining emails
@@ -430,12 +469,12 @@ const Index = () => {
             { duration: 5000 }
           );
         } else {
-          toast.error(`Failed to send email: ${result.error}`, { duration: 4000 });
+          toast.error(`Failed to send email: ${result.error}`, { id: 'email-progress' });
         }
       }
     } catch (error) {
       console.error('Error sending email:', error);
-      toast.error('Failed to send email. Please try again.', { duration: 3000 });
+      toast.error('Failed to send email. Please try again.', { id: 'email-progress' });
     } finally {
       setIsSendingEmail(false);
     }
@@ -504,12 +543,6 @@ const Index = () => {
         {/* USAGE CARD - Extracted and placed in main render */}
         
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-5 border-b border-indigo-100">
-                <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-indigo-600" />
-                    Invoice Summary
-                </h3>
-            </div>
 
             <div className="p-5 space-y-6">
                 <Button onClick={handleSaveToDatabase} disabled={isSaving || (!isAdmin && usageStats.count >= usageStats.limit)} className={`w-full font-bold h-11 text-md shadow-md transition-all ${(!isAdmin && usageStats.count >= usageStats.limit) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-indigo-200'}`}>
@@ -517,35 +550,45 @@ const Index = () => {
                     {isSaving ? 'Saving...' : 'Save Invoice'}
                 </Button>
 
-                {/* Send Mail Button */}
-                <Button 
-                    onClick={handleSendEmail} 
-                    disabled={isSendingEmail || isLoadingEmailStats || !billTo.email || !user?.id || (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)}
-                    className={`w-full font-bold h-11 text-md shadow-md transition-all ${
-                        !billTo.email || isLoadingEmailStats
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                            : (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)
-                            ? 'bg-red-300 text-red-700 cursor-not-allowed'
-                            : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-emerald-200'
-                    }`}
-                >
-                    {isSendingEmail ? (
-                        <>
-                            <Loader2 size={18} className="animate-spin mr-2" />
-                            Sending...
-                        </>
-                    ) : isLoadingEmailStats ? (
-                        <>
-                            <Loader2 size={18} className="animate-spin mr-2" />
-                            Loading...
-                        </>
-                    ) : (
-                        <>
-                            <Mail size={18} className="mr-2" />
-                            Send Mail
-                        </>
-                    )}
-                </Button>
+                {/* Send Mail & Download Group */}
+                <div className="flex gap-2">
+                    <Button 
+                        onClick={handleSendEmail} 
+                        disabled={isSendingEmail || isLoadingEmailStats || !billTo.email || !user?.id || (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)}
+                        className={`flex-1 font-bold h-11 text-md shadow-md transition-all ${
+                            !billTo.email || isLoadingEmailStats
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                : (emailUsageStats && !emailUsageStats.canSendEmail && !emailUsageStats.isAdmin)
+                                ? 'bg-red-300 text-red-700 cursor-not-allowed'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-emerald-200'
+                        }`}
+                    >
+                        {isSendingEmail ? (
+                            <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                            <>
+                                <Mail size={18} className="mr-2" />
+                                Send
+                            </>
+                        )}
+                    </Button>
+
+                    <Button 
+                        onClick={handleDownloadPDF}
+                        disabled={isGeneratingPDF}
+                        variant="outline"
+                        className="flex-1 font-bold h-11 text-md border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                    >
+                        {isGeneratingPDF ? (
+                            <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                            <>
+                                <ShoppingBag size={18} className="mr-2" />
+                                Download
+                            </>
+                        )}
+                    </Button>
+                </div>
 
                 {/* Email Status Info */}
                 {!billTo.email && !isLoadingEmailStats && (

@@ -9,7 +9,7 @@ import { Loader2, Save, Building2, Mail, FileText } from 'lucide-react';
 import GmailConnect from '@/components/GmailConnect';
 
 const BrandingSettings = () => {
-  const { user, subscription } = useAuth();
+  const { user, subscription, isPro } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -23,9 +23,10 @@ const BrandingSettings = () => {
     invoice_prefix: 'INV',
     currency: 'INR',
     tax_rate: 18,
-    preferred_email_method: 'emailjs',
+    preferred_email_method: 'default_mail',
     upi_id: '',
     gst_number: '',
+    default_template_id: 1,
   });
 
   useEffect(() => {
@@ -52,9 +53,10 @@ const BrandingSettings = () => {
             invoice_prefix: data.metadata?.invoice_prefix || 'INV',
             currency: data.metadata?.currency || 'INR',
             tax_rate: data.metadata?.tax_rate ?? 18,
-            preferred_email_method: data.metadata?.preferred_email_method || 'emailjs',
+            preferred_email_method: data.metadata?.preferred_email_method === 'emailjs' ? 'default_mail' : (data.metadata?.preferred_email_method || 'default_mail'),
             upi_id: data.metadata?.upi_id || '',
             gst_number: data.metadata?.gst_number || '',
+            default_template_id: data.metadata?.default_template_id || 1,
           }));
         }
       } catch (e) {
@@ -89,6 +91,7 @@ const BrandingSettings = () => {
             preferred_email_method: settings.preferred_email_method,
             upi_id: settings.upi_id,
             gst_number: settings.gst_number,
+            default_template_id: settings.default_template_id,
           },
         }, { onConflict: 'user_id' });
       if (error) throw error;
@@ -195,14 +198,17 @@ const BrandingSettings = () => {
                   </select>
                 </div>
                 <div>
-                  <Label className="text-xs text-gray-500">Default Tax Rate (%)</Label>
-                  <Input
-                    type="number"
-                    value={settings.tax_rate ?? 18}
-                    onChange={e => set('tax_rate', parseFloat(e.target.value) || 0)}
-                    placeholder="18"
-                    className="text-sm mt-1"
-                  />
+                  <Label className="text-xs text-gray-500 font-bold text-indigo-600">Default Template</Label>
+                  <select
+                    value={settings.default_template_id || 1}
+                    onChange={e => set('default_template_id', parseInt(e.target.value))}
+                    className="w-full mt-1 px-3 py-2 text-sm border-2 border-indigo-100 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                  >
+                    {[...Array(10)].map((_, i) => (
+                      <option key={i+1} value={i+1}>Template {i+1} {i+1 === 10 ? '(Premium)' : ''}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-gray-400 mt-1 italic text-center">This template will be used for all new invoices and PDF attachments.</p>
                 </div>
               </div>
             </div>
@@ -261,7 +267,7 @@ const BrandingSettings = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                 {/* Gmail Integration - Pro Only */}
                 <label className={`flex items-start gap-3 p-4 border rounded-lg transition-colors ${
-                  subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly'
+                  isPro
                     ? `cursor-pointer ${settings.preferred_email_method === 'gmail' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`
                     : 'cursor-not-allowed opacity-60 border-gray-200'
                 }`}>
@@ -271,19 +277,19 @@ const BrandingSettings = () => {
                     value="gmail" 
                     checked={settings.preferred_email_method === 'gmail'} 
                     onChange={e => {
-                      if (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly') {
+                      if (isPro) {
                         set('preferred_email_method', e.target.value);
                       } else {
                         toast.error('Gmail integration is only available for Pro plan users');
                       }
                     }} 
-                    disabled={subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly'}
+                    disabled={!isPro}
                     className="mt-0.5 accent-indigo-600" 
                   />
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-gray-800">Gmail Integration</p>
-                      {subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly' ? (
+                      {isPro ? (
                         <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Pro</span>
                       ) : (
                         <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Pro Only</span>
@@ -294,19 +300,18 @@ const BrandingSettings = () => {
                   </div>
                 </label>
 
-                {/* EmailJS - Available for all */}
-                <label className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${settings.preferred_email_method === 'emailjs' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="radio" name="email_method" value="emailjs" checked={settings.preferred_email_method === 'emailjs'} onChange={e => set('preferred_email_method', e.target.value)} className="mt-0.5 accent-indigo-600" />
+                {/* Default Mail - Available for all */}
+                <label className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${settings.preferred_email_method === 'default_mail' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" name="email_method" value="default_mail" checked={settings.preferred_email_method === 'default_mail'} onChange={e => set('preferred_email_method', e.target.value)} className="mt-0.5 accent-indigo-600" />
                   <div>
-                    <p className="text-sm font-medium text-gray-800">EmailJS (Basic)</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Simple fallback delivery</p>
-                    <p className="text-xs mt-1 text-yellow-600">⚠️ Generic sender</p>
+                    <p className="text-sm font-medium text-gray-800">InvoicePort Default Mail</p>
+                    <p className="text-xs text-gray-500 mt-0.5">High-speed system delivery</p>
                   </div>
                 </label>
               </div>
 
               {/* Gmail Info Box - Show only if Pro */}
-              {settings.preferred_email_method === 'gmail' && (subscription?.subscription_plans?.slug === 'monthly' || subscription?.subscription_plans?.slug === 'yearly') && (
+              {settings.preferred_email_method === 'gmail' && isPro && (
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-xs text-gray-500 mb-3">Connect your Gmail account to send invoices professionally.</p>
                   <GmailConnect />
@@ -314,7 +319,7 @@ const BrandingSettings = () => {
               )}
 
               {/* Pro Plan Required Message */}
-              {subscription?.subscription_plans?.slug !== 'monthly' && subscription?.subscription_plans?.slug !== 'yearly' && (
+              {!isPro && (
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-xs text-blue-700">
                     <strong>💡 Upgrade to Pro:</strong> Gmail integration is available for Pro plan users. Upgrade now to send invoices from your own Gmail account.

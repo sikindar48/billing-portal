@@ -15,9 +15,11 @@ const QRSection = ({ data, showLabel = true }) => {
       const currency = selectedCurrency || 'INR';
       return `upi://pay?pa=${upiId}&pn=${name}&am=${grandTotal}&tn=${note}&cu=${currency}`;
     }
-    // Fallback to verification string
-    return `Invoice: ${invoice.number}, Total: ${formatCurrency(grandTotal, selectedCurrency)}, Due: ${invoice.paymentDate}`;
-  }, [upiId, yourCompany.name, invoice.number, grandTotal, selectedCurrency, invoice.paymentDate]);
+    
+    // Fallback to Verification URL (Interactive)
+    const productionUrl = 'https://www.invoiceport.live';
+    return `${productionUrl}/verify-invoice?number=${invoice.number}`;
+  }, [upiId, yourCompany.name, invoice.number, grandTotal, selectedCurrency]);
 
   return (
     <div className="flex flex-col items-center">

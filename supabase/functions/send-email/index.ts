@@ -3,6 +3,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { welcomeEmailHtml } from './templates/welcome.ts';
 import { otpEmailHtml } from './templates/otp.ts';
 import { subscriptionConfirmationHtml } from './templates/subscription.ts';
+import { invoiceEmailHtml } from './templates/invoice.ts';
 import type { EmailRequest } from './types.ts';
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
@@ -28,8 +29,14 @@ serve(async (req) => {
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
     if (!RESEND_API_KEY) return json({ error: 'RESEND_API_KEY not configured' }, 500);
 
-    const body = await req.json() as EmailRequest;
-    const { type, to } = body;
+    const body = await req.json() as any;
+    const { type, to, attachment, invoice_number } = body;
+    console.log(`Processing email: ${type} to: ${to}`);
+    if (attachment) {
+      console.log(`Attachment detected. Length: ${attachment.length} characters.`);
+    } else {
+      console.log('No attachment found in request body.');
+    }
 
     if (!type || !to) return json({ error: 'Missing required fields: type, to' }, 400);
 
@@ -38,26 +45,40 @@ serve(async (req) => {
     let html = '';
 
     if (type === 'welcome') {
-      subject = "🎉 Welcome to InvoicePort – Let's Get Started!";
-      html = welcomeEmailHtml(body.user_name ?? '');
+      const { user_name } = body;
+      subject = 'Welcome to InvoicePort';
+      html = welcomeEmailHtml(user_name ?? 'there');
 
     } else if (type === 'otp') {
-      if (!body.otp_code) return json({ error: 'Missing otp_code' }, 400);
-      subject = `${body.otp_code} is your InvoicePort Password Reset code`;
-      html = otpEmailHtml(body.otp_code, body.expires_in ?? '10 minutes');
+      const { otp_code, purpose, expires_in } = body;
+      subject = purpose === 'password_reset' ? 'Reset your InvoicePort password' : 'Your InvoicePort verification code';
+      html = otpEmailHtml(otp_code, expires_in ?? '10 minutes');
 
     } else if (type === 'subscription_confirmation') {
-      const { plan_name, amount, period_end } = body;
-      if (!plan_name || !amount || !period_end) {
-        return json({ error: 'Missing fields: plan_name, amount, period_end' }, 400);
-      }
-      subject = `🎉 You're on ${plan_name} – InvoicePort`;
+      const { user_name, plan_name, amount, billing_cycle, period_end } = body;
+      subject = `Subscription Confirmed: ${plan_name}`;
       html = subscriptionConfirmationHtml(
-        body.user_name ?? '',
+        user_name ?? 'there',
         plan_name,
         amount,
-        body.billing_cycle ?? '',
+        billing_cycle ?? '',
         period_end,
+      );
+
+    } else if (type === 'invoice') {
+      const { amount, currency, due_date, verify_url, user_name } = body;
+      if (!invoice_number || !amount || !currency || !due_date || !verify_url) {
+        return json({ error: 'Missing invoice fields' }, 400);
+      }
+      subject = `New Invoice #${invoice_number} from ${user_name || 'Service Provider'}`;
+      html = invoiceEmailHtml(
+        user_name ?? 'there',
+        invoice_number,
+        amount,
+        currency,
+        due_date,
+        verify_url,
+        attachment
       );
 
     } else {
@@ -65,25 +86,47 @@ serve(async (req) => {
     }
 
     // ── Send via Resend ───────────────────────────────────────────────────
+    const resendPayload: any = {
+      from: 'InvoicePort <info@invoiceport.live>',
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+    };
+
+    if (type === 'invoice' && attachment) {
+      // Sanitize filename: remove spaces and special chars
+      const safeNumber = (invoice_number || 'Document').replace(/[^a-zA-Z0-9]/g, '_');
+      
+      // Log preamble to verify valid base64
+      console.log(`Attachment preamble: ${attachment.substring(0, 50)}...`);
+      
+      resendPayload.attachments = [
+        {
+          filename: `Invoice_${safeNumber}.pdf`,
+          content: attachment,
+        }
+      ];
+      console.log(`PDF attachment added. Filename: Invoice_${safeNumber}.pdf`);
+    }
+
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: 'InvoicePort <info@invoiceport.live>',
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-      }),
+      body: JSON.stringify(resendPayload),
     });
 
     const result = await resendRes.json();
 
     if (!resendRes.ok) {
-      console.error('Resend error:', result);
-      return json({ error: result.message ?? 'Failed to send email', details: result }, resendRes.status);
+      console.error('Resend error response:', result);
+      return json({ 
+        error: result.message ?? 'Failed to send email via Resend', 
+        details: result,
+        suggestion: result.message?.includes('verified') ? 'Check if your sender domain is verified in Resend.' : 'Check your Resend API key and configuration.'
+      }, resendRes.status);
     }
 
     return json({ success: true, id: result.id });

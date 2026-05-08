@@ -25,7 +25,7 @@ const getUserBusinessSettings = async (userId) => {
         company_phone: null,
         company_website: null,
         address_line1: null,
-        preferred_email_method: 'emailjs'
+        preferred_email_method: 'default_mail'
       };
     }
 
@@ -36,7 +36,7 @@ const getUserBusinessSettings = async (userId) => {
       company_phone: meta.phone || null,
       company_website: data.website || meta.website || null,
       address_line1: meta.address || null,
-      preferred_email_method: meta.preferred_email_method || 'emailjs',
+      preferred_email_method: meta.preferred_email_method || 'default_mail',
       email_signature: meta.email_signature || '',
     };
   } catch (error) {

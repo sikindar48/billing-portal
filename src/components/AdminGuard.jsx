@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
 const AdminGuard = ({ children }) => {
-  const { isAdmin, authLoading } = useAuth();
-
-  if (authLoading) {
+  const { isAdmin, authLoading, isAuthResolved } = useAuth();
+  
+  if (authLoading || !isAuthResolved) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />

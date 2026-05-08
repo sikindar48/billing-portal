@@ -84,15 +84,17 @@ const Template2 = ({ data = {} }) => {
                 <p>{billTo.phone || "Client Phone"}</p>
                 {billTo.email && <p>{billTo.email}</p>}
             </div>
-            <div 
-              className="p-4 rounded-lg border-l-4"
-              style={{ backgroundColor: LIGHT_BACKGROUND, borderColor: ACCENT_PRIMARY }} // Light accent background with primary border
-            >
-                <h3 className="text-lg font-semibold mb-2" style={{ color: ACCENT_PRIMARY }}>Ship To</h3>
-                <p className="font-bold">{shipTo.name || "N/A"}</p>
-                <p>{shipTo.address || "N/A"}</p>
-                <p>{shipTo.phone || "N/A"}</p>
-            </div>
+            {shipTo?.name && (
+              <div 
+                className="p-4 rounded-lg border-l-4"
+                style={{ backgroundColor: LIGHT_BACKGROUND, borderColor: ACCENT_PRIMARY }} // Light accent background with primary border
+              >
+                  <h3 className="text-lg font-semibold mb-2" style={{ color: ACCENT_PRIMARY }}>Ship To</h3>
+                  <p className="font-bold">{shipTo.name}</p>
+                  <p>{shipTo.address}</p>
+                  <p>{shipTo.phone}</p>
+              </div>
+            )}
         </div>
 
         {/* ITEMS TABLE */}
