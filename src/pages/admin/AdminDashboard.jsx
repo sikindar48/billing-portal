@@ -35,7 +35,10 @@ const AdminDashboard = () => {
         supabase.rpc('get_admin_users_detailed'),
         supabase.rpc('get_admin_payment_reconciliation'),
         supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('subscription_requests').select('*').eq('status', 'pending').order('created_at', { ascending: false })
+        supabase.from('subscription_requests')
+            .select('*, profiles(email), subscription_plans(name)')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
       ]);
 
       if (usersRes.error) throw usersRes.error;
@@ -187,12 +190,12 @@ const AdminDashboard = () => {
                     {data.requests.map(req => (
                         <div key={req.id} className="flex items-center justify-between p-4 border-t first:border-t-0 hover:bg-gray-50 transition-colors">
                             <div className="flex items-center gap-3">
-                                <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-xs">
-                                    {req.user_id.substring(0, 2).toUpperCase()}
+                                <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-sm">
+                                    <Users className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-semibold">{req.user_id}</div>
-                                    <div className="text-xs text-gray-500">Requested Plan ID: {req.plan_id}</div>
+                                    <div className="text-sm font-bold text-gray-900">{req.profiles?.email || 'Unknown User'}</div>
+                                    <div className="text-xs font-semibold text-indigo-600">Requested: {req.subscription_plans?.name || 'Unknown Plan'}</div>
                                 </div>
                             </div>
                             <div className="flex gap-2">
