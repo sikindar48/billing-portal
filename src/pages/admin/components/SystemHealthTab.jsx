@@ -25,9 +25,10 @@ const SystemHealthTab = () => {
       const { data, error: dbError } = await supabase.from('subscription_plans').select('count', { count: 'exact', head: true });
       results.database = !dbError ? 'healthy' : 'unhealthy';
 
-      // 2. Check Edge Functions (Ping the send-email function with invalid type to get a 400 instead of a 500)
+      // 2. Check Edge Functions (Ping the send-email function)
       const { error: edgeError } = await supabase.functions.invoke('send-email', { body: { ping: true } });
-      results.edgeFunctions = edgeError?.message?.includes('400') || !edgeError ? 'healthy' : 'unhealthy';
+      // If we get an error about missing fields (400), it means the function IS alive and working!
+      results.edgeFunctions = (edgeError?.message?.includes('400') || edgeError?.message?.includes('fields')) || !edgeError ? 'healthy' : 'unhealthy';
 
       // 3. Check Gmail API Status (Mocked or based on generic reachability)
       results.gmailApi = 'healthy'; 
