@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { User, Activity, History, ShieldAlert } from 'lucide-react';
+import TablePagination from './TablePagination';
 
 const AuditLogsTab = ({ logs }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+
+  const totalPages = Math.ceil(logs.length / pageSize);
+  const paginatedLogs = logs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -20,17 +27,17 @@ const AuditLogsTab = ({ logs }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {logs.length === 0 ? (
+              {paginatedLogs.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-6 py-10 text-center text-gray-400">
                     No audit logs available.
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                paginatedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      {log.action.includes('SECURITY') || log.action.includes('ERROR') ? (
+                      {log.action && (log.action.includes('SECURITY') || log.action.includes('ERROR')) ? (
                         <ShieldAlert className="h-5 w-5 text-red-500" />
                       ) : (
                         <Activity className="h-5 w-5 text-indigo-500" />
@@ -57,6 +64,11 @@ const AuditLogsTab = ({ logs }) => {
             </tbody>
           </table>
         </div>
+        <TablePagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </Card>
     </div>
   );

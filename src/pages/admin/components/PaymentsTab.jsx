@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { IndianRupee, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import TablePagination from './TablePagination';
 
 const PaymentsTab = ({ payments }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const totalPages = Math.ceil(payments.length / pageSize);
+  const paginatedPayments = payments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -20,14 +27,14 @@ const PaymentsTab = ({ payments }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {payments.length === 0 ? (
+              {paginatedPayments.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-6 py-10 text-center text-gray-400">
                     No payment records found yet.
                   </td>
                 </tr>
               ) : (
-                payments.map((p) => (
+                paginatedPayments.map((p) => (
                   <tr key={p.order_id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-[11px]">
                       <div className="text-gray-900 font-bold">{p.order_id}</div>
@@ -66,6 +73,11 @@ const PaymentsTab = ({ payments }) => {
             </tbody>
           </table>
         </div>
+        <TablePagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </Card>
     </div>
   );

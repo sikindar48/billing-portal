@@ -9,17 +9,29 @@ import { Loader2, Search, User, ExternalLink, Calendar, ShieldCheck, Mail, Build
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
+import TablePagination from './TablePagination';
+
 const User360Tab = ({ users, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [isOverrideOpen, setIsOverrideOpen] = useState(false);
   const [isBrandingOpen, setIsBrandingOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const filteredUsers = users.filter(u => 
     u.out_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.out_company_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Paginated Users
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handleOverride = async (userId, action) => {
 
   const handleOverride = async (userId, action) => {
     setProcessing(true);
@@ -71,7 +83,7 @@ const User360Tab = ({ users, onRefresh }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredUsers.map((user) => (
+              {paginatedUsers.map((user) => (
                 <tr key={user.out_profile_id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -141,6 +153,11 @@ const User360Tab = ({ users, onRefresh }) => {
             </tbody>
           </table>
         </div>
+        <TablePagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </Card>
 
       {/* Override Dialog */}
