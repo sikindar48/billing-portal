@@ -122,7 +122,8 @@ const User360Tab = ({ users, onRefresh }) => {
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs font-semibold">
               <tr>
                 <th className="px-6 py-4">User / Company</th>
-                <th className="px-6 py-4">Plan Status</th>
+                <th className="px-6 py-4">Plan</th>
+                <th className="px-6 py-4">Expiry</th>
                 <th className="px-6 py-4 text-center">Invoices</th>
                 <th className="px-6 py-4">Last Active</th>
                 <th className="px-6 py-4 text-right">Actions</th>
@@ -152,24 +153,24 @@ const User360Tab = ({ users, onRefresh }) => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1.5">
-                      <Badge 
-                        variant="secondary" 
-                        className={`w-fit px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
-                          (user.out_plan_slug === 'pro' || user.out_plan_slug?.toLowerCase() === 'monthly') ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                          user.out_plan_slug === 'yearly' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                          user.out_plan_slug === 'trial' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                          user.out_plan_slug === 'enterprise' ? 'bg-purple-50 text-purple-700 border-purple-100' :
-                          user.out_plan_slug === 'expired' ? 'bg-red-50 text-red-600 border-red-100' :
-                          'bg-gray-50 text-gray-600 border-gray-100'
-                        }`}
-                      >
-                        {user.out_plan_slug?.toUpperCase()}
-                      </Badge>
-                      <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-                        <Calendar className="h-3 w-3" />
-                        {user.out_period_end ? format(new Date(user.out_period_end), 'MMM dd, yyyy') : 'No Expiry'}
-                      </div>
+                    <Badge 
+                      variant="secondary" 
+                      className={`w-fit px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
+                        (user.out_plan_slug === 'pro' || user.out_plan_slug?.toLowerCase() === 'monthly') ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                        user.out_plan_slug === 'yearly' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                        user.out_plan_slug === 'trial' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                        user.out_plan_slug === 'enterprise' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                        user.out_plan_slug === 'expired' ? 'bg-red-50 text-red-600 border-red-100' :
+                        'bg-gray-50 text-gray-600 border-gray-100'
+                      }`}
+                    >
+                      {user.out_plan_slug?.toUpperCase()}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-600 font-medium whitespace-nowrap">
+                      <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                      {user.out_period_end ? format(new Date(user.out_period_end), 'MMM dd, yyyy') : 'Never'}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">
