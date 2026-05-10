@@ -17,8 +17,8 @@ const User360Tab = ({ users, onRefresh }) => {
   const [processing, setProcessing] = useState(false);
 
   const filteredUsers = users.filter(u => 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    u.out_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.out_company_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleOverride = async (userId, action) => {
@@ -72,23 +72,23 @@ const User360Tab = ({ users, onRefresh }) => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.map((user) => (
-                <tr key={user.profile_id} className="hover:bg-gray-50/50 transition-colors group">
+                <tr key={user.out_profile_id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden border border-indigo-200">
-                        {user.logo_url ? (
-                          <img src={user.logo_url} alt="" className="h-full w-full object-cover" />
+                        {user.out_logo_url ? (
+                          <img src={user.out_logo_url} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <User className="h-5 w-5 text-indigo-600" />
                         )}
                       </div>
                       <div>
-                        <div className="font-semibold text-gray-900">{user.full_name || 'No Name'}</div>
+                        <div className="font-semibold text-gray-900">{user.out_full_name || 'No Name'}</div>
                         <div className="text-xs text-gray-500 flex items-center gap-1">
-                          <Mail className="h-3 w-3" /> {user.email}
+                          <Mail className="h-3 w-3" /> {user.out_email}
                         </div>
                         <div className="text-xs text-indigo-600 flex items-center gap-1 mt-0.5">
-                          <Building className="h-3 w-3" /> {user.company_name}
+                          <Building className="h-3 w-3" /> {user.out_company_name}
                         </div>
                       </div>
                     </div>
@@ -96,25 +96,25 @@ const User360Tab = ({ users, onRefresh }) => {
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1">
                       <Badge className={
-                        user.plan_slug === 'trial' ? 'bg-blue-100 text-blue-700' : 
-                        user.plan_slug === 'enterprise' ? 'bg-purple-100 text-purple-700' :
+                        user.out_plan_slug === 'trial' ? 'bg-blue-100 text-blue-700' : 
+                        user.out_plan_slug === 'enterprise' ? 'bg-purple-100 text-purple-700' :
                         'bg-indigo-100 text-indigo-700'
                       }>
-                        {user.plan_slug.toUpperCase()}
+                        {user.out_plan_slug.toUpperCase()}
                       </Badge>
                       <span className="text-[10px] text-gray-400">
-                        Expires: {user.period_end ? format(new Date(user.period_end), 'MMM dd, yyyy') : 'Never'}
+                        Expires: {user.out_period_end ? format(new Date(user.out_period_end), 'MMM dd, yyyy') : 'Never'}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex flex-col">
-                      <span className="font-bold text-gray-700">{user.invoice_count}</span>
+                      <span className="font-bold text-gray-700">{user.out_invoice_count}</span>
                       <span className="text-[10px] text-gray-400 uppercase">Total Invoices</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-gray-500 text-xs">
-                    {user.last_active ? format(new Date(user.last_active), 'MMM dd, HH:mm') : 'Never'}
+                    {user.out_last_active ? format(new Date(user.out_last_active), 'MMM dd, HH:mm') : 'Never'}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -149,14 +149,14 @@ const User360Tab = ({ users, onRefresh }) => {
           <DialogHeader>
             <DialogTitle>Administrative Override</DialogTitle>
             <DialogDescription>
-              Modify subscription for <strong>{selectedUser?.email}</strong>
+              Modify subscription for <strong>{selectedUser?.out_email}</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Button 
               variant="outline" 
               className="justify-start h-14" 
-              onClick={() => handleOverride(selectedUser.profile_id, 'extend_trial')}
+              onClick={() => handleOverride(selectedUser.out_profile_id, 'extend_trial')}
               disabled={processing}
             >
               <Calendar className="mr-3 h-5 w-5 text-blue-600" />
@@ -168,7 +168,7 @@ const User360Tab = ({ users, onRefresh }) => {
             <Button 
               variant="outline" 
               className="justify-start h-14"
-              onClick={() => handleOverride(selectedUser.profile_id, 'activate_pro')}
+              onClick={() => handleOverride(selectedUser.out_profile_id, 'activate_pro')}
               disabled={processing}
             >
               <ShieldCheck className="mr-3 h-5 w-5 text-green-600" />
@@ -191,20 +191,20 @@ const User360Tab = ({ users, onRefresh }) => {
           {selectedUser && (
             <div className="space-y-4">
                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                  <img src={selectedUser.logo_url} alt="Logo" className="h-16 w-16 object-contain bg-white p-2 rounded border" />
+                  <img src={selectedUser.out_logo_url} alt="Logo" className="h-16 w-16 object-contain bg-white p-2 rounded border" />
                   <div>
-                    <h3 className="font-bold">{selectedUser.company_name}</h3>
-                    <p className="text-sm text-gray-500">{selectedUser.email}</p>
+                    <h3 className="font-bold">{selectedUser.out_company_name}</h3>
+                    <p className="text-sm text-gray-500">{selectedUser.out_email}</p>
                   </div>
                </div>
                <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="p-3 border rounded">
                     <div className="text-gray-400 text-[10px] uppercase font-bold">Plan</div>
-                    <div>{selectedUser.plan_slug.toUpperCase()}</div>
+                    <div>{selectedUser.out_plan_slug.toUpperCase()}</div>
                   </div>
                   <div className="p-3 border rounded">
                     <div className="text-gray-400 text-[10px] uppercase font-bold">Total Volume</div>
-                    <div>{selectedUser.invoice_count} Invoices</div>
+                    <div>{selectedUser.out_invoice_count} Invoices</div>
                   </div>
                </div>
             </div>
