@@ -72,7 +72,7 @@ const User360Tab = ({ users, onRefresh }) => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.map((user) => (
-                <tr key={user.user_id} className="hover:bg-gray-50/50 transition-colors group">
+                <tr key={user.profile_id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden border border-indigo-200">
@@ -156,7 +156,7 @@ const User360Tab = ({ users, onRefresh }) => {
             <Button 
               variant="outline" 
               className="justify-start h-14" 
-              onClick={() => handleOverride(selectedUser.user_id, 'extend_trial')}
+              onClick={() => handleOverride(selectedUser.profile_id, 'extend_trial')}
               disabled={processing}
             >
               <Calendar className="mr-3 h-5 w-5 text-blue-600" />
@@ -168,7 +168,7 @@ const User360Tab = ({ users, onRefresh }) => {
             <Button 
               variant="outline" 
               className="justify-start h-14"
-              onClick={() => handleOverride(selectedUser.user_id, 'activate_pro')}
+              onClick={() => handleOverride(selectedUser.profile_id, 'activate_pro')}
               disabled={processing}
             >
               <ShieldCheck className="mr-3 h-5 w-5 text-green-600" />
