@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
     Loader2, Users, CreditCard, Activity, ShieldCheck, 
-    TrendingUp, ArrowUpRight, ArrowDownRight, RefreshCw, Inbox, Check, X
+    TrendingUp, ArrowUpRight, ArrowDownRight, RefreshCw, Inbox, Check, X, Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
 
