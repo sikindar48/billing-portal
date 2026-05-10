@@ -71,6 +71,6 @@ $$;
 GRANT EXECUTE ON FUNCTION public.activate_subscription_after_payment(UUID, TEXT, INTEGER, TIMESTAMPTZ)
   TO service_role;
 
--- Also grant to authenticated in case we need it from frontend fallback
-GRANT EXECUTE ON FUNCTION public.activate_subscription_after_payment(UUID, TEXT, INTEGER, TIMESTAMPTZ)
-  TO authenticated;
+-- REVOKED: TO authenticated (Security Fix C-01)
+-- GRANT EXECUTE ON FUNCTION public.activate_subscription_after_payment(UUID, TEXT, INTEGER, TIMESTAMPTZ)
+--   TO authenticated;

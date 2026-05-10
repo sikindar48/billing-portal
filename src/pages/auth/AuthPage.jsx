@@ -177,23 +177,8 @@ const AuthPage = () => {
     }
     setLoading(true);
     try {
-        // Check account exists before sending OTP
-        const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const checkRes = await fetch(`${supabaseUrl}/functions/v1/reset-password`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({ action: 'check', email }),
-        });
-        if (!checkRes.ok) {
-          const err = await checkRes.json();
-          throw new Error(err.error || 'No account found with this email address.');
-        }
-
+        // Security Fix: Removed the 'check' action call to prevent email enumeration.
+        // We now call sendOTP directly. The backend handles the check silently.
         const result = await sendOTP(email, 'password_reset');
         if (!result.success) {
             throw new Error(result.error || 'Failed to send OTP');

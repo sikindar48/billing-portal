@@ -40,26 +40,24 @@ const InvoiceVerify = () => {
     setNotFound(false);
 
     try {
-      // Safely query based on whether the search term is a UUID or an invoice number
-      let query = supabase.from('invoices').select('*');
-      
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchTerm);
-      
-      if (isUUID) {
-        query = query.or(`id.eq.${searchTerm},invoice_number.eq.${searchTerm}`);
-      } else {
-        query = query.eq('invoice_number', searchTerm);
-      }
-
-      const { data, error } = await query.maybeSingle();
+      // Security Fix: Use secure RPC instead of direct table access to prevent PII leak
+      const { data, error } = await supabase.rpc('verify_invoice_public', {
+        p_search_term: searchTerm
+      });
 
       if (error) throw error;
 
-      if (!data) {
+      if (!data || data.length === 0) {
         setNotFound(true);
         toast.error('Invoice not found');
       } else {
-        setInvoice(data);
+        // Map RPC result back to component state
+        const result = data[0];
+        setInvoice({
+          ...result,
+          from_details: { name: result.company_name },
+          customer_name: result.customer_name_masked,
+        });
         toast.success('Invoice verified successfully');
       }
     } catch (error) {

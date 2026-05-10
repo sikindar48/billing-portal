@@ -353,34 +353,15 @@ const SubscriptionPage = () => {
     } catch (edgeErr) {
       console.error('[verify] Edge function failed:', edgeErr.message);
 
-      // ── Fallback: call RPC directly from frontend ───────────────────────
-      try {
-        const now = new Date();
-        const end = new Date(now);
-        if (plan.slug === 'monthly') end.setMonth(end.getMonth() + 1);
-        else end.setFullYear(end.getFullYear() + 1);
-
-        const { error: rpcErr } = await supabase.rpc('activate_subscription_after_payment', {
-          p_user_id: user.id,
-          p_plan_slug: plan.slug,
-          p_plan_id: plan.slug === 'monthly' ? 2 : 3,
-          p_period_end: end.toISOString(),
-        });
-
-        if (rpcErr) throw rpcErr;
-
-        toast.dismiss(toastId);
-        activateUI(plan.slug, plan.name);
-
-      } catch (rpcErr) {
-        console.error('[verify] RPC fallback failed:', rpcErr.message);
-        toast.dismiss(toastId);
-        setProcessing(false);
-        toast.error(
-          `Payment received (ID: ${paymentResponse.razorpay_payment_id}) but activation failed. Please contact support.`,
-          { duration: 20000 }
-        );
-      }
+      // ── Security Fix: Removed RPC Fallback ──────────────────────────────
+      // We no longer allow the frontend to activate subscriptions directly
+      // via RPC if the Edge Function fails. This prevents bypass attacks.
+      toast.dismiss(toastId);
+      setProcessing(false);
+      toast.error(
+        `Payment received (ID: ${paymentResponse.razorpay_payment_id}) but activation timed out. Please contact support at info.invoiceport@gmail.com with your Payment ID to activate manually.`,
+        { duration: 15000 }
+      );
     }
   };
 

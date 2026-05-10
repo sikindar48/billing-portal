@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 // Gmail OAuth Configuration
 const GMAIL_CLIENT_ID = import.meta.env.VITE_GMAIL_CLIENT_ID;
-const GMAIL_CLIENT_SECRET = import.meta.env.VITE_GMAIL_CLIENT_SECRET;
 
 
 
@@ -138,28 +137,18 @@ export const sendInvoiceViaGmail = async (invoiceData, userId) => {
 };
 
 /**
- * Refresh Gmail access token using refresh token
+ * Refresh Gmail access token using secure Edge Function
  */
 const refreshGmailAccessToken = async (refreshToken) => {
   try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: GMAIL_CLIENT_ID,
-        client_secret: GMAIL_CLIENT_SECRET,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
+    const { data, error } = await supabase.functions.invoke('gmail-token-refresh', {
+      body: { refresh_token: refreshToken }
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to refresh access token');
+    if (error || data?.error) {
+      throw new Error(data?.error || 'Token refresh failed');
     }
 
-    const data = await response.json();
     return data.access_token;
   } catch (error) {
     console.error('Error refreshing Gmail access token:', error);

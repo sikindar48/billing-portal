@@ -32,60 +32,43 @@ const sendOTPEmail = async (email, otpCode, purpose, expiresIn = '10 minutes') =
 };
 
 /**
- * Generate a 6-digit OTP code
- */
-export const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-/**
- * Generate and send OTP via email
+ * Generate and send OTP via secure Edge Function
  * @param {string} email - User's email address
  * @param {string} purpose - Purpose of OTP ('password_reset', 'email_verification', etc.)
  * @returns {Promise<{success: boolean, error?: string, otpId?: string}>}
  */
 export const sendOTP = async (email, purpose = 'password_reset') => {
   try {
-    // Generate 6-digit OTP
-    const otpCode = generateOTP();
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = {
+      'Content-Type': 'application/json',
+    };
     
-    // Store OTP in database
-    const { data: otpData, error: dbError } = await supabase
-      .from('otp_verifications')
-      .insert({
+    // Use session token if available, otherwise just anon key
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/request-otp`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
         email: email.toLowerCase().trim(),
-        otp_code: otpCode,
         purpose,
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes from now
-      })
-      .select('id')
-      .single();
+      }),
+    });
 
-    if (dbError) {
-      console.error('Database error storing OTP:', dbError);
-      return { success: false, error: 'Failed to generate OTP. Please try again.' };
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      return { success: false, error: data.error || 'Failed to send OTP.' };
     }
 
-    // Send OTP via Resend (through Supabase edge function)
-    try {
-      await sendOTPEmail(email, otpCode, purpose);
-
-      return { 
-        success: true, 
-        otpId: otpData.id,
-        message: 'OTP sent successfully to your email address.' 
-      };
-    } catch (emailError) {
-      console.error('Resend OTP error:', emailError);
-      
-      // Clean up the OTP record if email failed
-      await supabase
-        .from('otp_verifications')
-        .delete()
-        .eq('id', otpData.id);
-
-      return { success: false, error: 'Failed to send OTP email. Please try again.' };
-    }
+    return { 
+      success: true, 
+      otpId: data.otpId,
+      message: 'OTP sent successfully to your email address.' 
+    };
 
   } catch (error) {
     console.error('Error in sendOTP:', error);
@@ -94,78 +77,30 @@ export const sendOTP = async (email, purpose = 'password_reset') => {
 };
 
 /**
- * Verify OTP code
+ * Verify OTP code via secure RPC
  * @param {string} email - User's email address
  * @param {string} otpCode - 6-digit OTP code
  * @param {string} purpose - Purpose of OTP verification
- * @returns {Promise<{success: boolean, error?: string, otpId?: string}>}
+ * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const verifyOTP = async (email, otpCode, purpose = 'password_reset') => {
   try {
-    const emailLower = email.toLowerCase().trim();
-    const otpTrimmed = otpCode.trim();
+    const { data, error } = await supabase.rpc('verify_otp_securely', {
+      p_email: email.toLowerCase().trim(),
+      p_otp_code: otpCode.trim(),
+      p_purpose: purpose
+    });
 
-    // Find the most recent valid OTP for this email and purpose
-    const { data: otpRecord, error: fetchError } = await supabase
-      .from('otp_verifications')
-      .select('*')
-      .eq('email', emailLower)
-      .eq('purpose', purpose)
-      .eq('verified', false)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (fetchError || !otpRecord) {
-      return { success: false, error: 'Invalid or expired OTP code.' };
+    if (error) {
+      return { success: false, error: error.message };
     }
 
-    // Check if max attempts exceeded
-    if (otpRecord.attempts >= otpRecord.max_attempts) {
-      return { success: false, error: 'Maximum verification attempts exceeded. Please request a new OTP.' };
-    }
-
-    // Increment attempts
-    const newAttempts = otpRecord.attempts + 1;
-
-    // Check if OTP code matches
-    if (otpRecord.otp_code !== otpTrimmed) {
-      // Update attempts count
-      await supabase
-        .from('otp_verifications')
-        .update({ attempts: newAttempts })
-        .eq('id', otpRecord.id);
-
-      const remainingAttempts = otpRecord.max_attempts - newAttempts;
-      if (remainingAttempts > 0) {
-        return { 
-          success: false, 
-          error: `Invalid OTP code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.` 
-        };
-      } else {
-        return { success: false, error: 'Maximum verification attempts exceeded. Please request a new OTP.' };
-      }
-    }
-
-    // OTP is valid - mark as verified
-    const { error: updateError } = await supabase
-      .from('otp_verifications')
-      .update({ 
-        verified: true, 
-        verified_at: new Date().toISOString(),
-        attempts: newAttempts 
-      })
-      .eq('id', otpRecord.id);
-
-    if (updateError) {
-      console.error('Error updating OTP verification:', updateError);
-      return { success: false, error: 'Failed to verify OTP. Please try again.' };
+    if (!data.success) {
+      return { success: false, error: data.error };
     }
 
     return { 
       success: true, 
-      otpId: otpRecord.id,
       message: 'OTP verified successfully.' 
     };
 

@@ -4,7 +4,6 @@
 -- Function to update invoice status
 CREATE OR REPLACE FUNCTION update_invoice_status(
     p_invoice_id UUID,
-    p_user_id UUID,
     p_status TEXT,
     p_sent_at TIMESTAMPTZ DEFAULT NULL,
     p_paid_at TIMESTAMPTZ DEFAULT NULL
@@ -28,7 +27,7 @@ BEGIN
         paid_at = COALESCE(p_paid_at, paid_at),
         updated_at = NOW()
     WHERE invoices.id = p_invoice_id 
-        AND invoices.user_id = p_user_id;
+        AND invoices.user_id = auth.uid();
     
     -- Return the updated invoice
     RETURN QUERY
@@ -40,12 +39,12 @@ BEGIN
         invoices.paid_at
     FROM invoices
     WHERE invoices.id = p_invoice_id 
-        AND invoices.user_id = p_user_id;
+        AND invoices.user_id = auth.uid();
 END;
 $$;
 
 -- Function to get invoices (bypass schema cache)
-CREATE OR REPLACE FUNCTION get_user_invoices(p_user_id UUID)
+CREATE OR REPLACE FUNCTION get_user_invoices()
 RETURNS TABLE (
     id UUID,
     invoice_number TEXT,
@@ -103,14 +102,13 @@ BEGIN
         i.created_at,
         i.updated_at
     FROM invoices i
-    WHERE i.user_id = p_user_id
+    WHERE i.user_id = auth.uid()
     ORDER BY i.created_at DESC;
 END;
 $$;
 
 -- Function to insert audit log
 CREATE OR REPLACE FUNCTION insert_audit_log(
-    p_user_id UUID,
     p_user_identity_type TEXT,
     p_action_type TEXT,
     p_resource_type TEXT,
@@ -136,7 +134,7 @@ BEGIN
         old_values,
         new_values
     ) VALUES (
-        p_user_id,
+        auth.uid(),
         p_user_identity_type,
         p_action_type,
         p_resource_type,
