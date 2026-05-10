@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Activity, ShieldCheck, Zap, Mail, Database, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 
 const SystemHealthTab = () => {
