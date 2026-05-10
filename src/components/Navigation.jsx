@@ -49,10 +49,24 @@ const Navigation = () => {
 
   const handleLogout = async () => {
     setIsMenuOpen(false);
-    // Redirect immediately for fast UX
-    navigate('/', { replace: true });
-    // Sign out in the background (fire-and-forget)
-    supabase.auth.signOut().catch(err => console.error('Logout error:', err));
+    try {
+      // 1. Clear local custom caches immediately
+      localStorage.removeItem('invoiceport_auth_cache');
+      
+      // 2. Perform the signout and wait for it to complete
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // 3. Navigate to auth page instead of root to prevent redirect loops
+      navigate('/auth', { replace: true });
+      
+      // 4. Force a clean state refresh
+      window.location.reload();
+    } catch (err) {
+      console.error('Logout error:', err);
+      // Fallback: navigate anyway
+      navigate('/auth', { replace: true });
+    }
   };
 
   const handleNavigation = (path) => {
