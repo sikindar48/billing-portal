@@ -16,7 +16,7 @@
       script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://cdn.emailjs.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
-      connect-src 'self' https://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com;
       frame-src https://api.razorpay.com https://checkout.razorpay.com;
       img-src 'self' data: blob: https://*.supabase.co;
       object-src 'none';
