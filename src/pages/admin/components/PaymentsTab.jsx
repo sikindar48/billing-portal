@@ -35,7 +35,7 @@ const PaymentsTab = ({ payments }) => {
                 </tr>
               ) : (
                 paginatedPayments.map((p) => (
-                  <tr key={p.order_id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={p.order_id} className="hover:bg-gray-50/50 even:bg-gray-50/30 transition-colors">
                     <td className="px-6 py-4 font-mono text-[11px]">
                       <div className="text-gray-900 font-bold">{p.order_id}</div>
                       <div className="text-gray-400">{p.payment_id || 'Waiting for payment...'}</div>

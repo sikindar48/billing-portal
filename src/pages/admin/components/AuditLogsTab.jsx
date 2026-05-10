@@ -35,7 +35,7 @@ const AuditLogsTab = ({ logs }) => {
                 </tr>
               ) : (
                 paginatedLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={log.id} className="hover:bg-gray-50/50 even:bg-gray-50/30 transition-colors">
                     <td className="px-6 py-4">
                       {log.action && (log.action.includes('SECURITY') || log.action.includes('ERROR')) ? (
                         <ShieldAlert className="h-5 w-5 text-red-500" />
@@ -46,7 +46,9 @@ const AuditLogsTab = ({ logs }) => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <User className="h-3 w-3 text-gray-400" />
-                        <span className="font-medium text-xs truncate max-w-[150px]">{log.user_id}</span>
+                        <span className="font-semibold text-gray-900">
+                          {log.user_profile?.full_name || log.user_profile?.email || 'System'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">

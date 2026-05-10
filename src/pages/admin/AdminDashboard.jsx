@@ -30,19 +30,42 @@ const AdminDashboard = () => {
   const fetchAdminData = async () => {
     setLoading(true);
     try {
-      // Fetch all required data in parallel via our new secure RPCs
-      const [usersRes, paymentsRes, auditRes, requestsRes] = await Promise.all([
+      // Fetch all required data in parallel
+      const [usersRes, paymentsRes, auditRes, requestsRes, plansRes] = await Promise.all([
         supabase.rpc('get_admin_users_detailed'),
         supabase.rpc('get_admin_payment_reconciliation'),
         supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('subscription_requests')
-            .select('*, profiles(email), subscription_plans(name)')
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false })
+        supabase.from('subscription_requests').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
+        supabase.from('subscription_plans').select('id, name')
       ]);
 
       if (usersRes.error) throw usersRes.error;
       
+      // Manual join for requests since FK might be missing
+      let enrichedRequests = [];
+      if (requestsRes.data && requestsRes.data.length > 0) {
+        const userIds = requestsRes.data.map(r => r.user_id);
+        const { data: profileData } = await supabase.from('profiles').select('id, email').in('id', userIds);
+        
+        enrichedRequests = requestsRes.data.map(req => ({
+            ...req,
+            profiles: profileData?.find(p => p.id === req.user_id),
+            subscription_plans: plansRes.data?.find(p => p.id === req.plan_id)
+        }));
+      }
+
+      // Manual join for audit logs
+      let enrichedLogs = [];
+      if (auditRes.data && auditRes.data.length > 0) {
+        const userIds = [...new Set(auditRes.data.filter(l => l.user_id).map(l => l.user_id))];
+        const { data: profileData } = await supabase.from('profiles').select('id, email, full_name').in('id', userIds);
+        
+        enrichedLogs = auditRes.data.map(log => ({
+            ...log,
+            user_profile: profileData?.find(p => p.id === log.user_id)
+        }));
+      }
+
       // Calculate Stats
       const users = usersRes.data || [];
       const payments = paymentsRes.data || [];
@@ -53,11 +76,11 @@ const AdminDashboard = () => {
       setData({
         users,
         payments,
-        auditLogs: auditRes.data || [],
-        requests: requestsRes.data || [],
+        auditLogs: enrichedLogs,
+        requests: enrichedRequests,
         stats: {
           totalUsers: users.length,
-          activeSubs: users.filter(u => u.subscription_status === 'active').length,
+          activeSubs: users.filter(u => u.out_subscription_status === 'active').length,
           totalRevenue
         }
       });
@@ -214,20 +237,22 @@ const AdminDashboard = () => {
 
         {/* Tabbed Navigation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="bg-white p-1 rounded-xl shadow-sm mb-6 border w-full md:w-auto h-auto grid grid-cols-2 md:flex">
-            <TabsTrigger value="users" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg py-2.5 px-6">
-                <Users className="h-4 w-4 mr-2" /> Users 360
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg py-2.5 px-6">
-                <CreditCard className="h-4 w-4 mr-2" /> Payments
-            </TabsTrigger>
-            <TabsTrigger value="audit" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg py-2.5 px-6">
-                <Activity className="h-4 w-4 mr-2" /> Audit Stream
-            </TabsTrigger>
-            <TabsTrigger value="health" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg py-2.5 px-6">
-                <Zap className="h-4 w-4 mr-2" /> System Health
-            </TabsTrigger>
-          </TabsList>
+          <div className="bg-gray-100/50 p-1 rounded-xl w-fit">
+            <TabsList className="bg-transparent h-10 gap-1">
+                <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
+                    <Users className="h-4 w-4 mr-2" /> Users
+                </TabsTrigger>
+                <TabsTrigger value="payments" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
+                    <CreditCard className="h-4 w-4 mr-2" /> Payments
+                </TabsTrigger>
+                <TabsTrigger value="audit" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
+                    <Activity className="h-4 w-4 mr-2" /> Audit Stream
+                </TabsTrigger>
+                <TabsTrigger value="health" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
+                    <Zap className="h-4 w-4 mr-2" /> System Health
+                </TabsTrigger>
+            </TabsList>
+          </div>
 
           <div className="mt-6">
             <TabsContent value="users">

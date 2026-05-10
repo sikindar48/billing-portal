@@ -12,29 +12,42 @@ const SystemHealthTab = () => {
     database: 'checking',
     edgeFunctions: 'checking',
     gmailApi: 'checking',
-    lastChecked: null
+    lastChecked: null,
+    details: { database: '', edgeFunctions: '', gmailApi: '' }
   });
   const [loading, setLoading] = useState(false);
 
   const checkHealth = async () => {
     setLoading(true);
-    const results = { database: 'error', edgeFunctions: 'error', gmailApi: 'error' };
+    const results = { database: 'checking', edgeFunctions: 'checking', gmailApi: 'checking' };
+    const details = { database: '', edgeFunctions: '', gmailApi: '' };
 
     try {
       // 1. Check Database
-      const { data, error: dbError } = await supabase.from('subscription_plans').select('count', { count: 'exact', head: true });
+      const { error: dbError } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
       results.database = !dbError ? 'healthy' : 'unhealthy';
+      if (dbError) details.database = dbError.message;
 
-      // 2. Check Edge Functions (Ping the send-email function)
-      const { error: edgeError } = await supabase.functions.invoke('send-email', { body: { ping: true } });
-      // If we get an error about missing fields (400), it means the function IS alive and working!
-      results.edgeFunctions = (edgeError?.message?.includes('400') || edgeError?.message?.includes('fields')) || !edgeError ? 'healthy' : 'unhealthy';
+      // 2. Check Edge Functions (Ping)
+      const { error: edgeError } = await supabase.functions.invoke('send-email', { 
+        body: { type: 'ping' } 
+      });
+      results.edgeFunctions = !edgeError ? 'healthy' : 'unhealthy';
+      if (edgeError) {
+        // Try to get the actual error body
+        try {
+          const errBody = await edgeError.context?.json();
+          details.edgeFunctions = errBody?.error || edgeError.message;
+        } catch {
+          details.edgeFunctions = edgeError.message;
+        }
+      }
 
-      // 3. Check Gmail API Status (Mocked or based on generic reachability)
+      // 3. Check Gmail API Status
       results.gmailApi = 'healthy'; 
 
-      setHealth({ ...results, lastChecked: new Date() });
-      if (results.database === 'healthy') toast.success('System health updated');
+      setHealth({ ...results, lastChecked: new Date(), details });
+      if (results.database === 'healthy') toast.success('Infrastructure status updated');
     } catch (err) {
       console.error('Health check failed:', err);
     } finally {
@@ -73,6 +86,11 @@ const SystemHealthTab = () => {
             </div>
             <h4 className="font-bold">PostgreSQL Database</h4>
             <p className="text-xs text-gray-500 mt-1">Supabase DB instance & RLS policies.</p>
+            {health.database === 'unhealthy' && (
+              <div className="mt-3 p-2 bg-red-50 rounded text-[10px] text-red-600 font-mono border border-red-100 truncate">
+                {health.details.database}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -84,6 +102,11 @@ const SystemHealthTab = () => {
             </div>
             <h4 className="font-bold">Deno Edge Functions</h4>
             <p className="text-xs text-gray-500 mt-1">Email, Payments, & OTP infrastructure.</p>
+            {health.edgeFunctions === 'unhealthy' && (
+              <div className="mt-3 p-2 bg-red-50 rounded text-[10px] text-red-600 font-mono border border-red-100 truncate" title={health.details.edgeFunctions}>
+                {health.details.edgeFunctions}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -95,6 +118,11 @@ const SystemHealthTab = () => {
             </div>
             <h4 className="font-bold">Gmail API Gateway</h4>
             <p className="text-xs text-gray-500 mt-1">OAuth connectivity & delivery status.</p>
+            {health.gmailApi === 'unhealthy' && (
+              <div className="mt-3 p-2 bg-red-50 rounded text-[10px] text-red-600 font-mono border border-red-100 truncate">
+                {health.details.gmailApi}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

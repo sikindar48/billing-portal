@@ -32,10 +32,10 @@ serve(async (req) => {
     const body = await req.json() as any;
     const { type, to, attachment, invoice_number } = body;
     console.log(`Processing email: ${type} to: ${to}`);
-    if (attachment) {
-      console.log(`Attachment detected. Length: ${attachment.length} characters.`);
-    } else {
-      console.log('No attachment found in request body.');
+
+    // Health Check Ping
+    if (type === 'ping') {
+      return json({ status: 'healthy', timestamp: new Date().toISOString() });
     }
 
     if (!type || !to) return json({ error: 'Missing required fields: type, to' }, 400);
