@@ -161,11 +161,6 @@ const Navigation = () => {
                     <History className="mr-2 h-4 w-4 text-blue-600" /> History
                   </DropdownMenuItem>
 
-                  {isAdmin && (
-                    <DropdownMenuItem onClick={() => navigate('/audit-logs')} className="cursor-pointer py-2.5">
-                      <FileText className="mr-2 h-4 w-4 text-purple-600" /> Audit Logs
-                    </DropdownMenuItem>
-                  )}
 
                   <DropdownMenuSeparator />
 
@@ -234,11 +229,6 @@ const Navigation = () => {
             <Button variant="ghost" onClick={() => handleNavigation('/invoice-history')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
               <History className="mr-3 h-5 w-5" /> History
             </Button>
-            {isAdmin && (
-              <Button variant="ghost" onClick={() => handleNavigation('/audit-logs')} className="w-full justify-start text-white hover:bg-indigo-600/50 text-left">
-                <FileText className="mr-3 h-5 w-5" /> Audit Logs
-              </Button>
-            )}
           </div>
 
           <div className="border-t border-indigo-500/30 my-2"></div>

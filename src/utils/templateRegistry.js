@@ -1,13 +1,15 @@
-import Template1 from '../components/templates/Template1';
-import Template2 from '../components/templates/Template2';
-import Template3 from '../components/templates/Template3';
-import Template4 from '../components/templates/Template4';
-import Template5 from '../components/templates/Template5';
-import Template6 from '../components/templates/Template6';
-import Template7 from '../components/templates/Template7';
-import Template8 from '../components/templates/Template8';
-import Template9 from '../components/templates/Template9';
-import Template10 from '../components/templates/Template10';
+import { lazy } from 'react';
+
+const Template1 = lazy(() => import('../components/templates/Template1'));
+const Template2 = lazy(() => import('../components/templates/Template2'));
+const Template3 = lazy(() => import('../components/templates/Template3'));
+const Template4 = lazy(() => import('../components/templates/Template4'));
+const Template5 = lazy(() => import('../components/templates/Template5'));
+const Template6 = lazy(() => import('../components/templates/Template6'));
+const Template7 = lazy(() => import('../components/templates/Template7'));
+const Template8 = lazy(() => import('../components/templates/Template8'));
+const Template9 = lazy(() => import('../components/templates/Template9'));
+const Template10 = lazy(() => import('../components/templates/Template10'));
 
 export const templates = [
   { name: 'Template 1', component: Template1 },

@@ -69,6 +69,11 @@ const InvoiceHistory = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [modeFilter, setModeFilter] = useState('all');
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 15;
+  
   // Payment modal state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -88,27 +93,66 @@ const InvoiceHistory = () => {
   const [savingPayment, setSavingPayment] = useState(false);
 
   useEffect(() => {
-    if (user) loadInvoices();
-  }, [user]);
+    if (user) loadInvoices(1);
+  }, [user, statusFilter, modeFilter, debouncedSearchTerm]);
 
-  const loadInvoices = async () => {
+  const loadInvoices = async (page = 1) => {
+    setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      let query = supabase
         .from('invoices')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .select('id, invoice_number, created_at, grand_total, bill_to, invoice_details, template_name', { count: 'exact' })
+        .eq('user_id', user.id);
+
+      // Apply Filters in Query (Server-side filtering is much faster)
+      if (statusFilter !== 'all') {
+        // Querying JSONB status
+        query = query.filter('invoice_details->>status', 'eq', statusFilter);
+      }
+      
+      if (modeFilter !== 'all') {
+        query = query.filter('invoice_details->>invoiceMode', 'eq', modeFilter);
+      }
+
+      if (debouncedSearchTerm) {
+        query = query.or(`invoice_number.ilike.%${debouncedSearchTerm}%,customer_name.ilike.%${debouncedSearchTerm}%`);
+      }
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
 
       setInvoices(data || []);
+      setTotalCount(count || 0);
+      setCurrentPage(page);
     } catch (err) {
+      console.error('Error loading invoices:', err);
       const errorMsg = err.message || 'Failed to load invoices';
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFullInvoice = async (id) => {
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      toast.error('Failed to fetch full invoice details');
+      return null;
     }
   };
 
@@ -131,7 +175,7 @@ const InvoiceHistory = () => {
           `"${inv.invoice_number}"`,
           `"${inv.invoice_details?.date || ''}"`,
           `"${inv.status}"`,
-          `"${inv.invoice_mode || 'standard'}"`,
+          `"${inv.invoice_details?.invoiceMode || 'proforma'}"`,
           `"${inv.bill_to?.name || ''}"`,
           `"${inv.bill_to?.taxId || ''}"`,
           inv.subtotal,
@@ -181,28 +225,34 @@ const InvoiceHistory = () => {
     }
   };
 
-  const handleView = (invoice) => {
+  const handleView = async (invoice) => {
+    setProcessingId(invoice.id);
+    const fullInvoice = await fetchFullInvoice(invoice.id);
+    setProcessingId(null);
+    
+    if (!fullInvoice) return;
+
     // Pass the original invoice number — do NOT generate a new number.
     // viewMode flag tells Dashboard to skip draft-number generation.
     const invoiceData = {
-        billTo: invoice.bill_to,
-        shipTo: invoice.ship_to,
+        billTo: fullInvoice.bill_to,
+        shipTo: fullInvoice.ship_to,
         invoice: {
-            ...(invoice.invoice_details || {}),
-            number: invoice.invoice_number, // preserve original number
-            date: invoice.issue_date || invoice.invoice_details?.date,
-            paymentDate: invoice.due_date || invoice.invoice_details?.paymentDate,
+            ...(fullInvoice.invoice_details || {}),
+            number: fullInvoice.invoice_number, // preserve original number
+            date: fullInvoice.issue_date || fullInvoice.invoice_details?.date,
+            paymentDate: fullInvoice.due_date || fullInvoice.invoice_details?.paymentDate,
         },
-        yourCompany: invoice.from_details,
-        items: invoice.items,
-        taxPercentage: invoice.tax,
-        taxAmount: (invoice.subtotal * invoice.tax / 100).toFixed(2),
-        subTotal: invoice.subtotal,
-        grandTotal: invoice.grand_total,
-        notes: invoice.notes,
-        selectedCurrency: invoice.currency || "INR",
-        invoiceMode: invoice.invoice_details?.invoiceMode || invoice.invoice_mode || 'proforma',
-        _sourceInvoiceId: invoice.id,
+        yourCompany: fullInvoice.from_details,
+        items: fullInvoice.items,
+        taxPercentage: fullInvoice.tax,
+        taxAmount: (fullInvoice.subtotal * fullInvoice.tax / 100).toFixed(2),
+        subTotal: fullInvoice.subtotal,
+        grandTotal: fullInvoice.grand_total,
+        notes: fullInvoice.notes,
+        selectedCurrency: fullInvoice.currency || "INR",
+        invoiceMode: fullInvoice.invoice_details?.invoiceMode || 'proforma',
+        _sourceInvoiceId: fullInvoice.id,
     };
     
     navigate('/dashboard', { state: { invoiceData, viewMode: true } });
@@ -211,31 +261,34 @@ const InvoiceHistory = () => {
   const handleDownload = async (invoice) => {
     setProcessingId(invoice.id);
     try {
-        const taxPct = invoice.tax || 0;
-        const sub = invoice.subtotal || 0;
+        const fullInvoice = await fetchFullInvoice(invoice.id);
+        if (!fullInvoice) return;
+
+        const taxPct = fullInvoice.tax || 0;
+        const sub = fullInvoice.subtotal || 0;
         const taxAmt = (sub * taxPct) / 100;
-        const currency = invoice.invoice_details?.currency || 'INR';
+        const currency = fullInvoice.invoice_details?.currency || 'INR';
 
         const formData = {
-            billTo: invoice.bill_to,
-            shipTo: invoice.ship_to,
+            billTo: fullInvoice.bill_to,
+            shipTo: fullInvoice.ship_to,
             invoice: {
-                ...(invoice.invoice_details || {}),
-                number: invoice.invoice_number,
+                ...(fullInvoice.invoice_details || {}),
+                number: fullInvoice.invoice_number,
             },
-            yourCompany: invoice.from_details,
-            items: invoice.items || [],
+            yourCompany: fullInvoice.from_details,
+            items: fullInvoice.items || [],
             taxPercentage: taxPct,
             taxAmount: taxAmt,
             subTotal: sub,
-            grandTotal: invoice.grand_total || 0,
-            notes: invoice.notes,
+            grandTotal: fullInvoice.grand_total || 0,
+            notes: fullInvoice.notes,
             selectedCurrency: currency,
         };
 
         // Read template number from template_name (e.g. "template_3" → 3), default 3
-        const templateNumber = invoice.template_name
-            ? parseInt(invoice.template_name.replace('template_', ''), 10) || 3
+        const templateNumber = fullInvoice.template_name
+            ? parseInt(fullInvoice.template_name.replace('template_', ''), 10) || 3
             : 3;
 
         const { generatePDF } = await import('@/utils/pdfGenerator');
@@ -373,7 +426,7 @@ const InvoiceHistory = () => {
       if (!user) throw new Error('Not authenticated');
 
       // Validation checks
-      if ((proformaInvoice.invoice_details?.invoiceMode || proformaInvoice.invoice_mode) !== 'proforma') {
+      if ((proformaInvoice.invoice_details?.invoiceMode || 'proforma') !== 'proforma') {
         toast.error('Only proforma invoices can be converted');
         setProcessingId(null);
         return;
@@ -464,18 +517,8 @@ const InvoiceHistory = () => {
   };
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      const matchesSearch = 
-        inv.invoice_number?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        inv.customer_name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        inv.bill_to?.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'all' || (inv.invoice_details?.status || 'draft') === statusFilter;
-      const matchesMode = modeFilter === 'all' || (inv.invoice_details?.invoiceMode || 'proforma') === modeFilter;
-      
-      return matchesSearch && matchesStatus && matchesMode;
-    });
-  }, [invoices, debouncedSearchTerm, statusFilter, modeFilter]);
+    return invoices; // Filtering is now done server-side for performance
+  }, [invoices]);
 
   if (loading) {
     return (
@@ -642,7 +685,7 @@ const InvoiceHistory = () => {
                                         </Select>
                                     </td>
                                     <td className="px-6 py-4 text-right font-bold text-gray-900">
-                                        {formatCurrency(invoice.grand_total, invoice.currency || 'INR')}
+                                        {formatCurrency(invoice.grand_total, invoice.invoice_details?.currency || 'INR')}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-1">
@@ -697,7 +740,7 @@ const InvoiceHistory = () => {
                                                 size="icon"
                                                 onClick={() => {
                                                   const shareLink = `${window.location.origin}/verify-invoice?number=${invoice.invoice_number}`;
-                                                  const message = `Hi, here is your invoice #${invoice.invoice_number} for ${formatCurrency(invoice.grand_total, invoice.currency || 'INR')}. You can verify and view it here: ${shareLink}`;
+                                                  const message = `Hi, here is your invoice #${invoice.invoice_number} for ${formatCurrency(invoice.grand_total, invoice.invoice_details?.currency || 'INR')}. You can verify and view it here: ${shareLink}`;
                                                   window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
                                                 }}
                                                 title="Share via WhatsApp"
@@ -722,6 +765,35 @@ const InvoiceHistory = () => {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalCount > PAGE_SIZE && (
+                <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
+                    <div className="text-xs text-gray-500">
+                        Showing <span className="font-medium">{(currentPage - 1) * PAGE_SIZE + 1}</span> to <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, totalCount)}</span> of <span className="font-medium">{totalCount}</span> results
+                    </div>
+                    <div className="flex gap-2">
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            disabled={currentPage === 1 || loading}
+                            onClick={() => loadInvoices(currentPage - 1)}
+                            className="h-8 px-3 text-xs"
+                        >
+                            Previous
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            disabled={currentPage * PAGE_SIZE >= totalCount || loading}
+                            onClick={() => loadInvoices(currentPage + 1)}
+                            className="h-8 px-3 text-xs"
+                        >
+                            Next
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>

@@ -20,13 +20,14 @@ Common headers:
 
 **Body (examples by `type`):**
 
-| `type` | Required fields | Notes |
-|--------|-----------------|-------|
-| `ping` | — | No Resend call; health check. |
-| `welcome` | `to`, `user_name` | `to` must equal JWT user email. |
-| `otp` | `to`, `otp_code`, `purpose?`, `expires_in?` | **Blocked** for user JWT; only **service_role** (e.g. `request-otp` internal call). |
-| `subscription_confirmation` | `to`, `user_name`, `plan_name`, `amount`, `billing_cycle`, `period_end` | `to` must equal JWT user email. |
-| `invoice` | `to`, `invoice_number`, `amount`, `currency`, `due_date`, `verify_url`, `user_name`, `attachment?` | Recipients must match invoice `bill_to` email for that `invoice_number` and user. |
+| `type`                      | Required fields                                                                                    | Notes                                                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `ping`                      | —                                                                                                  | No Resend call; health check.                                                                                        |
+| `welcome`                   | `to`, `user_name`                                                                                  | `to` must equal JWT user email.                                                                                      |
+| `otp`                       | `to`, `otp_code`, `purpose?`, `expires_in?`                                                        | **Blocked** for user JWT; only **service_role** (e.g. `request-otp` internal call).                                  |
+| `subscription_confirmation` | `to`, `user_name`, `plan_name`, `amount`, `billing_cycle`, `period_end`                            | `to` must equal JWT user email.                                                                                      |
+| `invoice`                   | `to`, `invoice_number`, `amount`, `currency`, `due_date`, `verify_url`, `user_name`, `attachment?` | Recipients must match invoice `bill_to` email for that `invoice_number` and user.                                    |
+| `broadcast`                 | `target`, `subject`, `message`                                                                     | **Admin-only** (checked via `user_roles`); sends to all/pro/free users; runs async in background to prevent timeout. |
 
 **Success:** `{ "success": true, "id": "<resend_id>" }`  
 **Side effect:** Inserts `platform_resend_email_events` on successful Resend send.
@@ -75,19 +76,19 @@ Common headers:
 
 ## 2. Notable Supabase RPCs (PostgREST)
 
-| RPC | Role | Purpose |
-|-----|------|---------|
-| `get_user_invoices` | authenticated | List invoices for `auth.uid()`. |
-| `update_invoice_status` | authenticated | Update status for caller’s invoice. |
-| `verify_invoice_public` | anon / authenticated | Public verify; masked PII. |
-| `verify_otp_securely` | anon / authenticated | Verify OTP row. |
-| `internal_create_otp` | **service_role only** | Create OTP (Edge `request-otp`). |
-| `auth_email_exists` | **service_role only** | Exists check for password-reset path. |
-| `activate_subscription_after_payment` | **service_role only** | Payment pipeline. |
-| `get_admin_users_detailed` | authenticated + admin role | Admin user grid. |
-| `get_admin_payment_reconciliation` | authenticated + admin role | Payment orders grid. |
-| `admin_override_subscription` | authenticated + admin role | Manual trial/extension. |
-| `get_admin_resend_email_stats` | authenticated + admin role | Resend usage JSON for current month. |
+| RPC                                   | Role                       | Purpose                               |
+| ------------------------------------- | -------------------------- | ------------------------------------- |
+| `get_user_invoices`                   | authenticated              | List invoices for `auth.uid()`.       |
+| `update_invoice_status`               | authenticated              | Update status for caller’s invoice.   |
+| `verify_invoice_public`               | anon / authenticated       | Public verify; masked PII.            |
+| `verify_otp_securely`                 | anon / authenticated       | Verify OTP row.                       |
+| `internal_create_otp`                 | **service_role only**      | Create OTP (Edge `request-otp`).      |
+| `auth_email_exists`                   | **service_role only**      | Exists check for password-reset path. |
+| `activate_subscription_after_payment` | **service_role only**      | Payment pipeline.                     |
+| `get_admin_users_detailed`            | authenticated + admin role | Admin user grid.                      |
+| `get_admin_payment_reconciliation`    | authenticated + admin role | Payment orders grid.                  |
+| `admin_override_subscription`         | authenticated + admin role | Manual trial/extension.               |
+| `get_admin_resend_email_stats`        | authenticated + admin role | Resend usage JSON for current month.  |
 
 ---
 
@@ -103,4 +104,4 @@ Edge Functions run on **Deno** in Supabase; lock versions in dashboard or `impor
 
 ---
 
-*For table columns, see `md/DATABASE_SCHEMA.md` and individual SQL migrations.*
+_For table columns, see `md/DATABASE_SCHEMA.md` and individual SQL migrations._

@@ -65,7 +65,9 @@ const TemplatePreview = ({ templateIndex, onClick, className = "" }) => {
         {/* Render the actual template in a scaled-down preview */}
         <div className="transform scale-[0.15] origin-top-left w-[667%] h-[667%] pointer-events-none">
           <div className="bg-white">
-            <TemplateComponent data={sampleData} />
+            <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+              <TemplateComponent data={sampleData} />
+            </React.Suspense>
           </div>
         </div>
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />

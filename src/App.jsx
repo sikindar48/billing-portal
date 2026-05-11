@@ -13,19 +13,19 @@ import AdminGuard from "./components/AdminGuard";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
-
-// Pages imported directly for instant tab switching (no lazy-load delay)
 import Index from "./pages/public/Index";
-import Dashboard from "./pages/dashboard/Dashboard";
-import InvoiceHistory from "./pages/dashboard/InvoiceHistory";
-import ProductInventory from "./pages/management/ProductInventory";
-import Customers from "./pages/management/Customers";
-import BrandingSettings from "./pages/settings/BrandingSettings";
-import Profile from "./pages/settings/Profile";
-import TemplatePage from "./pages/dashboard/TemplatePage";
-import SubscriptionPage from "./pages/subscription/SubscriptionPage";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import Analytics from "./pages/admin/Analytics";
+
+// Lazy-loaded pages
+const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
+const InvoiceHistory = lazy(() => import("./pages/dashboard/InvoiceHistory"));
+const ProductInventory = lazy(() => import("./pages/management/ProductInventory"));
+const Customers = lazy(() => import("./pages/management/Customers"));
+const BrandingSettings = lazy(() => import("./pages/settings/BrandingSettings"));
+const Profile = lazy(() => import("./pages/settings/Profile"));
+const TemplatePage = lazy(() => import("./pages/dashboard/TemplatePage"));
+const SubscriptionPage = lazy(() => import("./pages/subscription/SubscriptionPage"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const Analytics = lazy(() => import("./pages/admin/Analytics"));
  
 // Lazy-loaded pages — these are less frequent or large chunks
 const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
@@ -257,18 +257,6 @@ const App = () => {
                           <ProtectedRoute>
                             <AdminGuard>
                               <Analytics />
-                            </AdminGuard>
-                          </ProtectedRoute>
-                        </ProtectedLayout>
-                      }
-                    />
-
-                    <Route
-                      path="/audit-logs"
-                      element={
-                        <ProtectedLayout>
-                          <ProtectedRoute>
-                            <AdminGuard>
                             </AdminGuard>
                           </ProtectedRoute>
                         </ProtectedLayout>

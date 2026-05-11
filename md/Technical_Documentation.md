@@ -4,13 +4,13 @@
 
 ### Related documentation
 
-| Document | Contents |
-|----------|----------|
-| `md/security.md` | Pre-launch security posture and checklist |
-| `md/audit.md` | Landing vs reality, dead code, UX gaps |
-| `md/DATABASE_SCHEMA.md` | Tables and relationships (overview) |
-| `md/API.md` | Edge Functions and key RPCs |
-| `md/FEATURES_FLOW.md` | User journeys and feature narrative |
+| Document                      | Contents                                                    |
+| ----------------------------- | ----------------------------------------------------------- |
+| `md/security.md`              | Pre-launch security posture and checklist                   |
+| `md/audit.md`                 | Landing vs reality, dead code, UX gaps                      |
+| `md/DATABASE_SCHEMA.md`       | Tables and relationships (overview)                         |
+| `md/API.md`                   | Edge Functions and key RPCs                                 |
+| `md/FEATURES_FLOW.md`         | User journeys and feature narrative                         |
 | `md/IMPLEMENTATION_STATUS.md` | Feature checklist (marketing tone — cross-check `audit.md`) |
 
 ---
@@ -21,16 +21,16 @@ InvoicePort is built as a modern, scalable web application using a serverless ar
 
 ### Technology Stack
 
-| Layer              | Technology               | Purpose                              |
-| ------------------ | ------------------------ | ------------------------------------ |
-| **Frontend**       | React 18 + Vite 5        | Modern UI with fast development      |
-| **Styling**        | Tailwind CSS + shadcn/ui | Consistent, responsive design system |
-| **Routing**        | React Router DOM 6       | Client-side navigation and guards    |
-| **Backend**        | Supabase (PostgreSQL)    | Database, authentication, real-time  |
-| **Authentication** | Supabase Auth (JWT)      | Secure user management               |
-| **Email**          | Resend (Edge `send-email`) + Gmail API + optional EmailJS | Transactional + invoice delivery |
-| **PDF Generation** | jsPDF + html2canvas      | Client-side PDF creation             |
-| **Deployment**     | Netlify + Supabase Cloud | Global CDN and serverless backend    |
+| Layer              | Technology                                                | Purpose                              |
+| ------------------ | --------------------------------------------------------- | ------------------------------------ |
+| **Frontend**       | React 18 + Vite 5                                         | Modern UI with fast development      |
+| **Styling**        | Tailwind CSS + shadcn/ui                                  | Consistent, responsive design system |
+| **Routing**        | React Router DOM 6                                        | Client-side navigation and guards    |
+| **Backend**        | Supabase (PostgreSQL)                                     | Database, authentication, real-time  |
+| **Authentication** | Supabase Auth (JWT)                                       | Secure user management               |
+| **Email**          | Resend (Edge `send-email`) + Gmail API + optional EmailJS | Transactional + invoice delivery     |
+| **PDF Generation** | jsPDF + html2canvas                                       | Client-side PDF creation             |
+| **Deployment**     | Netlify + Supabase Cloud                                  | Global CDN and serverless backend    |
 
 ---
 
@@ -314,19 +314,31 @@ Selected Items → Validation → Batch Processing → Progress Tracking
 
 ### Admin Dashboard Architecture
 
-**Real-time business intelligence**
+**Real-time business intelligence with URL-based tab routing**
 
-```sql
--- Revenue analytics queries
-SELECT
-  DATE_TRUNC('month', created_at) as month,
-  COUNT(*) as subscriptions,
-  SUM(amount) as revenue
-FROM user_subscriptions
-WHERE status = 'active'
-GROUP BY month
-ORDER BY month DESC;
+```javascript
+// Admin dashboard tab structure
+const TABS = [
+  { value: "users", label: "Users", Icon: Users },
+  { value: "payments", label: "Payments", Icon: CreditCard },
+  { value: "audit", label: "Audit", Icon: Activity },
+  { value: "health", label: "Health", Icon: Zap },
+  { value: "mails", label: "Mails", Icon: Mail },
+  { value: "broadcast", label: "Broadcast", Icon: Megaphone },
+];
+
+// URL routing: /admin/:tab
+// Each tab has its own URL for bookmarking and sharing
 ```
+
+**Tab Features:**
+
+- **Users Tab**: Sortable user list with Plan, Expiry, Invoices, Last Active columns
+- **Payments Tab**: Payment order reconciliation and status tracking
+- **Audit Tab**: System activity logs with search and filtering
+- **Health Tab**: Infrastructure status monitoring (parallel checks)
+- **Mails Tab**: Resend email usage tracking and quota management
+- **Broadcast Tab**: Mass email sending with background processing
 
 ### Performance Monitoring
 
@@ -340,6 +352,8 @@ const metrics = {
   apiResponseTime: Date.now() - requestStart,
   userEngagement: sessionDuration,
   conversionRate: trials / visitors,
+  adminDashboardLoadTime: "< 2 seconds",
+  tabSwitchTime: "instant (no loading)",
 };
 ```
 

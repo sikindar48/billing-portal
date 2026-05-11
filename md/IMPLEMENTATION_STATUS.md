@@ -134,6 +134,13 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 - ✅ **Email Notifications**: Automatic notifications on approval
 - ✅ **Real-time Stats**: Total users, active subscriptions, pending requests
 - ✅ **Admin Email Bypass**: Admin users have unlimited email access
+- ✅ **URL-based Tab Routing**: Each admin tab has its own URL (`/admin/:tab`)
+- ✅ **Sortable Table Headers**: Users tab supports sorting by Plan, Expiry, Invoices, Last Active
+- ✅ **Audit Logs Tab**: View system activity with search and filtering
+- ✅ **Health Tab**: Monitor infrastructure status (DB, Edge Functions, Gmail API)
+- ✅ **Mails Tab**: Track Resend email usage and monthly quota
+- ✅ **Broadcast Tab**: Send mass emails to users with personalization
+- ✅ **Payments Tab**: View payment orders and reconciliation
 - ❌ **Revenue Analytics (MRR)**: Planned but not yet implemented
 - ❌ **Comprehensive Audit Logging**: Planned but not yet implemented
 
@@ -271,8 +278,19 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 ## 🔄 Continuous Improvements
 
-### Recent Enhancements (Latest Updates - May 7, 2026)
+### Recent Enhancements (Latest Updates - May 12, 2026)
 
+- ✅ **Admin Dashboard Refactor**: URL-based tab routing (`/admin/:tab`)
+- ✅ **Tab Renaming**: "Email" tab renamed to "Mails" for clarity
+- ✅ **Sortable Table Headers**: Users tab supports sorting by Plan, Expiry, Invoices, Last Active
+- ✅ **Audit Logs Integration**: Consolidated into admin audit tab with loading/error states
+- ✅ **Health Tab Optimization**: Parallel infrastructure checks (DB, Edge Functions, Gmail)
+- ✅ **Mails Tab Pre-fetching**: Resend stats loaded on dashboard mount for instant rendering
+- ✅ **Broadcast Email System**: Async background sending to prevent timeouts
+- ✅ **Broadcast Recipient Filtering**: Fixed pro/free/all target filtering logic
+- ✅ **Removed Duplicate Stats**: Payments tab no longer shows redundant stat cards
+- ✅ **Search Bar Optimization**: Only visible on Users tab
+- ✅ **Removed Duplicate Page**: Deleted standalone `/audit-logs` page (consolidated into admin)
 - ✅ **Enhanced Gmail OAuth**: Improved authentication flow with better error handling
 - ✅ **Gmail Management UI**: New GmailConnect component with visual status
 - ✅ **Error Boundaries**: Application-wide error catching and recovery
@@ -327,10 +345,13 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 **InvoicePort is production-ready and actively serving users with:**
 
 - Complete invoice generation and management
-- Automated email delivery systems
-- Subscription and payment processing
+- Automated email delivery systems (Gmail API + Resend)
+- Subscription and payment processing (Razorpay)
 - Business branding and customization
-- Analytics and admin capabilities
+- Comprehensive admin dashboard with URL-based routing
+- Sortable user tables and advanced filtering
+- Broadcast email system with background processing
+- Health monitoring and infrastructure status
 - Mobile-responsive design
 - Security and compliance features
 
@@ -340,10 +361,10 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 Based on current implementation and market needs, the following features and improvements have been identified to further scale InvoicePort:
 
-| Category | Feature / Improvement | Type | Priority | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| **Payments** | **UPI QR Code** | **Free** | ✅ Done | Auto-generate UPI payment QR codes on invoices (or verification codes if UPI ID is missing). |
-| **Communication**| **WhatsApp Quick Share** | **Free** | ✅ Done | Integrated `wa.me` sharing with auto-verification links in `InvoiceHistory`. |
-| **Compliance** | **GSTR-1 Excel Export** | **Free** | ✅ Done | Export monthly data to Excel (client-side) with GSTIN and taxable value details. |
-| **Data Integrity**| **Payment Persistence** | **Gap** | ✅ Done | `handleRecordPayment` now stores transaction details in `invoice_payments` table. |
-| **Reporting** | **Revenue Dashboard** | Analytics | ✅ Done | Visual charts for MRR, Top Customers, and Monthly Revenue growth for users. |
+| Category           | Feature / Improvement    | Type      | Priority | Description                                                                                  |
+| :----------------- | :----------------------- | :-------- | :------- | :------------------------------------------------------------------------------------------- |
+| **Payments**       | **UPI QR Code**          | **Free**  | ✅ Done  | Auto-generate UPI payment QR codes on invoices (or verification codes if UPI ID is missing). |
+| **Communication**  | **WhatsApp Quick Share** | **Free**  | ✅ Done  | Integrated `wa.me` sharing with auto-verification links in `InvoiceHistory`.                 |
+| **Compliance**     | **GSTR-1 Excel Export**  | **Free**  | ✅ Done  | Export monthly data to Excel (client-side) with GSTIN and taxable value details.             |
+| **Data Integrity** | **Payment Persistence**  | **Gap**   | ✅ Done  | `handleRecordPayment` now stores transaction details in `invoice_payments` table.            |
+| **Reporting**      | **Revenue Dashboard**    | Analytics | ✅ Done  | Visual charts for MRR, Top Customers, and Monthly Revenue growth for users.                  |

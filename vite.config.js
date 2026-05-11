@@ -146,8 +146,6 @@ export default defineConfig(({ mode }) => ({
           ],
           // PDF / canvas — heavy, only needed when generating PDFs
           // NOT listed here so they stay in the lazy pdfGenerator chunk
-          // Charts
-          'vendor-charts': ['recharts'],
           // Misc utilities
           'vendor-misc': ['date-fns', 'canvas-confetti', 'sonner', 'framer-motion'],
         },

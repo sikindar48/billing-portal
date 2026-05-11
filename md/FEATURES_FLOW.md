@@ -342,25 +342,30 @@ Add Products → Set Pricing → Category Management → Invoice Integration
 
 ### ✨ Key Features
 
-- **Revenue Analytics**: MRR tracking and growth metrics
+- **URL-Based Tab Routing**: Each admin section has its own URL (`/admin/:tab`)
 - **User Management**: Subscription and role management
 - **Audit Logging**: Activity tracking and security
 - **Payment Verification**: Manual subscription activation
+- **Health Monitoring**: Infrastructure status checks
+- **Email Usage Tracking**: Resend quota and monthly limits
+- **Broadcast Messaging**: Mass email sending with personalization
 
 ### 🎯 Admin Dashboard Flow
 
 #### Dashboard Overview
 
 ```
-Login → Admin Dashboard → User Management → Subscription Control → Request Queue
+Login → Admin Dashboard → Tab Selection → Management Actions
 ```
 
-**Key Metrics:**
+**Available Tabs:**
 
-1. **User Statistics**: Total users, active subscriptions, trialing users
-2. **Pending Requests**: Payment verification queue
-3. **Subscription Management**: Manual plan activation and updates
-4. **User Actions**: Delete users, update plans, approve payments
+1. **Users** (`/admin/users`) — Sortable user list with Plan, Expiry, Invoices, Last Active
+2. **Payments** (`/admin/payments`) — Payment order reconciliation
+3. **Audit** (`/admin/audit`) — System activity logs with search
+4. **Health** (`/admin/health`) — Infrastructure status monitoring
+5. **Mails** (`/admin/mails`) — Resend email usage and quota
+6. **Broadcast** (`/admin/broadcast`) — Mass email sending
 
 #### User Management
 
@@ -378,7 +383,43 @@ User List → Subscription Status → Manual Updates → Plan Activation
 - **Email Notifications**: Send approval confirmations
 - **Unlimited Email Access**: Admin users bypass all email limits
 
-**Note:** Revenue analytics (MRR tracking) and comprehensive audit logging are planned features not yet implemented in the admin dashboard.
+#### Health Monitoring
+
+```
+Infrastructure Check → Parallel Status Checks → Real-time Display
+```
+
+**Monitored Services:**
+
+- PostgreSQL Database connectivity
+- Deno Edge Functions availability
+- Gmail API OAuth token store
+
+#### Email Usage Tracking
+
+```
+Monthly Sends → Usage Calculation → Quota Display → Admin Alerts
+```
+
+**Features:**
+
+- Real-time send count tracking
+- Monthly quota management
+- Usage breakdown by email type
+- Recent sends history (last 50)
+
+#### Broadcast Messaging
+
+```
+Compose Message → Select Recipients → Send → Background Processing
+```
+
+**Features:**
+
+- Target selection (all users, pro users, free users)
+- Message personalization with `{{name}}` placeholder
+- Background async sending (no timeout)
+- Delivery tracking and logging
 
 ---
 
