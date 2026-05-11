@@ -189,13 +189,18 @@ serve(async (req) => {
       billing_cycle?: string;
       period_end?: string;
     };
+    const amt =
+      typeof amount === 'number' && Number.isFinite(amount)
+        ? amount
+        : Number(amount);
+    const amountNum = Number.isFinite(amt) ? amt : 0;
     subject = `Subscription Confirmed: ${plan_name}`;
     html = subscriptionConfirmationHtml(
       user_name ?? 'there',
       plan_name ?? '',
-      amount,
+      amountNum,
       billing_cycle ?? '',
-      period_end,
+      period_end ?? '',
     );
   } else if (type === 'invoice') {
     const { amount, currency, due_date, verify_url, user_name } = body as {

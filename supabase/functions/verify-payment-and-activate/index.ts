@@ -147,6 +147,54 @@ serve(async (req) => {
 
     console.log('Subscription activated via RPC:', rpcResult);
 
+    // ── 5b. Subscription confirmation email (Resend via send-email, service role)
+    // So the user gets mail even if the browser drops the HTTP response after activation.
+    const userEmail = user.email?.trim();
+    if (userEmail) {
+      const billingCycle = planSlug === 'monthly' ? 'Monthly' : 'Yearly';
+      const meta = user.user_metadata as Record<string, unknown> | undefined;
+      const fullName = typeof meta?.full_name === 'string' ? meta.full_name : '';
+      const displayName = fullName || userEmail;
+      const amountNum =
+        typeof planPrice === 'number' && !Number.isNaN(planPrice)
+          ? planPrice
+          : Number(planPrice);
+      const amountSafe = Number.isFinite(amountNum) ? amountNum : 0;
+
+      const emailCtrl = new AbortController();
+      const emailTimer = setTimeout(() => emailCtrl.abort(), 18_000);
+      try {
+        const emailRes = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          signal: emailCtrl.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceKey}`,
+            'apikey': serviceKey,
+          },
+          body: JSON.stringify({
+            type: 'subscription_confirmation',
+            to: userEmail,
+            user_name: displayName,
+            plan_name: planName ?? planSlug,
+            amount: amountSafe,
+            billing_cycle: billingCycle,
+            period_end: end.toISOString(),
+          }),
+        });
+        if (!emailRes.ok) {
+          const errBody = await emailRes.json().catch(() => ({}));
+          console.warn('send-email subscription_confirmation failed:', emailRes.status, errBody);
+        }
+      } catch (e) {
+        console.warn('send-email subscription_confirmation error (non-blocking):', (e as Error).message);
+      } finally {
+        clearTimeout(emailTimer);
+      }
+    } else {
+      console.warn('No user email on JWT; skipping subscription confirmation email');
+    }
+
     // ── 6. Mark order as completed ────────────────────────────────────────
     if (order?.id) {
       const { error: updErr } = await db.from('payment_orders').update({

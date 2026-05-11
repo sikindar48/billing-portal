@@ -80,6 +80,74 @@ async function loadRazorpayScript() {
   });
 }
 
+/** Poll DB until paid plan matches (handles lost HTTP response after Edge Function succeeded). */
+async function pollSubscriptionActivated(userId, expectedSlug, { attempts = 24, delayMs = 2500 } = {}) {
+  for (let i = 0; i < attempts; i++) {
+    const { data, error } = await supabase
+      .from('user_subscriptions')
+      .select('status, current_period_end, subscription_plans(slug)')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const planRow = data?.subscription_plans;
+    const slug =
+      planRow && typeof planRow === 'object' && !Array.isArray(planRow)
+        ? planRow.slug
+        : Array.isArray(planRow)
+          ? planRow[0]?.slug
+          : null;
+
+    if (!error && data && slug === expectedSlug) {
+      const end = data.current_period_end ? new Date(data.current_period_end) : null;
+      const active =
+        (data.status === 'active' || data.status === 'trialing') && end && end > new Date();
+      if (active) return true;
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return false;
+}
+
+/** Verify payment with long timeout + retries (cold Edge starts, flaky mobile networks). */
+async function verifyPaymentWithRetries(url, accessToken, payload) {
+  const maxAttempts = 4;
+  const perAttemptTimeoutMs = 85_000;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), perAttemptTimeoutMs);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      });
+      clearTimeout(timer);
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) return { ok: true, data, status: res.status };
+
+      const retryable = res.status >= 502 && res.status <= 504;
+      if (retryable && attempt < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+      return { ok: false, data, status: res.status };
+    } catch (e) {
+      clearTimeout(timer);
+      const aborted = e?.name === 'AbortError';
+      const network = e instanceof TypeError || aborted;
+      if (network && attempt < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+      return { ok: false, data: {}, status: 0, error: e };
+    }
+  }
+  return { ok: false, data: {}, status: 0 };
+}
+
 // ---------------------------------------------------------------------------
 // Confirmation Modal
 // ---------------------------------------------------------------------------
@@ -178,13 +246,16 @@ const SubscriptionPage = () => {
   const [modal, setModal] = useState({ open: false, plan: null });
   const safetyTimer = useRef(null);
 
-  // Auto-dismiss processing overlay after 30s as a safety net
+  // Safety net: Edge verify can exceed 30s on cold start; align with fetch timeout + retries
   useEffect(() => {
     if (processing) {
       safetyTimer.current = setTimeout(() => {
         setProcessing(false);
-        toast.error('Activation is taking too long. If payment was deducted, contact support.', { duration: 10000 });
-      }, 30000);
+        toast.error(
+          'Activation is taking longer than expected. If payment was deducted, wait a moment and refresh the page — your plan may already be active.',
+          { duration: 12000 },
+        );
+      }, 100_000);
     } else {
       clearTimeout(safetyTimer.current);
     }
@@ -263,28 +334,6 @@ const SubscriptionPage = () => {
     setProcessing(true);
     const toastId = toast.loading('Verifying payment…');
 
-    const sendSubscriptionEmail = async (planName, planPrice, planSlug, periodEnd) => {
-      try {
-        const { data: { session: s } } = await supabase.auth.getSession();
-        if (!s?.access_token) return;
-
-        await supabase.functions.invoke('send-email', {
-          headers: { Authorization: `Bearer ${s.access_token}` },
-          body: {
-            type: 'subscription_confirmation',
-            to: session.user.email,
-            user_name: session.user.user_metadata?.full_name || session.user.email,
-            plan_name: planName,
-            amount: planPrice,
-            billing_cycle: planSlug === 'monthly' ? 'Monthly' : 'Yearly',
-            period_end: periodEnd,
-          },
-        });
-      } catch (err) {
-        console.warn('Subscription confirmation email failed:', err.message);
-      }
-    };
-
     const activateUI = (planSlug, planName) => {
       const now = new Date();
       const end = new Date(now);
@@ -304,9 +353,7 @@ const SubscriptionPage = () => {
       toast.success(`🎉 Welcome to ${planName}! Your plan is now active.`, { duration: 6000 });
       if (typeof refreshSubscription === 'function') refreshSubscription();
 
-      // Send confirmation email (fire-and-forget)
-      const selectedPlan = PLANS.find(p => p.slug === planSlug);
-      sendSubscriptionEmail(planName, selectedPlan?.price ?? 0, planSlug, end.toISOString());
+      // Confirmation email is sent from verify-payment-and-activate (server) so it still fires if the browser misses the response.
 
       // Sync real data from DB after 3s
       setTimeout(async () => {
@@ -319,43 +366,62 @@ const SubscriptionPage = () => {
       }, 3000);
     };
 
-    // Try edge function first
+    const verifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment-and-activate`;
+    const verifyPayload = {
+      razorpay_order_id: paymentResponse.razorpay_order_id,
+      razorpay_payment_id: paymentResponse.razorpay_payment_id,
+      razorpay_signature: paymentResponse.razorpay_signature,
+      planSlug: plan.slug,
+      planName: plan.name,
+      planPrice: plan.price,
+    };
+
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment-and-activate`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-          body: JSON.stringify({
-            razorpay_order_id: paymentResponse.razorpay_order_id,
-            razorpay_payment_id: paymentResponse.razorpay_payment_id,
-            razorpay_signature: paymentResponse.razorpay_signature,
-            planSlug: plan.slug,
-            planName: plan.name,
-            planPrice: plan.price,
-          }),
-        }
-      );
+      const result = await verifyPaymentWithRetries(verifyUrl, accessToken, verifyPayload);
+      const data = result.data || {};
 
-      const data = await res.json().catch(() => ({}));
-      console.log('[verify] HTTP', res.status, data);
+      if (result.ok) {
+        console.log('[verify] OK', data);
+        toast.dismiss(toastId);
+        activateUI(plan.slug, plan.name);
+        return;
+      }
 
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      console.warn('[verify] non-OK after retries', result.status, data);
 
+      // Server may have succeeded while the client saw 502/abort — reconcile from DB
+      toast.loading('Checking your account…', { id: toastId });
+      const reconciled = await pollSubscriptionActivated(user.id, plan.slug);
       toast.dismiss(toastId);
-      activateUI(plan.slug, plan.name);
 
-    } catch (edgeErr) {
-      console.error('[verify] Edge function failed:', edgeErr.message);
+      if (reconciled) {
+        setProcessing(false);
+        toast.success('Payment verified! Your plan is now active.', { duration: 6000 });
+        activateUI(plan.slug, plan.name);
+        return;
+      }
 
-      // ── Security Fix: Removed RPC Fallback ──────────────────────────────
-      // We no longer allow the frontend to activate subscriptions directly
-      // via RPC if the Edge Function fails. This prevents bypass attacks.
-      toast.dismiss(toastId);
       setProcessing(false);
       toast.error(
-        `Payment received (ID: ${paymentResponse.razorpay_payment_id}) but activation timed out. Please contact support at info.invoiceport@gmail.com with your Payment ID to activate manually.`,
-        { duration: 15000 }
+        `We could not confirm activation yet (payment ID: ${paymentResponse.razorpay_payment_id}). If money was debited, wait one minute, refresh this page, or contact support at info.invoiceport@gmail.com with your Payment ID.`,
+        { duration: 16000 },
+      );
+    } catch (edgeErr) {
+      console.error('[verify] unexpected error:', edgeErr?.message || edgeErr);
+
+      toast.dismiss(toastId);
+      const reconciled = await pollSubscriptionActivated(user.id, plan.slug);
+      if (reconciled) {
+        setProcessing(false);
+        toast.success('Payment verified! Your plan is now active.', { duration: 6000 });
+        activateUI(plan.slug, plan.name);
+        return;
+      }
+
+      setProcessing(false);
+      toast.error(
+        `We could not confirm activation yet (payment ID: ${paymentResponse.razorpay_payment_id}). If money was debited, wait one minute, refresh this page, or contact support at info.invoiceport@gmail.com with your Payment ID.`,
+        { duration: 16000 },
       );
     }
   };
