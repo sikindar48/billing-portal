@@ -1,29 +1,30 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 const AuthContext = createContext(null);
 
-// Production-grade caching helper
 const CACHE_KEY = 'invoiceport_auth_v2';
 const getCachedAuth = () => {
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (!cached) return null;
     const data = JSON.parse(cached);
-    // Only use cache if it's less than 48 hours old
     if (Date.now() - data.timestamp > 1000 * 60 * 60 * 48) return null;
     return data;
   } catch { return null; }
 };
 
 export const AuthProvider = ({ children }) => {
-  const initialCache = getCachedAuth();
+  const cache = getCachedAuth();
   
-  const [user, setUser] = useState(initialCache?.user || null);
-  const [isAdmin, setIsAdmin] = useState(initialCache?.isAdmin || false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState(initialCache?.subscriptionStatus || 'loading');
-  const [subscription, setSubscription] = useState(initialCache?.subscription || null);
-  const [authLoading, setAuthLoading] = useState(!initialCache); 
+  const [user, setUser] = useState(cache?.user || null);
+  const [isAdmin, setIsAdmin] = useState(cache?.isAdmin || false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(cache?.subscriptionStatus || 'loading');
+  const [subscription, setSubscription] = useState(cache?.subscription || null);
+  const [authLoading, setAuthLoading] = useState(!cache); 
+  const [isAuthResolved, setIsAuthResolved] = useState(!!cache);
+  
+  const resolvedRef = useRef(!!cache);
 
   const updateCache = useCallback((data) => {
     try {
@@ -37,11 +38,10 @@ export const AuthProvider = ({ children }) => {
   const resolveUserData = useCallback(async (u) => {
     if (!u) return { adminStatus: false, subStatus: 'expired', subscriptionData: null };
 
-    // Background revalidation logic
     try {
       const [adminRes, subRes] = await Promise.all([
         supabase.from('user_roles').select('role').eq('user_id', u.id).eq('role', 'admin').maybeSingle(),
-        supabase.from('subscriptions').select('*, plans(*)').eq('user_id', u.id).maybeSingle()
+        supabase.from('user_subscriptions').select('*, plans(*)').eq('user_id', u.id).maybeSingle()
       ]);
 
       const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
@@ -50,19 +50,24 @@ export const AuthProvider = ({ children }) => {
 
       let subStatus = 'expired';
       const sub = subRes.data;
+      
       if (sub) {
         const now = new Date();
         const end = new Date(sub.current_period_end);
         if (end > now) subStatus = 'allowed';
+      } else {
+        // Trial fallback logic (original)
+        const createdAt = new Date(u.created_at);
+        const trialEnd = new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+        if (new Date() < trialEnd) subStatus = 'allowed';
       }
       
-      // Admin bypass for subscription
       if (adminStatus) subStatus = 'allowed';
 
       return { adminStatus, subStatus, subscriptionData: sub };
     } catch (err) {
       console.error('Revalidation failed:', err);
-      return null; // Signals to keep current state
+      return null;
     }
   }, []);
 
@@ -84,28 +89,31 @@ export const AuthProvider = ({ children }) => {
 
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const sessionUser = session?.user ?? null;
+      const sUser = session?.user ?? null;
       
       if (!mounted) return;
-      setUser(sessionUser);
+      setUser(sUser);
 
-      if (!sessionUser) {
+      if (!sUser) {
         setAuthLoading(false);
+        setIsAuthResolved(true);
         setIsAdmin(false);
         setSubscriptionStatus('expired');
         localStorage.removeItem(CACHE_KEY);
         return;
       }
 
-      // Background revalidate
-      const data = await resolveUserData(sessionUser);
+      // Stale-while-revalidate revalidation
+      const data = await resolveUserData(sUser);
       if (mounted && data) {
         setIsAdmin(data.adminStatus);
         setSubscriptionStatus(data.subStatus);
         setSubscription(data.subscriptionData);
+        setIsAuthResolved(true);
         setAuthLoading(false);
-        updateCache({ user: sessionUser, isAdmin: data.adminStatus, subscriptionStatus: data.subStatus, subscription: data.subscriptionData });
+        updateCache({ user: sUser, isAdmin: data.adminStatus, subscriptionStatus: data.subStatus, subscription: data.subscriptionData });
       } else if (mounted) {
+        setIsAuthResolved(true);
         setAuthLoading(false);
       }
     };
@@ -123,11 +131,14 @@ export const AuthProvider = ({ children }) => {
           setIsAdmin(data.adminStatus);
           setSubscriptionStatus(data.subStatus);
           setSubscription(data.subscriptionData);
+          setIsAuthResolved(true);
           updateCache({ user: sUser, isAdmin: data.adminStatus, subscriptionStatus: data.subStatus, subscription: data.subscriptionData });
         }
       } else {
         setIsAdmin(false);
         setSubscriptionStatus('expired');
+        setSubscription(null);
+        setIsAuthResolved(true);
         localStorage.removeItem(CACHE_KEY);
       }
     });
@@ -146,8 +157,9 @@ export const AuthProvider = ({ children }) => {
     setSubscription,
     setSubscriptionStatus,
     refreshSubscription,
-    authLoading
-  }), [user, isAdmin, subscription, subscriptionStatus, refreshSubscription, authLoading]);
+    authLoading,
+    isAuthResolved
+  }), [user, isAdmin, subscription, subscriptionStatus, refreshSubscription, authLoading, isAuthResolved]);
 
   return (
     <AuthContext.Provider value={value}>

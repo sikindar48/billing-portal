@@ -5,11 +5,61 @@ import { useAuth } from '@/context/AuthContext';
 
 const AdminGuard = ({ children }) => {
   const { isAdmin, authLoading, isAuthResolved } = useAuth();
+  const [progress, setProgress] = React.useState(0);
+  const [status, setStatus] = React.useState('Connecting to security engine...');
+
+  React.useEffect(() => {
+    if (authLoading || !isAuthResolved) {
+      const timer = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 15;
+        });
+      }, 400);
+
+      const messages = [
+        'Connecting to security engine...',
+        'Verifying admin credentials...',
+        'Checking authorization headers...',
+        'Resolving guardrail status...',
+        'Securing terminal session...'
+      ];
+      let i = 0;
+      const msgTimer = setInterval(() => {
+        i = (i + 1) % messages.length;
+        setStatus(messages[i]);
+      }, 1500);
+
+      return () => {
+        clearInterval(timer);
+        clearInterval(msgTimer);
+      };
+    } else {
+      setProgress(100);
+    }
+  }, [authLoading, isAuthResolved]);
   
   if (authLoading || !isAuthResolved) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0B0F19]">
+        {/* Top Loading Bar */}
+        <div className="fixed top-0 left-0 w-full h-1 bg-white/5 z-[100]">
+          <div 
+            className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 transition-all duration-500 ease-out shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-700">
+          <div className="relative">
+            <div className="absolute inset-0 bg-indigo-500/20 blur-2xl rounded-full animate-pulse" />
+            <Loader2 className="h-12 w-12 animate-spin text-indigo-500 relative z-10" />
+          </div>
+          <div className="space-y-2 text-center">
+            <h2 className="text-white font-bold text-lg tracking-tight">Security Handshake</h2>
+            <p className="text-gray-500 text-sm font-medium animate-pulse transition-all duration-500">{status}</p>
+          </div>
+        </div>
       </div>
     );
   }

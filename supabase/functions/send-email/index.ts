@@ -189,7 +189,7 @@ serve(async (req) => {
     return json({ status: 'healthy', timestamp: new Date().toISOString() });
   }
 
-  if (!type || to === undefined || to === null || (Array.isArray(to) && to.length === 0)) {
+  if (!type || (type !== 'broadcast' && type !== 'ping' && (to === undefined || to === null || (Array.isArray(to) && to.length === 0)))) {
     return json({ error: 'Missing required fields: type, to' }, 400);
   }
 
@@ -253,6 +253,104 @@ serve(async (req) => {
       verify_url,
       attachment,
     );
+  } else if (type === 'broadcast') {
+    const { target, subject: customSubject, message } = body as {
+      target?: 'all' | 'pro' | 'free';
+      subject?: string;
+      message?: string;
+    };
+
+    if (!customSubject || !message) {
+      return json({ error: 'Missing subject or message for broadcast' }, 400);
+    }
+
+    // BROADCAST IS SERVICE-ONLY OR ADMIN-USER ONLY
+    if (auth.mode === 'user') {
+      const sbUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const sbKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      const db = createClient(sbUrl, sbKey, { auth: { persistSession: false } });
+      const { data: role } = await db.from('user_roles').select('role').eq('user_id', auth.user.id).eq('role', 'admin').maybeSingle();
+      
+      const adminEmails = (Deno.env.get('VITE_ADMIN_EMAILS') || '').split(',').map(e => e.trim().toLowerCase());
+      const isEmailAdmin = auth.user.email ? adminEmails.includes(auth.user.email.toLowerCase()) : false;
+
+      if (!role && !isEmailAdmin) {
+        return json({ error: 'Unauthorized: Admin access required for broadcasts' }, 403);
+      }
+    }
+
+    // 1. Fetch target emails
+    const sbUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const sbKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const db = createClient(sbUrl, sbKey, { auth: { persistSession: false } });
+
+    let query = db.from('profiles').select('id, email, full_name');
+    
+    if (target === 'pro') {
+      const { data: proIds } = await db.from('user_subscriptions').select('user_id').gt('current_period_end', new Date().toISOString());
+      const ids = (proIds || []).map(p => p.user_id);
+      query = query.in('id', ids);
+    } else if (target === 'free') {
+      const { data: proIds } = await db.from('user_subscriptions').select('user_id').gt('current_period_end', new Date().toISOString());
+      const ids = (proIds || []).map(p => p.user_id);
+      query = query.not('id', 'in', `(${ids.join(',')})`);
+    }
+
+    const { data: recipients, error: fetchErr } = await query;
+    if (fetchErr) return json({ error: 'Failed to fetch recipients', details: fetchErr }, 500);
+    if (!recipients || recipients.length === 0) return json({ success: true, message: 'No recipients found for this target group' });
+
+    console.log(`🚀 Starting broadcast to ${recipients.length} users: "${customSubject}"`);
+
+    // 2. Loop and send (simplified for now, ideally batch or use Resend Batch API)
+    const results = [];
+    for (const person of recipients) {
+      if (!person.email) continue;
+      
+      const personalizedHtml = `
+        <div style="font-family: sans-serif; color: #374151; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <div style="background-color: #4f46e5; padding: 24px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">InvoicePort Announcement</h1>
+          </div>
+          <div style="padding: 32px; line-height: 1.6;">
+            <p>Hello ${person.full_name || 'there'},</p>
+            <div style="margin-top: 20px;">
+              ${message.replace(/\{\{name\}\}/g, person.full_name || 'Customer')}
+            </div>
+          </div>
+          <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="font-size: 11px; color: #9ca3af; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
+              Sent via InvoicePort Admin Command Center
+            </p>
+          </div>
+        </div>
+      `;
+
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'InvoicePort <info@invoiceport.live>',
+          to: [person.email],
+          subject: customSubject,
+          html: personalizedHtml,
+        }),
+      });
+      
+      const r = await res.json();
+      results.push(r.id);
+      
+      // Optional: Record log for each or just summary
+      if (res.ok) {
+        await recordResendSend(sbUrl, sbKey, 'broadcast', auth, r.id);
+      }
+      
+      // Small delay to prevent rate limits
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    return json({ success: true, recipients: recipients.length, message_ids: results });
+
   } else {
     return json({ error: `Unknown email type: ${type}` }, 400);
   }

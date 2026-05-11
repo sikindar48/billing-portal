@@ -16,6 +16,8 @@ import PaymentsTab from './components/PaymentsTab';
 import AuditLogsTab from './components/AuditLogsTab';
 import SystemHealthTab from './components/SystemHealthTab';
 import ResendEmailUsageTab from './components/ResendEmailUsageTab';
+import BroadcastTab from './components/BroadcastTab';
+import { Megaphone } from 'lucide-react';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
@@ -255,6 +257,9 @@ const AdminDashboard = () => {
                 <TabsTrigger value="resend" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
                     <Mail className="h-4 w-4 mr-2" /> Resend usage
                 </TabsTrigger>
+                <TabsTrigger value="broadcast" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
+                    <Megaphone className="h-4 w-4 mr-2" /> Broadcast
+                </TabsTrigger>
             </TabsList>
           </div>
 
@@ -277,6 +282,10 @@ const AdminDashboard = () => {
 
             <TabsContent value="resend">
                 <ResendEmailUsageTab />
+            </TabsContent>
+
+            <TabsContent value="broadcast">
+                <BroadcastTab allUsers={data.users} />
             </TabsContent>
           </div>
         </Tabs>
