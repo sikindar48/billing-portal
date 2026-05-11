@@ -83,17 +83,21 @@ const Analytics = () => {
       };
 
       try {
-        const { data: emailStats, error: emailError } = await supabase
-          .from('email_usage_log')
-          .select('emails_sent_count, email_limit')
-          .eq('user_id', user.id)
-          .maybeSingle();
+        const [{ count: logCount, error: logErr }, { data: subRow, error: subErr }] = await Promise.all([
+          supabase.from('email_usage_log').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+          supabase.from('user_subscriptions').select('email_usage_count, email_limit').eq('user_id', user.id).maybeSingle(),
+        ]);
 
-        if (!emailError && emailStats) {
+        const limit = subRow?.email_limit ?? 3;
+        const sentFromLog = typeof logCount === 'number' ? logCount : null;
+        const sentFromSub = subRow?.email_usage_count ?? 0;
+        const sent = sentFromLog !== null && !logErr ? sentFromLog : sentFromSub;
+
+        if (!subErr || !logErr) {
           emailUsage = {
-            sent: emailStats.emails_sent_count || 0,
-            limit: emailStats.email_limit || 10,
-            percentage: emailStats ? ((emailStats.emails_sent_count / emailStats.email_limit) * 100).toFixed(1) : 0
+            sent,
+            limit,
+            percentage: limit > 0 ? ((sent / limit) * 100).toFixed(1) : 0,
           };
         }
       } catch (emailErr) {

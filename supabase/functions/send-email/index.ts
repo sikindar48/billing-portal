@@ -135,6 +135,27 @@ async function assertRecipientAllowed(
   return json({ error: `Email type not allowed: ${type}` }, 400);
 }
 
+async function recordResendSend(
+  supabaseUrl: string,
+  serviceKey: string,
+  emailType: string,
+  auth: Extract<AuthResult, { ok: true }>,
+  resendId: string | undefined,
+): Promise<void> {
+  try {
+    const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const userId = auth.mode === 'user' ? auth.user.id : null;
+    const { error } = await db.from('platform_resend_email_events').insert({
+      email_type: emailType,
+      user_id: userId,
+      resend_message_id: resendId ?? null,
+    });
+    if (error) console.warn('platform_resend_email_events:', error.message);
+  } catch (e) {
+    console.warn('recordResendSend:', (e as Error).message);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -265,6 +286,13 @@ serve(async (req) => {
         ? 'Check if your sender domain is verified in Resend.'
         : 'Check your Resend API key and configuration.',
     }, resendRes.status);
+  }
+
+  const resendId = typeof result?.id === 'string' ? result.id : undefined;
+  const sbUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const sbKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (sbUrl && sbKey && type) {
+    await recordResendSend(sbUrl, sbKey, type, auth, resendId);
   }
 
   return json({ success: true, id: result.id });

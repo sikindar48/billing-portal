@@ -1,6 +1,6 @@
 # InvoicePort — Features & User Flow Guide
 
-> Last updated: May 7, 2026
+> Last updated: May 12, 2026
 
 ## 🚀 Platform Overview
 
@@ -75,7 +75,7 @@ Forgot Password → OTP Request → Email Verification → New Password → Logi
 
 ### ✨ Key Features
 
-- **9 Professional Templates**: Modern, GST-compliant designs
+- **10 professional templates**: GST-oriented designs (`Template1`–`Template10` in `templateRegistry.js`)
 - **Real-Time Calculations**: Auto-compute taxes, totals, round-offs
 - **Smart Invoice Numbers**: Secure non-sequential format (INV-YY-RANDOM6)
 - **Dual Invoice Types**: Proforma and Tax Invoice support

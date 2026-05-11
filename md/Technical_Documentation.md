@@ -1,6 +1,17 @@
 # InvoicePort — Technical Architecture & Features
 
-> Last updated: May 7, 2026 — Production-ready platform architecture
+> Last updated: May 12, 2026 — Production-ready platform architecture
+
+### Related documentation
+
+| Document | Contents |
+|----------|----------|
+| `md/security.md` | Pre-launch security posture and checklist |
+| `md/audit.md` | Landing vs reality, dead code, UX gaps |
+| `md/DATABASE_SCHEMA.md` | Tables and relationships (overview) |
+| `md/API.md` | Edge Functions and key RPCs |
+| `md/FEATURES_FLOW.md` | User journeys and feature narrative |
+| `md/IMPLEMENTATION_STATUS.md` | Feature checklist (marketing tone — cross-check `audit.md`) |
 
 ---
 
@@ -17,7 +28,7 @@ InvoicePort is built as a modern, scalable web application using a serverless ar
 | **Routing**        | React Router DOM 6       | Client-side navigation and guards    |
 | **Backend**        | Supabase (PostgreSQL)    | Database, authentication, real-time  |
 | **Authentication** | Supabase Auth (JWT)      | Secure user management               |
-| **Email**          | Gmail API v1 + EmailJS   | Dual delivery system                 |
+| **Email**          | Resend (Edge `send-email`) + Gmail API + optional EmailJS | Transactional + invoice delivery |
 | **PDF Generation** | jsPDF + html2canvas      | Client-side PDF creation             |
 | **Deployment**     | Netlify + Supabase Cloud | Global CDN and serverless backend    |
 

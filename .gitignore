@@ -31,3 +31,6 @@ dist-ssr
 
 # Internal audit/dev notes
 errors.md
+
+# Supabase CLI cache (local)
+supabase/.temp/

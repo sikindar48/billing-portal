@@ -430,7 +430,7 @@ const LandingPage = () => {
                   <FeatureCard icon={<ShieldCheck className="w-6 h-6" />} title="Bank-Grade Security" desc="Enterprise-grade encryption for all financial data. Your client information is isolated and secure." color="emerald" />
                   <FeatureCard icon={<BarChart3 className="w-6 h-6" />} title="Live Analytics" desc="Visualize revenue, track outstanding payments, and monitor growth with real-time dashboards." color="blue" />
                   <FeatureCard icon={<Globe className="w-6 h-6" />} title="Multi-Currency Support" desc="Create invoices in major currencies (INR, USD, EUR) with proper currency symbols and formatting." color="purple" />
-                  <FeatureCard icon={<FileText className="w-6 h-6" />} title="9 Professional Templates" desc="Choose from 9 GST-compliant templates that match your brand. Upload logos and customize branding." color="pink" />
+                  <FeatureCard icon={<FileText className="w-6 h-6" />} title="10 Professional Templates" desc="Choose from 10 GST-oriented templates that match your brand. Upload logos and customize branding." color="pink" />
                   <FeatureCard icon={<Repeat className="w-6 h-6" />} title="Payment Tracking" desc="Record payments, track transaction details, and automatically update invoice status to paid." color="orange" />
               </div>
           </div>

@@ -1,6 +1,6 @@
 # InvoicePort — Feature Implementation Status
 
-> Last updated: May 7, 2026 — All core features implemented and operational
+> Last updated: May 12, 2026 — Core features operational; see `md/audit.md` for marketing/legacy caveats
 
 ---
 
@@ -9,8 +9,9 @@
 InvoicePort is a production-ready GST-compliant invoice generation platform serving Indian businesses with professional invoicing, automated email delivery, subscription management, and comprehensive business tools.
 
 **Live Platform:** https://www.invoiceport.live  
-**Status:** ✅ Fully Operational  
-**Users:** Active trial and paid subscribers
+**Status:** Operational (ongoing hardening — `md/security.md`, `md/audit.md`)  
+**Users:** Active trial and paid subscribers  
+**Docs index:** `md/security.md`, `md/audit.md`, `md/DATABASE_SCHEMA.md`, `md/API.md`, `md/FEATURES_FLOW.md`, `md/Technical_Documentation.md`
 
 ---
 
@@ -32,7 +33,7 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 ### 📄 Invoice Generation Engine
 
-- ✅ **9 Professional Templates**: GST-compliant designs (Template 3 default)
+- ✅ **10 invoice templates**: GST-oriented designs (`templateRegistry.js`; Template 3 default in many flows)
 - ✅ **Real-Time Calculations**: Auto-compute subtotal, tax, grand total, round-off
 - ✅ **Dual Invoice Types**: Proforma and Tax Invoice support
 - ✅ **Smart Numbering**: Secure non-sequential format (INV-YY-RANDOM6)
@@ -48,9 +49,9 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 ### 📧 Smart Email Delivery System
 
-- ✅ **Dual Delivery Methods**: Gmail API (Pro/Admin) + EmailJS (all plans)
+- ✅ **Dual Delivery Methods**: Gmail API (Pro) + Resend (`send-email` Edge) for default mail + transactional mail; EmailJS optional for some trial paths per env
 - ✅ **Gmail OAuth Integration**: Secure server-side token management
-- ✅ **Automatic Fallback**: Gmail → EmailJS on failure
+- ✅ **Automatic Fallback**: Gmail → InvoicePort default mail (Resend) on failure where implemented
 - ✅ **Plan-Based Limits**: Trial (3), Pro (unlimited), Admin (unlimited)
 - ✅ **Professional Templates**: Branded email layouts with PDF attachments
 - ✅ **Gmail Management UI**: Visual connection status and controls
@@ -88,11 +89,11 @@ InvoicePort is a production-ready GST-compliant invoice generation platform serv
 
 - Razorpay checkout with multiple payment methods
 - Server-side payment verification via Edge Functions
-- Automatic subscription activation after successful payment
-- Fallback RPC activation if Edge Function fails
-- Email confirmation via Resend API
-- Celebration animation for user delight
-- 30-second safety timeout for processing overlay
+- Automatic subscription activation after successful payment (Edge Function + HMAC verify)
+- **No** client-side RPC fallback if verify fails (security); client retries + DB reconciliation for lost responses
+- Subscription confirmation email from **`verify-payment-and-activate`** (server) + Resend
+- Celebration animation on successful upgrade
+- Admin **Resend usage** tab + `platform_resend_email_events` for monthly send counts (configurable limit, default 3000)
 
 **Note:** Database contains test pricing (₹29/month, ₹290/year) that needs updating to match frontend (₹149/month, ₹1499/year).
 

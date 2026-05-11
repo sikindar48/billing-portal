@@ -112,7 +112,9 @@ const App = () => {
                       element={
                         <ProtectedLayout>
                           <ProtectedRoute>
-                            <AdminDashboard />
+                            <AdminGuard>
+                              <AdminDashboard />
+                            </AdminGuard>
                           </ProtectedRoute>
                         </ProtectedLayout>
                       }
@@ -123,7 +125,9 @@ const App = () => {
                       element={
                         <ProtectedLayout>
                           <ProtectedRoute>
-                            <AdminVerifyPayment />
+                            <AdminGuard>
+                              <AdminVerifyPayment />
+                            </AdminGuard>
                           </ProtectedRoute>
                         </ProtectedLayout>
                       }
@@ -260,7 +264,9 @@ const App = () => {
                       element={
                         <ProtectedLayout>
                           <ProtectedRoute>
-                            <AuditLogs />
+                            <AdminGuard>
+                              <AuditLogs />
+                            </AdminGuard>
                           </ProtectedRoute>
                         </ProtectedLayout>
                       }

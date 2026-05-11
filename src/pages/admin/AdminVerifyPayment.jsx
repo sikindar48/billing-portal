@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { CheckCircle, XCircle, Loader2, ArrowLeft, AlertTriangle, User, Hash } from 'lucide-react';
-import AdminGuard from '@/components/AdminGuard';
-
 const AdminVerifyPayment = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -202,7 +200,6 @@ const AdminVerifyPayment = () => {
   const isAlreadyProcessed = requestData.status !== 'pending';
 
   return (
-    <AdminGuard>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-slate-100">
         <div className="container mx-auto px-4 py-4 max-w-7xl">
           {/* Header */}
@@ -436,7 +433,6 @@ const AdminVerifyPayment = () => {
           </div>
         </div>
       </div>
-    </AdminGuard>
   );
 };
 

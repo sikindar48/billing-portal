@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
     Loader2, Users, CreditCard, Activity, ShieldCheck, 
-    TrendingUp, ArrowUpRight, ArrowDownRight, RefreshCw, Inbox, Check, X, Zap
+    TrendingUp, ArrowUpRight, ArrowDownRight, RefreshCw, Inbox, Check, X, Zap, Mail
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -15,6 +15,7 @@ import User360Tab from './components/User360Tab';
 import PaymentsTab from './components/PaymentsTab';
 import AuditLogsTab from './components/AuditLogsTab';
 import SystemHealthTab from './components/SystemHealthTab';
+import ResendEmailUsageTab from './components/ResendEmailUsageTab';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
@@ -251,6 +252,9 @@ const AdminDashboard = () => {
                 <TabsTrigger value="health" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
                     <Zap className="h-4 w-4 mr-2" /> System Health
                 </TabsTrigger>
+                <TabsTrigger value="resend" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
+                    <Mail className="h-4 w-4 mr-2" /> Resend usage
+                </TabsTrigger>
             </TabsList>
           </div>
 
@@ -269,6 +273,10 @@ const AdminDashboard = () => {
 
             <TabsContent value="health">
                 <SystemHealthTab />
+            </TabsContent>
+
+            <TabsContent value="resend">
+                <ResendEmailUsageTab />
             </TabsContent>
           </div>
         </Tabs>

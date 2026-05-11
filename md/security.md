@@ -1,8 +1,8 @@
 # InvoicePort — Security Assessment (Pre-Launch)
 
-**Assessment date:** May 11, 2026  
+**Assessment date:** May 12, 2026  
 **Scope:** React/Vite frontend, Supabase (Postgres RLS, RPC, Edge Functions), Razorpay checkout, Gmail OAuth, admin area, public invoice verification.  
-**Overall posture:** **Not launch-critical in the same way as the May 2026 “all RPC open / free Pro” snapshot**, because several severe database and payment bypass issues have been addressed. **There are still important gaps** (especially relay abuse, subscription tampering, and defense-in-depth on admin routes) that should be closed or explicitly accepted before you treat this as enterprise-ready.
+**Overall posture:** Critical payment and open-relay issues from earlier snapshots are **largely mitigated in code** (`send-email` auth, payment verify retries + reconcile, server-sent subscription email). **Remaining gaps** are mostly RLS hardening, Gmail HTML escaping, password-policy polish, and deployment controls (CSP, WAF)—see sections 2–4 and `md/audit.md`.
 
 ---
 
@@ -10,14 +10,14 @@
 
 | Area | Status |
 |------|--------|
-| **Razorpay (create order + verify)** | **Strong:** Order creation uses a JWT-authenticated Edge Function, prices are validated server-side, payment verification uses HMAC-SHA256 over `order_id|payment_id`, and the order is scoped to `auth.uid()`. Subscription activation RPC is **not** granted to `authenticated` (service path only). See `supabase/functions/razorpay-create-order/index.ts`, `supabase/functions/verify-payment-and-activate/index.ts`, `supabase/migrations/20260508_activate_subscription_rpc.sql`. |
+| **Razorpay (create order + verify)** | **Strong:** Same as before, plus **client retries + long timeout**, **DB reconciliation** if the HTTP response is lost, and **subscription confirmation email** sent from **`verify-payment-and-activate`** after successful RPC (so users still get mail if the tab errors). See `src/pages/subscription/SubscriptionPage.jsx`, `supabase/functions/verify-payment-and-activate/index.ts`. |
 | **Invoice / trial limits** | **Improved:** `BEFORE INSERT` trigger `enforce_invoice_limit` enforces trial caps in the database (`supabase/migrations/20260510_enforce_invoice_limits.sql`). Invoice RPCs use `auth.uid()` (`supabase/migrations/20260220_create_rpc_functions.sql`). |
 | **OTP / password reset** | **Improved:** OTP generation is in `internal_create_otp` (executable only by `service_role`); verification goes through `verify_otp_securely` (`supabase/migrations/20260510_secure_otp_system.sql`). Client `src/utils/otpService.js` delegates to `request-otp` + RPC. |
 | **Public invoice verify** | **Improved:** Uses `verify_invoice_public` with masked customer name (`supabase/migrations/20260510_secure_public_verification.sql`, `src/pages/public/InvoiceVerify.jsx`). Some business-sensitive fields remain public (amount, dates, status)—see medium items. |
 | **Gmail OAuth secrets** | **Improved vs older audits:** Client code uses `VITE_GMAIL_CLIENT_ID` only; `.env.example` documents keeping the secret in Supabase secrets. Token exchange is intended to run via Edge Functions (`supabase/functions/gmail-token-exchange`, `gmail-token-refresh`). |
-| **Email Edge Function** | **Weak:** `send-email` still accepts arbitrary `type` / `to` without verifying the caller’s JWT—major abuse and quota-burn risk. |
+| **Email Edge Function** | **Improved:** `send-email` requires a **valid user JWT** or **service role** bearer; recipient rules per type (`supabase/functions/send-email/index.ts`). Successful sends append to **`platform_resend_email_events`** for admin quota tracking (migration `20260512_platform_resend_email_events.sql`). |
 | **`user_subscriptions` RLS** | **Weak:** Policies still allow authenticated users to **update** their own subscription row (`supabase/migrations/20260506_fix_user_subscriptions_rls.sql`), which can undermine plan enforcement if combined with other bugs. |
-| **Admin UI** | **Mixed:** Sensitive admin RPCs check `user_roles` in the database (`supabase/migrations/20260510_admin_premium_suite.sql`). Several admin **pages** are not wrapped in `AdminGuard` in `src/App.jsx` (only `/analytics` is); `AdminVerifyPayment` wraps itself. Relying on RLS/RPC alone is weaker than UI + API + DB alignment. |
+| **Admin UI** | **Improved:** `/admin`, `/admin/verify-payment`, and `/audit-logs` are wrapped in **`AdminGuard`** in `src/App.jsx` (in addition to admin RPC checks). Admin **Resend usage** tab calls `get_admin_resend_email_stats()` for monthly send totals vs a configurable reference limit (default 3000). |
 | **Transport / hosting** | **Unknown from repo alone:** Security headers (CSP, `frame-ancestors`, `X-Content-Type-Options`), WAF, and TLS are deployment concerns—call them out below. |
 
 ---
@@ -38,15 +38,18 @@ The following items from the previous `security.md` draft are **addressed in the
 
 6. **Gmail client secret in Vite bundle (historical C-03 / C-05)** — Current `.env.example` and `src/utils/gmailOAuthService.js` document **not** using `VITE_GMAIL_CLIENT_SECRET`; use Edge Functions + Supabase secrets for token exchange/refresh.
 
+7. **`send-email` authentication (historical H-01)** — Bearer must be **user JWT** or **service role**; per-type recipient checks; SPA uses `supabase.functions.invoke` with session (no anon-only `fetch`). **`auth_email_exists`** RPC for password-reset OTP path (`supabase/migrations/20260511_auth_email_exists_rpc.sql`, `request-otp`).
+
+8. **Payment UX / email reliability** — Verify flow retries + polls DB; subscription confirmation from **`verify-payment-and-activate`** after activation.
+
 ---
 
 ## 2. High — fix or explicitly accept before broad launch
 
-### [H-01] Unauthenticated `send-email` Edge Function (email relay + quota abuse)
+### [H-01] ~~Unauthenticated `send-email`~~ **Addressed (May 2026)**
 
-- **Files:** `supabase/functions/send-email/index.ts`  
-- **Issue:** There is **no** verification that the caller is a logged-in user (or a trusted server role). Anyone who can reach the function URL and has the **anon key** (always public in a SPA) can ask Resend to send arbitrary template types to arbitrary recipients, burning quota and enabling phishing from your verified domain.  
-- **Fix:** Require `Authorization: Bearer <user JWT>` (or only allow invocations from `service_role` / internal `fetch` from other functions) and map `type` → allowed recipients (e.g. invoice email only to addresses tied to that user’s invoice).
+- **Files:** `supabase/functions/send-email/index.ts`, `src/pages/auth/AuthPage.jsx`, `LandingPage.jsx`, `SubscriptionPage.jsx`, `src/utils/otpService.js`, `supabase/functions/request-otp/index.ts`  
+- **Status:** Callers must present **service role** or **valid user JWT**; user-path types are restricted (e.g. invoice recipient must match `bill_to` on the user’s invoice). **Ping** still requires auth. **Residual risk:** keep secrets out of client bundles and monitor **`platform_resend_email_events`** in admin.
 
 ### [H-02] Users can still mutate their own `user_subscriptions` row
 
@@ -157,7 +160,7 @@ The following items from the previous `security.md` draft are **addressed in the
 ## 6. Admin portal checklist
 
 - [x] **Privileged RPCs** (`get_admin_users_detailed`, `get_admin_payment_reconciliation`, `admin_override_subscription`) check `user_roles` (`supabase/migrations/20260510_admin_premium_suite.sql`).  
-- [ ] **Router-level `AdminGuard`** on all `/admin*` and `/audit-logs` (currently inconsistent in `src/App.jsx`).  
+- [x] **Router-level `AdminGuard`** on `/admin`, `/admin/verify-payment`, and `/audit-logs` (`src/App.jsx`).  
 - [ ] **Align** `audit_logs` admin access with `user_roles` (remove hardcoded email list or keep it as emergency break-glass only, documented).  
 - [ ] **Manual payment page** (`AdminVerifyPayment.jsx`): confirm whether `supabase.auth.admin.*` from the browser is intentional; the anon client **cannot** perform admin auth API calls—verify fallbacks do not leak misleading data in UI.
 
@@ -165,12 +168,12 @@ The following items from the previous `security.md` draft are **addressed in the
 
 ## 7. Suggested remediation order (practical)
 
-1. **Lock down `send-email`** (highest abuse impact vs effort).  
+1. ~~**Lock down `send-email`**~~ **Done** — keep monitoring Resend admin tab.  
 2. **Tighten `user_subscriptions` RLS** to SELECT-only for end users.  
 3. **Escape/sanitize Gmail HTML** construction.  
 4. **Normalize reset-password responses** and strengthen password policy.  
 5. **Harden `verify-payment-and-activate`** (strict order row requirement + atomic status update + optional amount check).  
-6. **Wrap all admin routes with `AdminGuard`**; reconcile `audit_logs` policies with `user_roles`.  
+6. **Reconcile `audit_logs` policies** with `user_roles` (remove hardcoded JWT emails or document as break-glass only).  
 7. **Deployment:** CSP, frame protections, WAF, Razorpay webhooks, email DNS.
 
 ---
@@ -181,11 +184,12 @@ At **~100 sends/day**, abuse or duplicate paths will cap you quickly. Treat the 
 
 ### Must-fix (quota + abuse)
 
-| Item | Why it burns your 3k |
-|------|----------------------|
-| **[H-01] Authenticate `send-email`** | Today anyone with the **public anon key** can POST arbitrary `to` / `type` and drain Resend in hours. This is the single biggest risk to your monthly cap. |
-| **[M-07] OTP only for real accounts (`password_reset`)** | If `request-otp` still creates rows and sends for **non-registered** addresses, attackers can force **1 email/minute per victim address** (44k+/month theoretical) or spray random addresses. Fix: verify user exists **before** `internal_create_otp` + send, while keeping a **uniform** HTTP response ([H-04]) so you do not reintroduce enumeration. |
-| **Single server path to Resend** | The SPA currently calls `send-email` directly from multiple places (e.g. `AuthPage.jsx`, `LandingPage.jsx`, `SubscriptionPage.jsx`, `src/utils/otpService.js`, `invoiceEmailService.js`). After [H-01], only **session JWT** or **service_role → send-email** should succeed; remove duplicate “anyone can POST” patterns. |
+| Item | Status / notes |
+|------|----------------|
+| **[H-01] Authenticate `send-email`** | **Done** — see §1 item 7. |
+| **[M-07] OTP only for real accounts (`password_reset`)** | **Done** — `auth_email_exists` + uniform success when no user. |
+| **Single server path to Resend** | **Done** — SPA uses `functions.invoke` + JWT; dev script `send-all-templates.js` uses **service role** only. |
+| **Admin visibility** | **Done** — Admin → **Resend usage** tab + `get_admin_resend_email_stats()` (adjust `monthly_limit` constant in migration if your Resend tier changes). |
 
 ### Strongly recommended (save sends, fewer duplicates)
 
