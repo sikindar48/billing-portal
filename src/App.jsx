@@ -23,7 +23,10 @@ import Customers from "./pages/management/Customers";
 import BrandingSettings from "./pages/settings/BrandingSettings";
 import Profile from "./pages/settings/Profile";
 import TemplatePage from "./pages/dashboard/TemplatePage";
-
+import SubscriptionPage from "./pages/subscription/SubscriptionPage";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import Analytics from "./pages/admin/Analytics";
+ 
 // Lazy-loaded pages — these are less frequent or large chunks
 const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
 const ConfirmEmail = lazy(() => import("./pages/auth/ConfirmEmail"));
@@ -34,10 +37,7 @@ const PrivacyPolicy = lazy(() => import("./pages/public/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/public/TermsOfService"));
 const NotFound = lazy(() => import("./pages/public/NotFound"));
 const UserAnalytics = lazy(() => import("./pages/dashboard/UserAnalytics"));
-const SubscriptionPage = lazy(() => import("./pages/subscription/SubscriptionPage"));
-const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminVerifyPayment = lazy(() => import("./pages/admin/AdminVerifyPayment"));
-const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 
 const queryClient = new QueryClient({
