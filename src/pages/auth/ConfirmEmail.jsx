@@ -50,21 +50,7 @@ const ConfirmEmail = () => {
           return;
         }
 
-        // Create trial subscription
-        const trialEndDate = new Date();
-        trialEndDate.setDate(trialEndDate.getDate() + 3);
-        
-        const { error: subError } = await supabase.from('user_subscriptions').insert({
-          user_id: user.id,
-          plan_id: 1, 
-          status: 'trialing',
-          current_period_end: trialEndDate.toISOString()
-        });
-
-        if (subError) {
-          console.warn('Subscription creation failed:', subError);
-          // Continue anyway - user can still access the app
-        }
+        // Trial subscription row is created by DB trigger (handle_new_user_subscription); client INSERT is not allowed under RLS.
 
         // Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
         // try {

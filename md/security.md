@@ -6,6 +6,41 @@
 
 ---
 
+## Status overview (fixed vs pending)
+
+| Tracked item | Status | Notes |
+|--------------|--------|--------|
+| §1 — Resolved audit carryover (8 historical items: C-01, C-06, C-07, C-08, public PII, Gmail secret in bundle, `send-email` auth, payment UX/email) | **Fixed** | Re-verify migrations on deployed Supabase. |
+| **[H-01]** `send-email` authentication | **Fixed** | User JWT or service role; per-type recipient rules (`send-email/index.ts`). |
+| **[H-02]** `user_subscriptions` owner can UPDATE own row | **Fixed** | User `INSERT`/`UPDATE` policies removed; admins get explicit policies; writes via definer RPCs, triggers, `service_role` (`20260513_user_subscriptions_rls_hardening.sql`). |
+| **[H-03]** Gmail invoice HTML injection | **Fixed** | `escapeHtml` + header sanitization in `src/utils/gmailInvoiceService.js`. |
+| **[H-04]** Password reset existence disclosure | **Pending** | Uniform HTTP status/body in `reset-password` (`check` action). |
+| **[H-05]** Admin routes guarded at router | **Fixed** | `AdminGuard` wraps `/admin`, `/admin/verify-payment`, `/analytics`, and `/audit-logs` in `src/App.jsx`. |
+| **[H-06]** `reset-password` min length 6 | **Pending** | Raise to 10–12+ server-side. |
+| **[M-01]** `verify-payment-and-activate` if order DB read fails | **Pending** | Abort or idempotent row + conditional update. |
+| **[M-02]** Amount vs stored order | **Pending** | Optional Razorpay fetch + compare. |
+| **[M-03]** CORS `*` on Edge Functions | **Pending** | Restrict to prod origin(s) + localhost. |
+| **[M-04]** `AuthContext` fail-open subscription | **Pending** | Fail closed or unknown vs allowed. |
+| **[M-05]** `audit_logs` hardcoded JWT emails | **Pending** | Align with `user_roles` / `is_admin()`. |
+| **[M-06]** Public verify still exposes amount/dates | **Pending** | Optional minimal response + signed token. |
+| **[M-07]** OTP for unregistered email (`password_reset`) | **Fixed** | `auth_email_exists` + uniform success when no user; see §8 and migration `20260511_auth_email_exists_rpc.sql`. |
+| **[M-08]** `subscription_requests` admin UPDATE | **Pending** | Verify live RLS; add admin policy or definer RPC. |
+| §4 — Operational (webhooks, headers, WAF, logging, DNS) | **Ongoing** | Hosting/CDN and process; not closed in app code alone. |
+| §5 — Razorpay: key secret, order auth, signature verify | **Fixed** | Per checklist. |
+| §5 — Webhooks + idempotent ledger | **Pending** | Recommended for production. |
+| §5 — Amount/currency reconciliation | **Pending** | Ties to M-02. |
+| §5 — 3DS / international testing | **Pending** | If scope expands. |
+| §6 — Admin privileged RPCs | **Fixed** | `user_roles` checks. |
+| §6 — Router `AdminGuard` on admin paths | **Fixed** | Same as H-05. |
+| §6 — `audit_logs` vs `user_roles` | **Pending** | Same as M-05. |
+| §6 — `AdminVerifyPayment` / `supabase.auth.admin` from browser | **Pending** | Confirm intent; document fallbacks. |
+| §8 — Resend must-fix (H-01, M-07, single path, admin stats) | **Fixed** | Per §8 tables. |
+| §8 — Strongly recommended (cooldowns, dedupe, opt-in welcome) | **Pending** | Hardening / quota hygiene. |
+| Executive summary — `user_subscriptions` RLS weak | **Fixed** | Same as H-02. |
+| Executive summary — transport (CSP, WAF, TLS) | **Pending** | Deployment. |
+
+---
+
 ## Executive summary
 
 | Area | Status |
@@ -16,8 +51,8 @@
 | **Public invoice verify** | **Improved:** Uses `verify_invoice_public` with masked customer name (`supabase/migrations/20260510_secure_public_verification.sql`, `src/pages/public/InvoiceVerify.jsx`). Some business-sensitive fields remain public (amount, dates, status)—see medium items. |
 | **Gmail OAuth secrets** | **Improved vs older audits:** Client code uses `VITE_GMAIL_CLIENT_ID` only; `.env.example` documents keeping the secret in Supabase secrets. Token exchange is intended to run via Edge Functions (`supabase/functions/gmail-token-exchange`, `gmail-token-refresh`). |
 | **Email Edge Function** | **Improved:** `send-email` requires a **valid user JWT** or **service role** bearer; recipient rules per type (`supabase/functions/send-email/index.ts`). Successful sends append to **`platform_resend_email_events`** for admin quota tracking (migration `20260512_platform_resend_email_events.sql`). |
-| **`user_subscriptions` RLS** | **Weak:** Policies still allow authenticated users to **update** their own subscription row (`supabase/migrations/20260506_fix_user_subscriptions_rls.sql`), which can undermine plan enforcement if combined with other bugs. |
-| **Admin UI** | **Improved:** `/admin`, `/admin/verify-payment`, and `/audit-logs` are wrapped in **`AdminGuard`** in `src/App.jsx` (in addition to admin RPC checks). Admin **Resend usage** tab calls `get_admin_resend_email_stats()` for monthly send totals vs a configurable reference limit (default 3000). |
+| **`user_subscriptions` RLS** | **Hardened:** User `INSERT`/`UPDATE` policies removed; **`SELECT` own row** only for normal users; admins get explicit `SELECT`/`INSERT`/`UPDATE` for console flows (`supabase/migrations/20260513_user_subscriptions_rls_hardening.sql`). Writes via triggers, `activate_subscription_after_payment`, email RPCs, `admin_override_subscription`. |
+| **Admin UI** | **Improved:** `/admin`, `/admin/verify-payment`, `/analytics`, and `/audit-logs` are wrapped in **`AdminGuard`** in `src/App.jsx` (in addition to admin RPC checks). Admin **Resend usage** tab calls `get_admin_resend_email_stats()` for monthly send totals vs a configurable reference limit (default 3000). |
 | **Transport / hosting** | **Unknown from repo alone:** Security headers (CSP, `frame-ancestors`, `X-Content-Type-Options`), WAF, and TLS are deployment concerns—call them out below. |
 
 ---
@@ -51,17 +86,15 @@ The following items from the previous `security.md` draft are **addressed in the
 - **Files:** `supabase/functions/send-email/index.ts`, `src/pages/auth/AuthPage.jsx`, `LandingPage.jsx`, `SubscriptionPage.jsx`, `src/utils/otpService.js`, `supabase/functions/request-otp/index.ts`  
 - **Status:** Callers must present **service role** or **valid user JWT**; user-path types are restricted (e.g. invoice recipient must match `bill_to` on the user’s invoice). **Ping** still requires auth. **Residual risk:** keep secrets out of client bundles and monitor **`platform_resend_email_events`** in admin.
 
-### [H-02] Users can still mutate their own `user_subscriptions` row
+### [H-02] ~~Users can still mutate their own `user_subscriptions` row~~ **Addressed (May 2026)**
 
-- **Files:** `supabase/migrations/20260506_fix_user_subscriptions_rls.sql`  
-- **Issue:** `FOR ALL` / `FOR UPDATE` policies allow the owner to change `plan_id`, `status`, `email_limit`, dates, etc., via the Supabase client if RLS is the only control. That recreates a **privilege escalation / entitlement bypass** class of bugs next to triggers and UI checks.  
-- **Fix:** Reduce to **`SELECT` only** for `authenticated`; perform all writes through `SECURITY DEFINER` functions or service-role Edge Functions after payment or admin action.
+- **Files:** `supabase/migrations/20260506_fix_user_subscriptions_rls.sql` (historical permissive policies), `supabase/migrations/20260513_user_subscriptions_rls_hardening.sql`  
+- **Status:** Dangerous **`Users insert` / `Users update` / `Users upsert` own** policies are **dropped**. End users retain **`SELECT` own row** only (original `Users view own subscription`). **Admins** (`user_roles.role = 'admin'`) get explicit **`SELECT` all**, **`INSERT`**, **`UPDATE`** so manual payment approval in `AdminVerifyPayment.jsx` still works. Subscription changes for payments remain via **`activate_subscription_after_payment`** (service role) and related definer paths.
 
-### [H-03] HTML injection in Gmail invoice bodies (stored XSS in email HTML)
+### [H-03] ~~HTML injection in Gmail invoice bodies~~ **Addressed (May 2026)**
 
-- **Files:** `src/utils/gmailInvoiceService.js` (template literals embedding `invoiceData.notes`, `billTo`, line items, branding, etc.)  
-- **Issue:** User-controlled invoice fields are concatenated into HTML without escaping/sanitization. Risk is mainly **recipient mail clients** that execute HTML/JS (webmail, some mobile clients).  
-- **Fix:** HTML-escape all dynamic strings, or sanitize with a vetted library before building MIME/HTML.
+- **Files:** `src/utils/gmailInvoiceService.js`  
+- **Status:** All dynamic invoice and branding strings go through **`escapeHtml`** before interpolation; **notes** use escaped text with newline → `<br>`; **`To:` / `Subject`** use **`sanitizeEmailHeader`** to strip control characters (header injection). Email signatures are treated as **plain text** (escaped + newlines to `<br>`), not raw HTML.
 
 ### [H-04] Password reset / existence disclosure
 
@@ -69,11 +102,10 @@ The following items from the previous `security.md` draft are **addressed in the
 - **Issue:** Different status codes and bodies allow **email enumeration** and user scraping.  
 - **Fix:** Constant-time / uniform response (same HTTP status, same body shape); always trigger the same UX (“If an account exists…”) regardless of existence.
 
-### [H-05] Defense-in-depth: admin routes not consistently guarded in the router
+### [H-05] ~~Defense-in-depth: admin routes not consistently guarded~~ **Addressed (May 2026)**
 
 - **Files:** `src/App.jsx`  
-- **Issue:** `/admin`, `/admin/verify-payment`, and `/audit-logs` are behind `ProtectedRoute` only; **`AdminGuard` is used for `/analytics` and inside `AdminVerifyPayment`**, but **not** for the main admin dashboard or audit logs route. Admin RPCs raise `Access Denied` for non-admins, so **data** is mostly protected, but the surface area is inconsistent and easy to regress.  
-- **Fix:** Wrap every admin path with `AdminGuard` (or a single `/admin/*` layout guard).
+- **Status:** `/admin`, `/admin/verify-payment`, `/analytics`, and `/audit-logs` are wrapped in **`AdminGuard`** (in addition to `ProtectedRoute`). Admin RPCs still enforce server-side. **Residual:** avoid regressions when adding routes; optional `/admin/*` layout guard for one place to enforce admin UI.
 
 ### [H-06] `reset-password` minimum password length 6
 
@@ -169,8 +201,8 @@ The following items from the previous `security.md` draft are **addressed in the
 ## 7. Suggested remediation order (practical)
 
 1. ~~**Lock down `send-email`**~~ **Done** — keep monitoring Resend admin tab.  
-2. **Tighten `user_subscriptions` RLS** to SELECT-only for end users.  
-3. **Escape/sanitize Gmail HTML** construction.  
+2. ~~**Tighten `user_subscriptions` RLS**~~ **Done** — migration `20260513_user_subscriptions_rls_hardening.sql`.  
+3. ~~**Escape/sanitize Gmail HTML**~~ **Done** — `gmailInvoiceService.js`.  
 4. **Normalize reset-password responses** and strengthen password policy.  
 5. **Harden `verify-payment-and-activate`** (strict order row requirement + atomic status update + optional amount check).  
 6. **Reconcile `audit_logs` policies** with `user_roles` (remove hardcoded JWT emails or document as break-glass only).  

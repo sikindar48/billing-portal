@@ -4,6 +4,22 @@ import { supabase } from '@/integrations/supabase/client';
 // Gmail OAuth Configuration
 const GMAIL_CLIENT_ID = import.meta.env.VITE_GMAIL_CLIENT_ID;
 
+/** Escape text for HTML body (H-03: invoice fields are user-controlled). */
+function escapeHtml(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Strip control chars from RFC 2822 headers (injection via newline). */
+function sanitizeEmailHeader(value) {
+  return String(value ?? '').replace(/[\r\n\x00-\x1f\x7f]/g, ' ').trim().slice(0, 998);
+}
+
 
 
 /**
@@ -161,17 +177,49 @@ const refreshGmailAccessToken = async (refreshToken) => {
  */
 const createInvoiceEmailContent = (invoiceData, businessSettings) => {
   const currencySymbol = invoiceData.selectedCurrency === 'INR' ? '₹' : '$';
-  
-  const itemsList = invoiceData.items?.map(item => 
-    `<tr>
-      <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.description || item.name}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${currencySymbol}${item.amount}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${currencySymbol}${item.total || (item.quantity * item.amount)}</td>
-    </tr>`
-  ).join('') || '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">No items</td></tr>';
 
-  const subject = `Invoice ${invoiceData.invoice.number} from ${businessSettings.company_name || 'My Business'}`;
+  const invNum = escapeHtml(invoiceData.invoice?.number ?? '');
+  const company = escapeHtml(businessSettings.company_name || 'My Business');
+  const billName = escapeHtml(invoiceData.billTo?.name || 'Customer');
+  const billEmail = escapeHtml(invoiceData.billTo?.email || '');
+  const billAddr = escapeHtml(invoiceData.billTo?.address || '');
+  const billPhone = escapeHtml(invoiceData.billTo?.phone || '');
+  const fromEmail = escapeHtml(businessSettings.company_email || '');
+  const fromPhone = escapeHtml(businessSettings.company_phone || '');
+  const fromWeb = escapeHtml(businessSettings.company_website || '');
+  const invDate = escapeHtml(new Date(invoiceData.invoice.date).toLocaleDateString());
+  const dueDate = escapeHtml(new Date(invoiceData.invoice.paymentDate).toLocaleDateString());
+  const subTotal = escapeHtml(String(invoiceData.subTotal ?? 0));
+  const taxAmt = escapeHtml(String(invoiceData.taxAmount ?? 0));
+  const grandTotal = escapeHtml(String(invoiceData.grandTotal ?? 0));
+  const notesHtml = invoiceData.notes
+    ? escapeHtml(invoiceData.notes).replace(/\n/g, '<br>')
+    : '';
+  const sigRaw = businessSettings.email_signature?.trim();
+  const signatureHtml = sigRaw
+    ? escapeHtml(sigRaw).replace(/\n/g, '<br>')
+    : `Best regards,<br>${company}`;
+
+  const itemsList = invoiceData.items?.map(item => {
+    const desc = escapeHtml(item.description || item.name || '');
+    const qty = escapeHtml(String(item.quantity ?? ''));
+    const rate = escapeHtml(String(item.amount ?? ''));
+    const rawLineTotal =
+      item.total != null && item.total !== ''
+        ? item.total
+        : Number(item.quantity) * Number(item.amount);
+    const lineTotal = escapeHtml(
+      Number.isFinite(Number(rawLineTotal)) ? String(rawLineTotal) : '0'
+    );
+    return `<tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">${desc}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${qty}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${currencySymbol}${rate}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${currencySymbol}${lineTotal}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #666;">No items</td></tr>';
+
+  const subject = sanitizeEmailHeader(`Invoice ${invoiceData.invoice?.number ?? ''} from ${businessSettings.company_name || 'My Business'}`);
   
   const htmlBody = `
 <!DOCTYPE html>
@@ -179,15 +227,15 @@ const createInvoiceEmailContent = (invoiceData, businessSettings) => {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice ${invoiceData.invoice.number}</title>
+    <title>Invoice ${invNum}</title>
 </head>
 <body style="margin: 0; padding: 0; background: #f4f6f8; font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
     <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);">
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #2563eb, #1e40af); color: #fff; padding: 30px; text-align: center;">
-            <h1 style="margin: 0; font-size: 24px; font-weight: 700;">Invoice from ${businessSettings.company_name || 'My Business'}</h1>
-            <p style="margin: 8px 0 0; opacity: 0.9; font-size: 16px;">Invoice #${invoiceData.invoice.number}</p>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 700;">Invoice from ${company}</h1>
+            <p style="margin: 8px 0 0; opacity: 0.9; font-size: 16px;">Invoice #${invNum}</p>
         </div>
 
         <!-- Content -->
@@ -198,11 +246,11 @@ const createInvoiceEmailContent = (invoiceData, businessSettings) => {
                 <h3 style="font-size: 14px; font-weight: 600; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px 0;">Invoice Details</h3>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
                     <span style="color: #666; font-weight: 500;">Invoice Date</span>
-                    <span style="color: #333; font-weight: 600;">${new Date(invoiceData.invoice.date).toLocaleDateString()}</span>
+                    <span style="color: #333; font-weight: 600;">${invDate}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
                     <span style="color: #666; font-weight: 500;">Due Date</span>
-                    <span style="color: #333; font-weight: 600;">${new Date(invoiceData.invoice.paymentDate).toLocaleDateString()}</span>
+                    <span style="color: #333; font-weight: 600;">${dueDate}</span>
                 </div>
             </div>
 
@@ -212,20 +260,20 @@ const createInvoiceEmailContent = (invoiceData, businessSettings) => {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <h4 style="font-size: 12px; font-weight: 600; color: #2563eb; text-transform: uppercase; margin: 0 0 8px 0;">Bill To</h4>
-                        <div style="font-weight: 600; font-size: 16px; color: #1e293b; margin-bottom: 8px;">${invoiceData.billTo.name || 'Customer'}</div>
+                        <div style="font-weight: 600; font-size: 16px; color: #1e293b; margin-bottom: 8px;">${billName}</div>
                         <div style="color: #475569; font-size: 14px;">
-                            ${invoiceData.billTo.email || ''}<br>
-                            ${invoiceData.billTo.address || ''}<br>
-                            ${invoiceData.billTo.phone || ''}
+                            ${billEmail}<br>
+                            ${billAddr}<br>
+                            ${billPhone}
                         </div>
                     </div>
                     <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <h4 style="font-size: 12px; font-weight: 600; color: #2563eb; text-transform: uppercase; margin: 0 0 8px 0;">From</h4>
-                        <div style="font-weight: 600; font-size: 16px; color: #1e293b; margin-bottom: 8px;">${businessSettings.company_name || 'My Business'}</div>
+                        <div style="font-weight: 600; font-size: 16px; color: #1e293b; margin-bottom: 8px;">${company}</div>
                         <div style="color: #475569; font-size: 14px;">
-                            ${businessSettings.company_email || ''}<br>
-                            ${businessSettings.company_phone ? businessSettings.company_phone + '<br>' : ''}
-                            ${businessSettings.company_website || ''}
+                            ${fromEmail}<br>
+                            ${fromPhone ? `${fromPhone}<br>` : ''}
+                            ${fromWeb}
                         </div>
                     </div>
                 </div>
@@ -254,17 +302,17 @@ const createInvoiceEmailContent = (invoiceData, businessSettings) => {
                 <div style="background: #f1f5ff; border: 1px solid #c7d2fe; padding: 20px; border-radius: 10px; max-width: 300px; margin-left: auto;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px;">
                         <span style="color: #64748b; font-weight: 500;">Subtotal</span>
-                        <span style="color: #1e293b; font-weight: 600;">${currencySymbol}${invoiceData.subTotal || 0}</span>
+                        <span style="color: #1e293b; font-weight: 600;">${currencySymbol}${subTotal}</span>
                     </div>
                     ${invoiceData.taxAmount > 0 ? `
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px;">
                         <span style="color: #64748b; font-weight: 500;">Tax</span>
-                        <span style="color: #1e293b; font-weight: 600;">${currencySymbol}${invoiceData.taxAmount}</span>
+                        <span style="color: #1e293b; font-weight: 600;">${currencySymbol}${taxAmt}</span>
                     </div>
                     ` : ''}
                     <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; color: #1e40af; margin-top: 15px; padding-top: 15px; border-top: 2px solid #2563eb;">
                         <span>Total Amount</span>
-                        <span>${currencySymbol}${invoiceData.grandTotal}</span>
+                        <span>${currencySymbol}${grandTotal}</span>
                     </div>
                 </div>
             </div>
@@ -274,7 +322,7 @@ const createInvoiceEmailContent = (invoiceData, businessSettings) => {
             <div style="margin-bottom: 25px;">
                 <h3 style="font-size: 14px; font-weight: 600; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px 0;">Notes</h3>
                 <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 20px; border-radius: 0 8px 8px 0;">
-                    <div style="color: #475569; margin: 0; white-space: pre-wrap;">${invoiceData.notes}</div>
+                    <div style="color: #475569; margin: 0;">${notesHtml}</div>
                 </div>
             </div>
             ` : ''}
@@ -282,14 +330,14 @@ const createInvoiceEmailContent = (invoiceData, businessSettings) => {
 
         <!-- Footer -->
         <div style="background: #1e293b; color: #94a3b8; padding: 25px; text-align: center; font-size: 13px;">
-            <div style="color: #ffffff; font-weight: 600; margin-bottom: 8px;">${businessSettings.company_name || 'My Business'}</div>
+            <div style="color: #ffffff; font-weight: 600; margin-bottom: 8px;">${company}</div>
             <div style="margin-bottom: 15px;">
-                ${businessSettings.company_email ? businessSettings.company_email : ''}
-                ${businessSettings.company_phone && businessSettings.company_email ? ' • ' : ''}
-                ${businessSettings.company_phone ? businessSettings.company_phone : ''}
+                ${fromEmail}
+                ${fromPhone && fromEmail ? ' • ' : ''}
+                ${fromPhone}
             </div>
             <div style="opacity: 0.7; font-size: 12px;">
-                ${businessSettings.email_signature || `Best regards,<br>${businessSettings.company_name || 'My Business'}`}<br>
+                ${signatureHtml}<br>
                 © ${new Date().getFullYear()} • Powered by InvoicePort
             </div>
         </div>
@@ -298,7 +346,7 @@ const createInvoiceEmailContent = (invoiceData, businessSettings) => {
 </html>`;
 
   return {
-    to: invoiceData.billTo.email,
+    to: sanitizeEmailHeader(invoiceData.billTo.email),
     subject,
     body: htmlBody,
     isHtml: true
