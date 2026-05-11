@@ -240,7 +240,7 @@ const ProcessingOverlay = ({ onDismiss }) => (
 // Main Component
 // ---------------------------------------------------------------------------
 const SubscriptionPage = () => {
-  const { user, subscription, setSubscription, refreshSubscription } = useAuth();
+  const { user, subscription, setSubscription, setSubscriptionStatus, refreshSubscription } = useAuth();
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [modal, setModal] = useState({ open: false, plan: null });
@@ -334,7 +334,7 @@ const SubscriptionPage = () => {
     setProcessing(true);
     const toastId = toast.loading('Verifying payment…');
 
-    const activateUI = (planSlug, planName) => {
+    const activateUI = async (planSlug, planName) => {
       const now = new Date();
       const end = new Date(now);
       if (planSlug === 'monthly') end.setMonth(end.getMonth() + 1);
@@ -348,22 +348,26 @@ const SubscriptionPage = () => {
         current_period_end: end.toISOString(),
         subscription_plans: { slug: planSlug, name: planName },
       });
+      setSubscriptionStatus('allowed');
+
+      const synced = await refreshSubscription({
+        expectedPlanSlug: planSlug,
+        maxAttempts: 28,
+        delayMs: 700,
+      });
+
       setProcessing(false);
-      triggerCelebration();
-      toast.success(`🎉 Welcome to ${planName}! Your plan is now active.`, { duration: 6000 });
-      if (typeof refreshSubscription === 'function') refreshSubscription();
 
-      // Confirmation email is sent from verify-payment-and-activate (server) so it still fires if the browser misses the response.
+      queueMicrotask(() => {
+        triggerCelebration();
+      });
 
-      // Sync real data from DB after 3s
-      setTimeout(async () => {
-        const { data } = await supabase
-          .from('user_subscriptions')
-          .select('*, subscription_plans(*)')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (data) setSubscription(data);
-      }, 3000);
+      toast.success(
+        synced
+          ? `🎉 Welcome to ${planName}! Your plan is now active.`
+          : `Payment received. Your plan is activating — if the card still shows Free after a minute, refresh the page.`,
+        { duration: 7000 },
+      );
     };
 
     const verifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment-and-activate`;
@@ -383,7 +387,7 @@ const SubscriptionPage = () => {
       if (result.ok) {
         console.log('[verify] OK', data);
         toast.dismiss(toastId);
-        activateUI(plan.slug, plan.name);
+        await activateUI(plan.slug, plan.name);
         return;
       }
 
@@ -395,9 +399,7 @@ const SubscriptionPage = () => {
       toast.dismiss(toastId);
 
       if (reconciled) {
-        setProcessing(false);
-        toast.success('Payment verified! Your plan is now active.', { duration: 6000 });
-        activateUI(plan.slug, plan.name);
+        await activateUI(plan.slug, plan.name);
         return;
       }
 
@@ -412,9 +414,7 @@ const SubscriptionPage = () => {
       toast.dismiss(toastId);
       const reconciled = await pollSubscriptionActivated(user.id, plan.slug);
       if (reconciled) {
-        setProcessing(false);
-        toast.success('Payment verified! Your plan is now active.', { duration: 6000 });
-        activateUI(plan.slug, plan.name);
+        await activateUI(plan.slug, plan.name);
         return;
       }
 

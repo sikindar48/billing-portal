@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 const AuthContext = createContext(null);
@@ -30,7 +30,18 @@ export const AuthProvider = ({ children }) => {
   // Tracks whether we've resolved admin+sub at least once for this session
   const resolvedRef = React.useRef(!!cache);
 
-  const resolveUserData = async (u) => {
+  const updateCache = useCallback((data) => {
+    try {
+      localStorage.setItem('invoiceport_auth_cache', JSON.stringify({
+        ...data,
+        timestamp: Date.now(),
+      }));
+    } catch (e) {
+      console.warn('Failed to update auth cache', e);
+    }
+  }, []);
+
+  const resolveUserData = useCallback(async (u) => {
     if (!u) return { adminStatus: false, subStatus: 'expired', subscriptionData: null };
 
     const timeoutPromise = new Promise((resolve) => 
@@ -94,7 +105,7 @@ export const AuthProvider = ({ children }) => {
     if (adminStatus) subStatus = 'allowed';
     
     return { adminStatus, subStatus, subscriptionData };
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -107,17 +118,6 @@ export const AuthProvider = ({ children }) => {
         authResolved = true;
       }
     }, 3000);
-
-    const updateCache = (data) => {
-      try {
-        localStorage.setItem('invoiceport_auth_cache', JSON.stringify({
-          ...data,
-          timestamp: Date.now()
-        }));
-      } catch (e) {
-        console.warn('Failed to update auth cache', e);
-      }
-    };
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
@@ -245,20 +245,97 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(authTimeout);
       authListener.unsubscribe();
     };
-  }, []);
+  }, [resolveUserData, updateCache]);
 
-  const refreshSubscription = async () => {
+  /** Optional expectedPlanSlug: poll until DB matches (post-payment replication / RPC lag). */
+  const refreshSubscription = useCallback(
+    async (opts = {}) => {
+      const currentUser = user;
+      if (!currentUser) return false;
+
+      const expectedPlanSlug = opts.expectedPlanSlug;
+      const delayMs = opts.delayMs ?? 700;
+      const maxAttempts = opts.maxAttempts ?? 28;
+
+      const planSlugFromRow = (sub) => {
+        if (!sub) return null;
+        const sp = sub.subscription_plans;
+        if (sp && typeof sp === 'object' && !Array.isArray(sp)) return sp.slug ?? null;
+        if (Array.isArray(sp)) return sp[0]?.slug ?? null;
+        return null;
+      };
+
+      const rowLooksPaidForExpected = (sub) => {
+        if (!sub || !expectedPlanSlug) return true;
+        const slug = planSlugFromRow(sub);
+        const end = sub.current_period_end ? new Date(sub.current_period_end) : null;
+        const activeWindow = end && end > new Date();
+        const activeStatus = sub.status === 'active' || sub.status === 'trialing';
+        return slug === expectedPlanSlug && activeStatus && activeWindow;
+      };
+
+      const applyResolved = ({ adminStatus, subStatus, subscriptionData }) => {
+        setIsAdmin(adminStatus);
+        setSubscriptionStatus(subStatus);
+        setSubscription(subscriptionData);
+        updateCache({
+          user: currentUser,
+          isAdmin: adminStatus,
+          subscriptionStatus: subStatus,
+          subscription: subscriptionData,
+        });
+      };
+
+      for (let i = 0; i < maxAttempts; i++) {
+        try {
+          const resolved = await resolveUserData(currentUser);
+          if (resolved.adminStatus) {
+            applyResolved(resolved);
+            return true;
+          }
+          if (!expectedPlanSlug || rowLooksPaidForExpected(resolved.subscriptionData)) {
+            applyResolved(resolved);
+            return true;
+          }
+        } catch {
+          setSubscriptionStatus('allowed');
+        }
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+
+      try {
+        const resolved = await resolveUserData(currentUser);
+        if (
+          resolved.adminStatus ||
+          !expectedPlanSlug ||
+          rowLooksPaidForExpected(resolved.subscriptionData)
+        ) {
+          applyResolved(resolved);
+          return true;
+        }
+      } catch {
+        setSubscriptionStatus('allowed');
+      }
+      return false;
+    },
+    [user, resolveUserData, updateCache],
+  );
+
+  const refreshAuth = useCallback(() => {
     const currentUser = user;
     if (!currentUser) return;
-    try {
-      const { adminStatus, subStatus, subscriptionData } = await resolveUserData(currentUser);
+    resolveUserData(currentUser).then(({ adminStatus, subStatus, subscriptionData }) => {
       setIsAdmin(adminStatus);
       setSubscriptionStatus(subStatus);
       setSubscription(subscriptionData);
-    } catch {
-      setSubscriptionStatus('allowed');
-    }
-  };
+      updateCache({
+        user: currentUser,
+        isAdmin: adminStatus,
+        subscriptionStatus: subStatus,
+        subscription: subscriptionData,
+      });
+    });
+  }, [user, resolveUserData, updateCache]);
 
   return (
     <AuthContext.Provider value={{ 
@@ -266,24 +343,13 @@ export const AuthProvider = ({ children }) => {
       isAdmin, 
       subscriptionStatus, 
       subscription, 
+      setSubscription,
+      setSubscriptionStatus,
       authLoading,
       isAuthResolved,
       isPro: subscriptionStatus === 'allowed' || isAdmin,
-      refreshAuth: () => {
-        if (user) {
-          resolveUserData(user).then(({ adminStatus, subStatus, subscriptionData }) => {
-            setIsAdmin(adminStatus);
-            setSubscriptionStatus(subStatus);
-            setSubscription(subscriptionData);
-            updateCache({
-              user,
-              isAdmin: adminStatus,
-              subscriptionStatus: subStatus,
-              subscription: subscriptionData
-            });
-          });
-        }
-      }
+      refreshAuth,
+      refreshSubscription,
     }}>
       {children}
     </AuthContext.Provider>
