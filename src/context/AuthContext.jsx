@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const [adminRes, subRes] = await Promise.all([
         supabase.from('user_roles').select('role').eq('user_id', u.id).eq('role', 'admin').maybeSingle(),
-        supabase.from('user_subscriptions').select('*, plans(*)').eq('user_id', u.id).maybeSingle()
+        supabase.from('user_subscriptions').select('*, subscription_plans(*)').eq('user_id', u.id).maybeSingle()
       ]);
 
       const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
@@ -53,8 +53,12 @@ export const AuthProvider = ({ children }) => {
       
       if (sub) {
         const now = new Date();
-        const end = new Date(sub.current_period_end);
-        if (end > now) subStatus = 'allowed';
+        const end = sub.current_period_end ? new Date(sub.current_period_end) : null;
+        
+        // Respect explicit active status OR valid date
+        if (sub.status === 'active' || (end && end > now)) {
+          subStatus = 'allowed';
+        }
       } else {
         // Trial fallback logic (original)
         const createdAt = new Date(u.created_at);
