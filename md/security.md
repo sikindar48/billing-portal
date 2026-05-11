@@ -1,136 +1,206 @@
-# InvoicePort Pre-Launch Security Audit Report
+# InvoicePort — Security Assessment (Pre-Launch)
 
-**Audit Date:** May 10, 2026  
-**Status:** **CRITICAL FAIL**  
-**Summary:** Multiple critical vulnerabilities were found in payment logic, authentication, and credential management. These MUST be fixed before going live to prevent financial loss and data breaches.
-
----
-
-## 1. CRITICAL FINDINGS
-
-### [C-01] Free Upgrade Exploit via Unprotected RPC
-- **Severity:** CRITICAL
-- **File:** `supabase/migrations/20260508_activate_subscription_rpc.sql` (Line 75)
-- **Vulnerability:** The `activate_subscription_after_payment` RPC is a `SECURITY DEFINER` function granted to the `authenticated` role. It accepts `p_plan_id` and `p_period_end` as arguments without verifying that a payment actually occurred.
-- **Impact:** Any logged-in user can call this function via the browser console to give themselves a "Pro Yearly" plan indefinitely for free.
-- **Fix:**
-    1. Remove `GRANT EXECUTE ON FUNCTION ... TO authenticated;`.
-    2. Rewrite the function to check `payment_orders` for a record with `status = 'paid'` and a valid `payment_id` before activating.
-
-### [C-02] Unauthorized Email Relay via Edge Function
-- **Severity:** CRITICAL
-- **File:** `supabase/functions/send-email/index.ts`
-- **Vulnerability:** The function lacks any authorization checks. It does not verify the Supabase JWT or `apikey`.
-- **Impact:** Attackers can use your Resend API quota to send spam or phishing emails from `info@invoiceport.live` to any recipient.
-- **Fix:** Implement JWT verification using `supabase.auth.getUser(token)` at the start of the function.
-
-### [C-03] Exposure of Gmail OAuth Client Secret
-- **Severity:** CRITICAL
-- **File:** `src/utils/gmailInvoiceService.js` (Line 6)
-- **Vulnerability:** `GMAIL_CLIENT_SECRET` is imported via `import.meta.env.VITE_GMAIL_CLIENT_SECRET`.
-- **Impact:** Any variable prefixed with `VITE_` is bundled into the frontend. An attacker can extract your Google Client Secret and use it to impersonate your application or perform unauthorized OAuth operations.
-- **Fix:**
-    1. Remove `VITE_GMAIL_CLIENT_SECRET` from `.env` and the frontend code.
-    2. Move Gmail token exchange and refreshing to a Supabase Edge Function using `service_role` and environment secrets.
-
-### [C-04] Subscription Data Tampering via RLS
-- **Severity:** CRITICAL
-- **File:** `supabase/migrations/20260506_fix_user_subscriptions_rls.sql` (Line 12)
-- **Vulnerability:** The RLS policy `Users upsert own subscription` allows `FOR ALL` (including UPDATE) where `auth.uid() = user_id`.
-- **Impact:** Users can directly edit their subscription record in the database via the Supabase client to change `plan_id` to `3` (Yearly) and `email_limit` to `999999`.
-- **Fix:** Restrict `user_subscriptions` to `SELECT` only for users. Updates must only happen via `SECURITY DEFINER` functions that verify payment.
-
-### [C-05] Unauthenticated Token Refresh
-- **Severity:** CRITICAL
-- **File:** `src/utils/gmailInvoiceService.js` (Line 143)
-- **Vulnerability:** `refreshGmailAccessToken` performs a client-side POST to `oauth2.googleapis.com/token` exposing the client secret in the network trace and the bundle.
-- **Fix:** This logic must be moved to the backend (Edge Functions).
+**Assessment date:** May 11, 2026  
+**Scope:** React/Vite frontend, Supabase (Postgres RLS, RPC, Edge Functions), Razorpay checkout, Gmail OAuth, admin area, public invoice verification.  
+**Overall posture:** **Not launch-critical in the same way as the May 2026 “all RPC open / free Pro” snapshot**, because several severe database and payment bypass issues have been addressed. **There are still important gaps** (especially relay abuse, subscription tampering, and defense-in-depth on admin routes) that should be closed or explicitly accepted before you treat this as enterprise-ready.
 
 ---
 
-## 2. HIGH FINDINGS
+## Executive summary
 
-### [H-01] XSS in Gmail Invoice Templates
-- **Severity:** HIGH
-- **File:** `src/utils/gmailInvoiceService.js` (Line 187-309)
-- **Vulnerability:** User-supplied data (`billTo.name`, `notes`, etc.) is injected into a raw HTML string using template literals without sanitization.
-- **Impact:** If an attacker creates an invoice with malicious scripts in the "Notes" field, the script will execute when the recipient opens the email in certain web-based email clients.
-- **Fix:** Use `DOMPurify` to sanitize all user inputs before injecting them into the HTML string.
-
-### [H-02] Server-Side Plan Limit Bypass
-- **Severity:** HIGH
-- **File:** `supabase/migrations/20260305_create_invoices_table.sql` (Line 73)
-- **Vulnerability:** The `INSERT` policy for `invoices` does not check if the user has exceeded their plan's invoice limit.
-- **Impact:** Free users can bypass frontend restrictions and create thousands of invoices via direct API calls.
-- **Fix:** Add a check to the `INSERT` policy or use a `BEFORE INSERT` trigger to validate the current invoice count against the user's plan.
-
-### [H-03] Exposure of EmailJS Private Key
-- **Severity:** HIGH
-- **File:** `.env` (Line 10)
-- **Vulnerability:** `VITE_EMAILJS_PRIVATE_KEY` is defined. If this is used in the frontend, it is exposed.
-- **Fix:** Remove EmailJS from the frontend entirely. Consolidate all email logic to the `send-email` Edge Function using Resend.
+| Area | Status |
+|------|--------|
+| **Razorpay (create order + verify)** | **Strong:** Order creation uses a JWT-authenticated Edge Function, prices are validated server-side, payment verification uses HMAC-SHA256 over `order_id|payment_id`, and the order is scoped to `auth.uid()`. Subscription activation RPC is **not** granted to `authenticated` (service path only). See `supabase/functions/razorpay-create-order/index.ts`, `supabase/functions/verify-payment-and-activate/index.ts`, `supabase/migrations/20260508_activate_subscription_rpc.sql`. |
+| **Invoice / trial limits** | **Improved:** `BEFORE INSERT` trigger `enforce_invoice_limit` enforces trial caps in the database (`supabase/migrations/20260510_enforce_invoice_limits.sql`). Invoice RPCs use `auth.uid()` (`supabase/migrations/20260220_create_rpc_functions.sql`). |
+| **OTP / password reset** | **Improved:** OTP generation is in `internal_create_otp` (executable only by `service_role`); verification goes through `verify_otp_securely` (`supabase/migrations/20260510_secure_otp_system.sql`). Client `src/utils/otpService.js` delegates to `request-otp` + RPC. |
+| **Public invoice verify** | **Improved:** Uses `verify_invoice_public` with masked customer name (`supabase/migrations/20260510_secure_public_verification.sql`, `src/pages/public/InvoiceVerify.jsx`). Some business-sensitive fields remain public (amount, dates, status)—see medium items. |
+| **Gmail OAuth secrets** | **Improved vs older audits:** Client code uses `VITE_GMAIL_CLIENT_ID` only; `.env.example` documents keeping the secret in Supabase secrets. Token exchange is intended to run via Edge Functions (`supabase/functions/gmail-token-exchange`, `gmail-token-refresh`). |
+| **Email Edge Function** | **Weak:** `send-email` still accepts arbitrary `type` / `to` without verifying the caller’s JWT—major abuse and quota-burn risk. |
+| **`user_subscriptions` RLS** | **Weak:** Policies still allow authenticated users to **update** their own subscription row (`supabase/migrations/20260506_fix_user_subscriptions_rls.sql`), which can undermine plan enforcement if combined with other bugs. |
+| **Admin UI** | **Mixed:** Sensitive admin RPCs check `user_roles` in the database (`supabase/migrations/20260510_admin_premium_suite.sql`). Several admin **pages** are not wrapped in `AdminGuard` in `src/App.jsx` (only `/analytics` is); `AdminVerifyPayment` wraps itself. Relying on RLS/RPC alone is weaker than UI + API + DB alignment. |
+| **Transport / hosting** | **Unknown from repo alone:** Security headers (CSP, `frame-ancestors`, `X-Content-Type-Options`), WAF, and TLS are deployment concerns—call them out below. |
 
 ---
 
-## 3. MEDIUM FINDINGS
+## 1. Resolved or materially improved (since earlier internal audit)
 
-### [M-01] Permissive CORS Policy
-- **Severity:** MEDIUM
-- **File:** All Edge Functions (`index.ts`)
-- **Vulnerability:** `Access-Control-Allow-Origin` is set to `*`.
-- **Fix:** Change to `https://invoiceport.live` (and localhost for dev).
+The following items from the previous `security.md` draft are **addressed in the current tree** (always re-verify on your deployed Supabase instance that migrations were applied in order):
 
-### [M-02] Race Condition in Payment Verification
-- **Severity:** MEDIUM
-- **File:** `supabase/functions/verify-payment-and-activate/index.ts` (Lines 103-152)
-- **Vulnerability:** Read-then-write pattern for checking `payment_orders` status.
-- **Fix:** Use `UPDATE payment_orders SET status = 'completed' WHERE order_id = $1 AND status = 'created' RETURNING *` to ensure atomicity.
+1. **Free “Pro” activation via client RPC (historical C-01)** — `activate_subscription_after_payment` is granted to **`service_role` only**; the `authenticated` grant is commented out (`supabase/migrations/20260508_activate_subscription_rpc.sql`). Frontend explicitly avoids RPC fallback after payment (`src/pages/subscription/SubscriptionPage.jsx`).
 
-### [M-03] Poor UX on Payment Timeout
-- **Severity:** MEDIUM
-- **File:** `src/pages/subscription/SubscriptionPage.jsx` (Line 186)
-- **Vulnerability:** 30s timeout just shows a toast.
-- **Fix:** Redirect to a `/payment/verify?order_id=...` page that polls the DB for the final status.
+2. **IDOR-style invoice RPCs (historical C-06)** — `get_user_invoices()` and `update_invoice_status(...)` scope by **`auth.uid()`**, not a caller-supplied user id (`supabase/migrations/20260220_create_rpc_functions.sql`).
+
+3. **Trial invoice limit only in UI (historical C-07)** — DB trigger `tr_enforce_invoice_limit` blocks inserts over the trial cap (`supabase/migrations/20260510_enforce_invoice_limits.sql`).
+
+4. **Client-generated OTP (historical C-08)** — Generation moved server-side via `internal_create_otp` + `request-otp` Edge Function (`supabase/migrations/20260510_secure_otp_system.sql`, `supabase/functions/request-otp/index.ts`).
+
+5. **Full PII on public verify (historical H-04)** — Replaced with `verify_invoice_public` + masking helper (`supabase/migrations/20260510_secure_public_verification.sql`).
+
+6. **Gmail client secret in Vite bundle (historical C-03 / C-05)** — Current `.env.example` and `src/utils/gmailOAuthService.js` document **not** using `VITE_GMAIL_CLIENT_SECRET`; use Edge Functions + Supabase secrets for token exchange/refresh.
 
 ---
 
-## 4. NEXT STEPS & REMEDIATION
+## 2. High — fix or explicitly accept before broad launch
 
-1. **IMMEDIATE:** Revoke `GRANT EXECUTE` on `activate_subscription_after_payment` from `authenticated`.
-2. **IMMEDIATE:** Add Auth guard to `send-email` edge function.
-3. **IMMEDIATE:** Remove all `VITE_` prefixed secrets.
-4. **REWRITE:** Move all Gmail OAuth and sending logic to Supabase Edge Functions.
-5. **LOCKDOWN:** Update RLS on `user_subscriptions` to prevent user-initiated updates.
-🛑 NEW CRITICAL FINDINGS
-[C-06] Massive IDOR in RPC Functions: The functions get_user_invoices and update_invoice_status in supabase/migrations/20260220_create_rpc_functions.sql take p_user_id as a parameter and do not verify it against auth.uid().
+### [H-01] Unauthenticated `send-email` Edge Function (email relay + quota abuse)
 
-Impact: Any logged-in user can view, edit, or delete any other user's invoices simply by passing their user_id.
-[C-07] Total Bypass of Subscription Limits: The increment_invoice_usage function (called when saving an invoice) is a NO-OP (it literally just says RETURN;).
+- **Files:** `supabase/functions/send-email/index.ts`  
+- **Issue:** There is **no** verification that the caller is a logged-in user (or a trusted server role). Anyone who can reach the function URL and has the **anon key** (always public in a SPA) can ask Resend to send arbitrary template types to arbitrary recipients, burning quota and enabling phishing from your verified domain.  
+- **Fix:** Require `Authorization: Bearer <user JWT>` (or only allow invocations from `service_role` / internal `fetch` from other functions) and map `type` → allowed recipients (e.g. invoice email only to addresses tied to that user’s invoice).
 
-Impact: The "10 invoice limit" for trial users is only enforced in the UI. Anyone can bypass it by calling the API directly to create unlimited invoices without paying.
-[C-08] Insecure OTP Generation (Account Takeover): In src/utils/otpService.js, the 6-digit OTP code is generated in the browser and inserted into the database by the client.
+### [H-02] Users can still mutate their own `user_subscriptions` row
 
-Impact: An attacker can generate their own OTP for your email, insert it into the DB via the client (assuming RLS allows it), and then use the reset-password Edge Function to take over your account.
-[H-04] Public PII Leakage: The InvoiceVerify.jsx page is public and returns the full PII (Name, Email, Address, Total Amount) of any customer if the attacker guesses the invoice number.
+- **Files:** `supabase/migrations/20260506_fix_user_subscriptions_rls.sql`  
+- **Issue:** `FOR ALL` / `FOR UPDATE` policies allow the owner to change `plan_id`, `status`, `email_limit`, dates, etc., via the Supabase client if RLS is the only control. That recreates a **privilege escalation / entitlement bypass** class of bugs next to triggers and UI checks.  
+- **Fix:** Reduce to **`SELECT` only** for `authenticated`; perform all writes through `SECURITY DEFINER` functions or service-role Edge Functions after payment or admin action.
 
-Impact: Serious data privacy (GDPR/PII) violation. Public verification should only show the status (e.g., "Paid"), not customer details.
-[H-05] Email Enumeration: The reset-password Edge Function returns exists: true/false, allowing an attacker to scrape your database to find valid user emails.
+### [H-03] HTML injection in Gmail invoice bodies (stored XSS in email HTML)
 
-Updated Remediation Priority:
-Fix RPC IDORs: Update all RPCs to use auth.uid() instead of a parameter.
-Move OTP Logic: Generate OTPs only inside a SECURITY DEFINER Postgres function or a secure Edge Function. Never generate secrets in the browser.
-Enforce Limits in DB: Add a trigger to the invoices table that checks the user's subscription limit before allowing an INSERT.
-Sanitize Public Verify: Modify the verification query to only return status, invoice_number, and company_name.
+- **Files:** `src/utils/gmailInvoiceService.js` (template literals embedding `invoiceData.notes`, `billTo`, line items, branding, etc.)  
+- **Issue:** User-controlled invoice fields are concatenated into HTML without escaping/sanitization. Risk is mainly **recipient mail clients** that execute HTML/JS (webmail, some mobile clients).  
+- **Fix:** HTML-escape all dynamic strings, or sanitize with a vetted library before building MIME/HTML.
 
+### [H-04] Password reset / existence disclosure
 
-Hardening Improvements
+- **Files:** `supabase/functions/reset-password/index.ts` (`action === 'check'` returns **404** with `exists: false` vs **200** with `exists: true`)  
+- **Issue:** Different status codes and bodies allow **email enumeration** and user scraping.  
+- **Fix:** Constant-time / uniform response (same HTTP status, same body shape); always trigger the same UX (“If an account exists…”) regardless of existence.
 
-Protection
+### [H-05] Defense-in-depth: admin routes not consistently guarded in the router
 
-No website application firewall detected. Please install a cloud-based WAF to prevent website hacks and DDoS attacks.
-Consider creating an SPF record to prevent spammers from abusing your email address.
-Security Headers
+- **Files:** `src/App.jsx`  
+- **Issue:** `/admin`, `/admin/verify-payment`, and `/audit-logs` are behind `ProtectedRoute` only; **`AdminGuard` is used for `/analytics` and inside `AdminVerifyPayment`**, but **not** for the main admin dashboard or audit logs route. Admin RPCs raise `Access Denied` for non-admins, so **data** is mostly protected, but the surface area is inconsistent and easy to regress.  
+- **Fix:** Wrap every admin path with `AdminGuard` (or a single `/admin/*` layout guard).
 
-Missing security header for ClickJacking Protection. Alternatively, you can use Content-Security-Policy: frame-ancestors 'none'.
-Missing security header to prevent Content Type sniffing.
-Missing Content-Security-Policy directive. We recommend to add the following CSP directives (you can use default-src if all values are the same): script-src, object-src, base-uri, frame-src
+### [H-06] `reset-password` minimum password length 6
+
+- **File:** `supabase/functions/reset-password/index.ts`  
+- **Issue:** Six characters is below common policy (and OWASP-style guidance) for a SaaS handling payments and PII.  
+- **Fix:** Enforce at least 10–12 characters with complexity or a breach-password list check on the server.
+
+---
+
+## 3. Medium
+
+### [M-01] `verify-payment-and-activate` continues if the payment order DB read fails
+
+- **File:** `supabase/functions/verify-payment-and-activate/index.ts`  
+- **Issue:** On `orderErr`, the handler logs but does **not** abort, yet still activates the subscription when the Razorpay signature is valid. Signature already ties `order_id` + `payment_id`, but missing `payment_orders` rows weaken **bookkeeping, replay handling, and plan/amount cross-checks**.  
+- **Fix:** Treat “no matching order for this user” as **400** after signature verify, or create the row idempotently from Razorpay metadata; then use a single **conditional update** (`UPDATE … WHERE status = 'created' RETURNING`) for completion.
+
+### [M-02] No cross-check of paid **amount** against stored order
+
+- **Files:** `verify-payment-and-activate/index.ts`, `payment_orders` schema  
+- **Issue:** Plan slug mismatch is checked when a row exists; **amount** is not revalidated against Razorpay’s captured payment in this function.  
+- **Fix:** Optionally fetch payment from Razorpay API with server credentials and compare `amount` / `currency` to `payment_orders.amount`.
+
+### [M-03] Permissive CORS (`Access-Control-Allow-Origin: *`) on Edge Functions
+
+- **Pattern:** Multiple functions under `supabase/functions/*/index.ts`  
+- **Issue:** Easier abuse from arbitrary origins in the browser (especially where anon key + unauthenticated functions exist).  
+- **Fix:** Restrict to your production origin(s) and localhost in dev.
+
+### [M-04] `AuthContext` “fail open” to `subscriptionStatus: 'allowed'` on errors / timeout
+
+- **File:** `src/context/AuthContext.jsx`  
+- **Issue:** Transient DB failures or timeouts can mark the user as **allowed** when subscription state was never confirmed—weak for a billing product (better to fail closed or retry with backoff).  
+- **Fix:** Distinguish “unknown” vs “allowed”; avoid granting paid features until subscription resolution succeeds.
+
+### [M-05] `audit_logs` admin policy uses hardcoded JWT emails
+
+- **File:** `supabase/migrations/20260220_create_audit_logs_table.sql`  
+- **Issue:** Admin `SELECT` on all logs is tied to **`auth.jwt() ->> 'email' IN (...)`**, while newer admin RPCs use **`user_roles`**. Two different admin models drift over time; new admins on different emails see incomplete data or you end up editing SQL for each hire.  
+- **Fix:** Use **only** `user_roles` (or a single `is_admin()` security definer function) for admin access to `audit_logs`.
+
+### [M-06] Public verification still exposes financial and timing data
+
+- **RPC:** `verify_invoice_public` returns `grand_total`, `issue_date`, `due_date`, etc.  
+- **Issue:** Much safer than full PII dump, but still sensitive for some customers/regulators if invoice numbers are guessable or leaked in URLs.  
+- **Fix:** Consider returning only **status + last four of invoice number** unless a signed token is presented.
+
+### [M-07] OTP / harassment: `internal_create_otp` does not require a registered user
+
+- **Files:** `supabase/migrations/20260510_secure_otp_system.sql`, `supabase/functions/request-otp/index.ts`  
+- **Issue:** For `password_reset`, you generally want OTP **only** if the account exists; otherwise attackers can annoy arbitrary inboxes (rate limit is only 1/min per email in DB).  
+- **Fix:** Add an existence check (via service role) before `internal_create_otp` for `password_reset`, while keeping a uniform HTTP response to avoid enumeration (combine with H-04).
+
+### [M-08] `subscription_requests` policies (migrations) only cover insert + select
+
+- **File:** `supabase/migrations/20251118081815_2b0f0dd3-5b3e-4229-8b4a-d41cee1f7120.sql`  
+- **Issue:** No `UPDATE` policy shown for admins; if none was added elsewhere, **admin approval from the SPA may fail under RLS**, or a later migration may have widened access—this should be **verified in the live project** and documented.  
+- **Fix:** Explicit `UPDATE` policy for admins only, or route approvals through a `SECURITY DEFINER` RPC.
+
+---
+
+## 4. Low / operational
+
+- **Razorpay webhooks:** The repo flow is **client-driven verification** after checkout. For production SaaS, also configure **server-side webhooks** (payment.captured, etc.) for reconciliation, refunds, and late callbacks—do not rely on the browser alone.  
+- **EmailJS:** `.env.example` still lists EmailJS keys for trial invoice email. Public keys are expected; ensure **no private keys** ever use the `VITE_` prefix. Prefer consolidating on Resend + server templates where possible.  
+- **Logging:** Several modules log payment/order identifiers and auth outcomes to the console—trim in production builds.  
+- **WAF / DDoS / bot protection:** Not represented in application code; use your hosting/CDN layer.  
+- **HTTP security headers / CSP:** Still recommended (`Content-Security-Policy`, `X-Frame-Options` or `frame-ancestors`, `X-Content-Type-Options`, `Referrer-Policy`). Configure at CDN or static host.  
+- **DNS / email:** SPF, DKIM, DMARC for `invoiceport.live` (and Resend alignment) to protect deliverability and abuse reputation.
+
+---
+
+## 5. Razorpay-specific checklist
+
+- [x] **Key secret** only in Supabase secrets, not in Vite env (per `.env.example` guidance).  
+- [x] **Order creation** authenticated and **price allowlist** enforced server-side (`razorpay-create-order`).  
+- [x] **Signature verification** on the Edge Function before activation.  
+- [ ] **Webhook endpoint** + idempotent ledger (recommended).  
+- [ ] **Amount/currency** reconciliation against `payment_orders` (recommended).  
+- [ ] **3DS / international** flows tested if you expand beyond INR cards.  
+
+---
+
+## 6. Admin portal checklist
+
+- [x] **Privileged RPCs** (`get_admin_users_detailed`, `get_admin_payment_reconciliation`, `admin_override_subscription`) check `user_roles` (`supabase/migrations/20260510_admin_premium_suite.sql`).  
+- [ ] **Router-level `AdminGuard`** on all `/admin*` and `/audit-logs` (currently inconsistent in `src/App.jsx`).  
+- [ ] **Align** `audit_logs` admin access with `user_roles` (remove hardcoded email list or keep it as emergency break-glass only, documented).  
+- [ ] **Manual payment page** (`AdminVerifyPayment.jsx`): confirm whether `supabase.auth.admin.*` from the browser is intentional; the anon client **cannot** perform admin auth API calls—verify fallbacks do not leak misleading data in UI.
+
+---
+
+## 7. Suggested remediation order (practical)
+
+1. **Lock down `send-email`** (highest abuse impact vs effort).  
+2. **Tighten `user_subscriptions` RLS** to SELECT-only for end users.  
+3. **Escape/sanitize Gmail HTML** construction.  
+4. **Normalize reset-password responses** and strengthen password policy.  
+5. **Harden `verify-payment-and-activate`** (strict order row requirement + atomic status update + optional amount check).  
+6. **Wrap all admin routes with `AdminGuard`**; reconcile `audit_logs` policies with `user_roles`.  
+7. **Deployment:** CSP, frame protections, WAF, Razorpay webhooks, email DNS.
+
+---
+
+## 8. Resend budget (~3,000 emails / month)
+
+At **~100 sends/day**, abuse or duplicate paths will cap you quickly. Treat the items below as **both security and quota** work.
+
+### Must-fix (quota + abuse)
+
+| Item | Why it burns your 3k |
+|------|----------------------|
+| **[H-01] Authenticate `send-email`** | Today anyone with the **public anon key** can POST arbitrary `to` / `type` and drain Resend in hours. This is the single biggest risk to your monthly cap. |
+| **[M-07] OTP only for real accounts (`password_reset`)** | If `request-otp` still creates rows and sends for **non-registered** addresses, attackers can force **1 email/minute per victim address** (44k+/month theoretical) or spray random addresses. Fix: verify user exists **before** `internal_create_otp` + send, while keeping a **uniform** HTTP response ([H-04]) so you do not reintroduce enumeration. |
+| **Single server path to Resend** | The SPA currently calls `send-email` directly from multiple places (e.g. `AuthPage.jsx`, `LandingPage.jsx`, `SubscriptionPage.jsx`, `src/utils/otpService.js`, `invoiceEmailService.js`). After [H-01], only **session JWT** or **service_role → send-email** should succeed; remove duplicate “anyone can POST” patterns. |
+
+### Strongly recommended (save sends, fewer duplicates)
+
+| Practice | Notes |
+|----------|--------|
+| **Invoice delivery** | **Pro users:** send via **Gmail** (`gmailInvoiceService.js`) — **zero Resend** per invoice. **Trial/free:** EmailJS path in `.env.example` uses Resend only where you explicitly wired `send-email`; avoid sending the same event twice (e.g. welcome from both **Landing** and **Auth** without idempotency). |
+| **Stricter cooldowns** | OTP is already **1/min** in DB; align **UI** resend cooldowns (e.g. 60s → 2–5 minutes for password reset) to cut accidental double-sends. |
+| **Skip low-value mail** | Optional: make “welcome” email **opt-in** or send once per user (flag in `profiles` / metadata) if signups are noisy. |
+| **Health checks** | `type: 'ping'` in `send-email` already returns **without** calling Resend (`supabase/functions/send-email/index.ts`). Still authenticate `send-email` so strangers cannot use `ping` or other types to probe or abuse the function. |
+
+### Optional (capacity planning)
+
+- **Resend dashboard:** alerts when daily send count crosses a threshold (e.g. 80/day).  
+- **Upgrade tier** on Resend when you approach consistent limits; code fixes above matter more first.
+
+---
+
+*This document is based on static analysis of the repository at audit time. Production deployments may differ if migrations, Supabase dashboard settings, or secrets are not aligned with this codebase.*

@@ -37,14 +37,14 @@ function loadEnv() {
   }
 }
 
-async function sendEmail(supabaseUrl, anonKey, emailData, templateName) {
+async function sendEmail(supabaseUrl, serviceRoleKey, emailData, templateName) {
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${anonKey}`,
+        'Authorization': `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
-        'apikey': anonKey,
+        'apikey': serviceRoleKey,
       },
       body: JSON.stringify(emailData),
     });
@@ -69,12 +69,13 @@ async function main() {
   console.log('📧 InvoicePort – Send All Email Templates\n');
   console.log('═══════════════════════════════════════════\n');
 
-  const env          = loadEnv();
-  const supabaseUrl  = env.VITE_SUPABASE_URL;
-  const anonKey      = env.VITE_SUPABASE_ANON_KEY;
+  const env             = loadEnv();
+  const supabaseUrl     = env.VITE_SUPABASE_URL;
+  const serviceRoleKey  = env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !anonKey) {
-    console.error('❌ Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('❌ Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
+    console.error('   (send-email now requires a user JWT or the service role — use the service role for this script only.)');
     process.exit(1);
   }
 
@@ -91,7 +92,7 @@ async function main() {
 
   // 1. Welcome Email
   console.log('📨 Sending Welcome Email...');
-  results.push(await sendEmail(supabaseUrl, anonKey, {
+  results.push(await sendEmail(supabaseUrl, serviceRoleKey, {
     type: 'welcome',
     to: testEmail,
     user_name: userName,
@@ -103,7 +104,7 @@ async function main() {
   // 2. Password Reset OTP
   console.log('📨 Sending Password Reset OTP...');
   const resetOTP = Math.floor(100000 + Math.random() * 900000).toString();
-  results.push(await sendEmail(supabaseUrl, anonKey, {
+  results.push(await sendEmail(supabaseUrl, serviceRoleKey, {
     type: 'otp',
     to: testEmail,
     otp_code: resetOTP,
@@ -117,7 +118,7 @@ async function main() {
 
   // 3. Subscription Confirmation
   console.log('📨 Sending Subscription Confirmation...');
-  results.push(await sendEmail(supabaseUrl, anonKey, {
+  results.push(await sendEmail(supabaseUrl, serviceRoleKey, {
     type: 'subscription_confirmation',
     to: testEmail,
     user_name: userName,

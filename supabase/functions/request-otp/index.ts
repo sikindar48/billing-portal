@@ -26,23 +26,35 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    const normalizedEmail = String(email).toLowerCase().trim()
+
+    // Password reset: only create OTP / send email if an auth user exists (saves Resend quota, reduces abuse)
+    if (purpose === 'password_reset') {
+      const { data: exists, error: existsErr } = await supabase.rpc('auth_email_exists', {
+        p_email: normalizedEmail,
+      })
+      if (existsErr || !exists) {
+        return new Response(
+          JSON.stringify({ success: true, message: 'If an account exists, an OTP has been sent.' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
+
     // 1. Generate OTP via the internal RPC (Service Role)
     const { data, error: rpcError } = await supabase.rpc('internal_create_otp', {
-      p_email: email,
+      p_email: normalizedEmail,
       p_purpose: purpose,
     })
 
     if (rpcError) {
-      // Security Fix: Prevent email enumeration
-      // If no account is found for a password reset, we return "success" but don't send anything.
       if (rpcError.message.includes('Please wait') || rpcError.message.includes('Too many')) {
          return new Response(JSON.stringify({ error: rpcError.message }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      
-      // For any other error (likely "user not found"), we pretend it succeeded
+
       return new Response(JSON.stringify({ success: true, message: 'If an account exists, an OTP has been sent.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -52,15 +64,17 @@ serve(async (req) => {
 
     // 2. Send the email using the existing send-email logic or direct Resend call
     // We'll call the existing send-email function internally to reuse the template
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const emailResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
       },
       body: JSON.stringify({
         type: 'otp',
-        to: email,
+        to: normalizedEmail,
         otp_code: otp_code,
         purpose: purpose,
         expires_in: '10 minutes'

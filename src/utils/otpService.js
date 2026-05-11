@@ -4,34 +4,6 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 /**
- * Send OTP email via the Resend-backed Supabase edge function.
- */
-const sendOTPEmail = async (email, otpCode, purpose, expiresIn = '10 minutes') => {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      type: 'otp',
-      to: email,
-      otp_code: otpCode,
-      purpose,
-      expires_in: expiresIn,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Email send failed (${res.status})`);
-  }
-
-  return await res.json();
-};
-
-/**
  * Generate and send OTP via secure Edge Function
  * @param {string} email - User's email address
  * @param {string} purpose - Purpose of OTP ('password_reset', 'email_verification', etc.)
@@ -42,11 +14,13 @@ export const sendOTP = async (email, purpose = 'password_reset') => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = {
       'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
     };
-    
-    // Use session token if available, otherwise just anon key
+
     if (session?.access_token) {
       headers['Authorization'] = `Bearer ${session.access_token}`;
+    } else {
+      headers['Authorization'] = `Bearer ${SUPABASE_ANON_KEY}`;
     }
 
     const res = await fetch(`${SUPABASE_URL}/functions/v1/request-otp`, {

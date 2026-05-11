@@ -7,9 +7,9 @@
  * Current usage:
  * - Invoice sending for Trial/Free users (via userEmailService.js)
  * 
- * Migrated to Resend:
- * - OTP / Password Reset → supabase/functions/send-email (type: 'otp')
- * - Subscription confirmation → supabase/functions/send-email (type: 'subscription_confirmation')
+ * Migrated to Resend (via Edge Functions only):
+ * - OTP / Password Reset → request-otp → send-email (service role; user never calls send-email for OTP)
+ * - Subscription / welcome → supabase.functions.invoke('send-email', { Authorization: user JWT })
  * 
  * Removed:
  * - Payment verification emails (not needed - Razorpay auto-upgrades)

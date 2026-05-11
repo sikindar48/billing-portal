@@ -265,16 +265,12 @@ const SubscriptionPage = () => {
 
     const sendSubscriptionEmail = async (planName, planPrice, planSlug, periodEnd) => {
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({
+        const { data: { session: s } } = await supabase.auth.getSession();
+        if (!s?.access_token) return;
+
+        await supabase.functions.invoke('send-email', {
+          headers: { Authorization: `Bearer ${s.access_token}` },
+          body: {
             type: 'subscription_confirmation',
             to: session.user.email,
             user_name: session.user.user_metadata?.full_name || session.user.email,
@@ -282,10 +278,9 @@ const SubscriptionPage = () => {
             amount: planPrice,
             billing_cycle: planSlug === 'monthly' ? 'Monthly' : 'Yearly',
             period_end: periodEnd,
-          }),
+          },
         });
       } catch (err) {
-        // Non-critical — don't block the UI flow if email fails
         console.warn('Subscription confirmation email failed:', err.message);
       }
     };

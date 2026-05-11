@@ -147,22 +147,16 @@ const LandingPage = () => {
           throw new Error('This email is already registered. Please log in instead.');
         }
 
-        // Fire welcome email (fire-and-forget)
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        fetch(`${supabaseUrl}/functions/v1/send-email`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'apikey': supabaseAnonKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            type: 'welcome',
-            to: email,
-            user_name: name || email,
-          }),
-        }).catch(() => {}); // don't block signup on email failure
+        if (data?.session?.access_token) {
+          void supabase.functions.invoke('send-email', {
+            headers: { Authorization: `Bearer ${data.session.access_token}` },
+            body: {
+              type: 'welcome',
+              to: email,
+              user_name: name || email,
+            },
+          }).catch(() => {});
+        }
 
         toast.success('Account created! Welcome to InvoicePort 🎉', { duration: 3000 });
         navigate('/dashboard', { replace: true });
@@ -186,23 +180,6 @@ const LandingPage = () => {
     }
     setLoading(true);
     try {
-        // Check account exists before sending OTP
-        const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const checkRes = await fetch(`${supabaseUrl}/functions/v1/reset-password`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({ action: 'check', email }),
-        });
-        if (!checkRes.ok) {
-          const err = await checkRes.json();
-          throw new Error(err.error || 'No account found with this email address.');
-        }
-
         const result = await sendOTP(email, 'password_reset');
         if (!result.success) {
             throw new Error(result.error || 'Failed to send OTP');

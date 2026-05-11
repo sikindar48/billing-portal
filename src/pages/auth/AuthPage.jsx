@@ -138,22 +138,17 @@ const AuthPage = () => {
           throw new Error('This email is already registered. Please log in instead.');
         }
 
-        // Fire welcome email (fire-and-forget)
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        fetch(`${supabaseUrl}/functions/v1/send-email`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'apikey': supabaseAnonKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            type: 'welcome',
-            to: email,
-            user_name: name || email,
-          }),
-        }).catch(() => {}); // don't block signup on email failure
+        // Welcome email only when we have a session JWT (send-email rejects anon-only calls)
+        if (data?.session?.access_token) {
+          void supabase.functions.invoke('send-email', {
+            headers: { Authorization: `Bearer ${data.session.access_token}` },
+            body: {
+              type: 'welcome',
+              to: email,
+              user_name: name || email,
+            },
+          }).catch(() => {});
+        }
 
         toast.success('Account created! Welcome to InvoicePort 🎉', { duration: 3000 });
         navigate('/dashboard', { replace: true });
