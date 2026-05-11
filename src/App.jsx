@@ -38,7 +38,6 @@ const TermsOfService = lazy(() => import("./pages/public/TermsOfService"));
 const NotFound = lazy(() => import("./pages/public/NotFound"));
 const UserAnalytics = lazy(() => import("./pages/dashboard/UserAnalytics"));
 const AdminVerifyPayment = lazy(() => import("./pages/admin/AdminVerifyPayment"));
-const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -109,6 +108,11 @@ const App = () => {
 
                     <Route
                       path="/admin"
+                      element={<Navigate to="/admin/users" replace />}
+                    />
+
+                    <Route
+                      path="/admin/:tab"
                       element={
                         <ProtectedLayout>
                           <ProtectedRoute>
@@ -265,7 +269,6 @@ const App = () => {
                         <ProtectedLayout>
                           <ProtectedRoute>
                             <AdminGuard>
-                              <AuditLogs />
                             </AdminGuard>
                           </ProtectedRoute>
                         </ProtectedLayout>

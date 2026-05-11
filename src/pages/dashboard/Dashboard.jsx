@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useBranding } from '@/hooks/useBranding';
 import { toast } from 'sonner';
 // Welcome email disabled - using only invoice, order_confirmation, and payment_verification templates
 // import { sendWelcomeEmail } from '@/utils/emailService';
@@ -56,6 +57,7 @@ const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAdmin, subscription } = useAuth(); // Read from context — no extra network calls
+  const { data: brandingData } = useBranding();
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailUsageStats, setEmailUsageStats] = useState(null);
@@ -126,6 +128,26 @@ const Index = () => {
     }
   }, [subscription, user]);
 
+  // Apply branding from React Query cache (instant on re-visit, no extra network call)
+  useEffect(() => {
+    if (!brandingData) return;
+    setBrandingSettings({
+      logoUrl: brandingData.logo_url || '',
+      brandingCompanyName: brandingData.company_name || '',
+      brandingTagline: brandingData.metadata?.tagline || '',
+      brandingWebsite: brandingData.website || '',
+      address: brandingData.metadata?.address || '',
+      phone: brandingData.metadata?.phone || '',
+      currency: brandingData.metadata?.currency || 'INR',
+      upiId: brandingData.metadata?.upi_id || '',
+      defaultTemplateId: brandingData.metadata?.default_template_id || 1,
+    });
+    if (brandingData.metadata?.currency) setSelectedCurrency(brandingData.metadata.currency);
+    if (brandingData.metadata?.default_template_id && !location.state?.invoiceData) {
+      setSelectedTemplateId(brandingData.metadata.default_template_id);
+    }
+  }, [brandingData]);
+
   // 1. INITIAL DATA FETCH — user & isAdmin come from AuthContext (no extra network calls)
   useEffect(() => {
     if (!user) return;
@@ -133,45 +155,9 @@ const Index = () => {
         try {
             setInitError(null);
             
-            // Fetch all data in parallel for better performance
-            const [brandingResult, emailStatsResult] = await Promise.allSettled([
-              // Fetch branding (uses the real 'branding_settings' table)
-              supabase
-                .from('branding_settings')
-                .select('*')
-                .eq('user_id', user.id)
-                .maybeSingle(),
-              
-              // Fetch email usage stats
-              checkEmailUsageLimit()
-            ]);
-
-            // Process branding
-            if (brandingResult.status === 'fulfilled' && brandingResult.value.data) {
-                const branding = brandingResult.value.data;
-                setBrandingSettings({
-                    logoUrl: branding.logo_url || '',
-                    brandingCompanyName: branding.company_name || '',
-                    brandingTagline: branding.metadata?.tagline || '',
-                    brandingWebsite: branding.website || '',
-                    address: branding.metadata?.address || '',
-                    phone: branding.metadata?.phone || '',
-                    currency: branding.metadata?.currency || 'INR',
-                    upiId: branding.metadata?.upi_id || '',
-                    defaultTemplateId: branding.metadata?.default_template_id || 1,
-                });
-                if (branding.metadata?.currency) {
-                    setSelectedCurrency(branding.metadata.currency);
-                }
-                if (branding.metadata?.default_template_id && !location.state?.invoiceData) {
-                    setSelectedTemplateId(branding.metadata.default_template_id);
-                }
-            }
-
-            // Process email stats
-            if (emailStatsResult.status === 'fulfilled') {
-                setEmailUsageStats(emailStatsResult.value);
-            }
+            // Fetch email usage stats (branding comes from React Query cache via useBranding)
+            const emailStatsResult = await checkEmailUsageLimit().catch(() => null);
+            if (emailStatsResult) setEmailUsageStats(emailStatsResult);
             setIsLoadingEmailStats(false);
 
             // Load from navigation state (view from history)

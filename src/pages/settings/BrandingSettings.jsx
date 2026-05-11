@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { useBranding, useInvalidateBranding } from '@/hooks/useBranding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,8 @@ import GmailConnect from '@/components/GmailConnect';
 
 const BrandingSettings = () => {
   const { user, subscription, isPro } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { data: brandingData, isLoading: loading } = useBranding();
+  const invalidateBranding = useInvalidateBranding();
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
     company_name: '',
@@ -29,44 +31,27 @@ const BrandingSettings = () => {
     default_template_id: 1,
   });
 
+  // Populate form when cached branding data arrives (instant on re-visit)
   useEffect(() => {
-    if (!user) return;
-    const fetchSettings = async () => {
-      try {
-        // Fetch branding settings
-        const { data } = await supabase
-          .from('branding_settings')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (data) {
-          setSettings(prev => ({
-            ...prev,
-            company_name: data.company_name || '',
-            logo_url: data.logo_url || '',
-            company_website: data.website || '',
-            // Extra fields stored in metadata JSONB if present
-            company_tagline: data.metadata?.tagline || '',
-            company_email: data.metadata?.email || '',
-            company_phone: data.metadata?.phone || '',
-            address_line1: data.metadata?.address || '',
-            invoice_prefix: data.metadata?.invoice_prefix || 'INV',
-            currency: data.metadata?.currency || 'INR',
-            tax_rate: data.metadata?.tax_rate ?? 18,
-            preferred_email_method: data.metadata?.preferred_email_method === 'emailjs' ? 'default_mail' : (data.metadata?.preferred_email_method || 'default_mail'),
-            upi_id: data.metadata?.upi_id || '',
-            gst_number: data.metadata?.gst_number || '',
-            default_template_id: data.metadata?.default_template_id || 1,
-          }));
-        }
-      } catch (e) {
-        toast.error('Failed to load settings');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSettings();
-  }, [user]);
+    if (!brandingData) return;
+    setSettings(prev => ({
+      ...prev,
+      company_name: brandingData.company_name || '',
+      logo_url: brandingData.logo_url || '',
+      company_website: brandingData.website || '',
+      company_tagline: brandingData.metadata?.tagline || '',
+      company_email: brandingData.metadata?.email || '',
+      company_phone: brandingData.metadata?.phone || '',
+      address_line1: brandingData.metadata?.address || '',
+      invoice_prefix: brandingData.metadata?.invoice_prefix || 'INV',
+      currency: brandingData.metadata?.currency || 'INR',
+      tax_rate: brandingData.metadata?.tax_rate ?? 18,
+      preferred_email_method: brandingData.metadata?.preferred_email_method === 'emailjs' ? 'default_mail' : (brandingData.metadata?.preferred_email_method || 'default_mail'),
+      upi_id: brandingData.metadata?.upi_id || '',
+      gst_number: brandingData.metadata?.gst_number || '',
+      default_template_id: brandingData.metadata?.default_template_id || 1,
+    }));
+  }, [brandingData]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -96,6 +81,7 @@ const BrandingSettings = () => {
         }, { onConflict: 'user_id' });
       if (error) throw error;
       toast.success('Settings saved');
+      invalidateBranding(); // Refresh cache so Dashboard picks up new values
     } catch (e) {
       console.error('Save error:', e);
       toast.error('Failed to save: ' + (e.message || 'Unknown error'));

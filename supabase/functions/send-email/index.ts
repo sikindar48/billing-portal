@@ -95,6 +95,11 @@ async function assertRecipientAllowed(
     return json({ error: 'OTP emails must be sent via the request-otp function' }, 403);
   }
 
+  if (type === 'broadcast') {
+    // Admin check is handled inside the broadcast block itself
+    return null;
+  }
+
   if (type === 'welcome' || type === 'subscription_confirmation') {
     if (!userEmail) {
       return json({ error: 'Your account has no email; cannot send this message' }, 403);
@@ -289,11 +294,19 @@ serve(async (req) => {
     if (target === 'pro') {
       const { data: proIds } = await db.from('user_subscriptions').select('user_id').gt('current_period_end', new Date().toISOString());
       const ids = (proIds || []).map(p => p.user_id);
-      query = query.in('id', ids);
+      if (ids.length > 0) {
+        query = query.in('id', ids);
+      } else {
+        // No pro users, return empty
+        return json({ success: true, message: 'No recipients found for this target group' });
+      }
     } else if (target === 'free') {
       const { data: proIds } = await db.from('user_subscriptions').select('user_id').gt('current_period_end', new Date().toISOString());
       const ids = (proIds || []).map(p => p.user_id);
-      query = query.not('id', 'in', `(${ids.join(',')})`);
+      if (ids.length > 0) {
+        query = query.not('id', 'in', `(${ids.join(',')})`);
+      }
+      // If no pro users, query remains unfiltered (all are free)
     }
 
     const { data: recipients, error: fetchErr } = await query;
@@ -302,54 +315,62 @@ serve(async (req) => {
 
     console.log(`🚀 Starting broadcast to ${recipients.length} users: "${customSubject}"`);
 
-    // 2. Loop and send (simplified for now, ideally batch or use Resend Batch API)
-    const results = [];
-    for (const person of recipients) {
-      if (!person.email) continue;
-      
-      const personalizedHtml = `
-        <div style="font-family: sans-serif; color: #374151; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
-          <div style="background-color: #4f46e5; padding: 24px; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 20px;">InvoicePort Announcement</h1>
-          </div>
-          <div style="padding: 32px; line-height: 1.6;">
-            <p>Hello ${person.full_name || 'there'},</p>
-            <div style="margin-top: 20px;">
-              ${message.replace(/\{\{name\}\}/g, person.full_name || 'Customer')}
+    // 2. Send emails asynchronously in background (don't await)
+    // Return success immediately so the UI doesn't hang
+    (async () => {
+      const results = [];
+      for (const person of recipients) {
+        if (!person.email) continue;
+        
+        const personalizedHtml = `
+          <div style="font-family: sans-serif; color: #374151; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <div style="background-color: #4f46e5; padding: 24px; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 20px;">InvoicePort Announcement</h1>
+            </div>
+            <div style="padding: 32px; line-height: 1.6;">
+              <p>Hello ${person.full_name || 'there'},</p>
+              <div style="margin-top: 20px;">
+                ${message.replace(/\{\{name\}\}/g, person.full_name || 'Customer')}
+              </div>
+            </div>
+            <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="font-size: 11px; color: #9ca3af; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
+                Sent via InvoicePort Admin Command Center
+              </p>
             </div>
           </div>
-          <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="font-size: 11px; color: #9ca3af; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
-              Sent via InvoicePort Admin Command Center
-            </p>
-          </div>
-        </div>
-      `;
+        `;
 
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: 'InvoicePort <info@invoiceport.live>',
-          to: [person.email],
-          subject: customSubject,
-          html: personalizedHtml,
-        }),
-      });
-      
-      const r = await res.json();
-      results.push(r.id);
-      
-      // Optional: Record log for each or just summary
-      if (res.ok) {
-        await recordResendSend(sbUrl, sbKey, 'broadcast', auth, r.id);
+        try {
+          const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from: 'InvoicePort <info@invoiceport.live>',
+              to: [person.email],
+              subject: customSubject,
+              html: personalizedHtml,
+            }),
+          });
+          
+          const r = await res.json();
+          results.push(r.id);
+          
+          if (res.ok) {
+            await recordResendSend(sbUrl, sbKey, 'broadcast', auth, r.id);
+          }
+        } catch (e) {
+          console.error(`Failed to send to ${person.email}:`, e);
+        }
+        
+        // Small delay to prevent rate limits
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
-      
-      // Small delay to prevent rate limits
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
+      console.log(`✅ Broadcast complete: ${results.length} emails sent`);
+    })();
 
-    return json({ success: true, recipients: recipients.length, message_ids: results });
+    // Return success immediately without waiting for emails to send
+    return json({ success: true, recipients: recipients.length, message: `Broadcast queued for ${recipients.length} users. Emails will be sent in the background.` });
 
   } else {
     return json({ error: `Unknown email type: ${type}` }, 400);
