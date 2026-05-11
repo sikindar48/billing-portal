@@ -27,12 +27,16 @@ BEGIN
     FROM public.user_subscriptions
     WHERE user_id = auth.uid();
     
-    -- If admin, return unlimited access but real usage
+    -- If admin, return platform-wide usage with universal limit
     IF is_admin_user THEN
+        SELECT count(*) INTO actual_usage
+        FROM public.platform_resend_email_events
+        WHERE created_at >= date_trunc('month', now());
+
         RETURN QUERY SELECT 
             true as can_send_email,
-            COALESCE(actual_usage, 0) as current_usage,
-            999999 as email_limit,
+            COALESCE(actual_usage, 0)::integer as current_usage,
+            3000 as email_limit,
             'Admin' as plan_name,
             true as is_pro;
         RETURN;
@@ -50,13 +54,13 @@ BEGIN
     JOIN public.subscription_plans sp ON us.plan_id = sp.id
     WHERE us.user_id = auth.uid();
 
-    -- If no subscription found, return default trial limits
+    -- If no subscription found, return default trial limits (fallback to true for new users)
     IF user_subscription IS NULL THEN
         RETURN QUERY SELECT 
-            false as can_send_email,
+            true as can_send_email,
             0 as current_usage,
             3 as email_limit,
-            'No Plan' as plan_name,
+            'Free Trial' as plan_name,
             false as is_pro;
         RETURN;
     END IF;

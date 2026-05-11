@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
     if (!u) return { adminStatus: false, subStatus: 'expired', subscriptionData: null };
 
     const timeoutPromise = new Promise((resolve) => 
-      setTimeout(() => resolve('TIMEOUT'), 5000)
+      setTimeout(() => resolve('TIMEOUT'), 15000)
     );
 
     const dataPromise = Promise.allSettled([
@@ -86,13 +86,22 @@ export const AuthProvider = ({ children }) => {
 
     const result = await Promise.race([dataPromise, timeoutPromise]);
 
+    const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+    const isEmailAdmin = u.email ? adminEmails.includes(u.email.toLowerCase()) : false;
+
     if (result === 'TIMEOUT') {
-      console.warn('resolveUserData timed out after 5 seconds');
-      return { adminStatus: false, subStatus: 'allowed', subscriptionData: null };
+      console.warn('resolveUserData timed out after 15 seconds');
+      // Use email fallback even on timeout for better UX
+      return { 
+        adminStatus: isEmailAdmin, 
+        subStatus: 'allowed', 
+        subscriptionData: null, 
+        isTimeout: true 
+      };
     }
 
     const [adminResult, subResult] = result;
-    const adminStatus = adminResult.status === 'fulfilled' ? adminResult.value : false;
+    const adminStatus = (adminResult.status === 'fulfilled' ? adminResult.value : false) || isEmailAdmin;
     
     let subStatus = 'allowed';
     let subscriptionData = null;
@@ -135,21 +144,32 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const { adminStatus, subStatus, subscriptionData } = await resolveUserData(sessionUser);
-        if (!mounted) return;
-        setIsAdmin(adminStatus);
-        setSubscriptionStatus(subStatus);
-        setSubscription(subscriptionData);
-        resolvedRef.current = true;
-        setIsAuthResolved(true);
+        const result = await resolveUserData(sessionUser);
+        const { adminStatus, subStatus, subscriptionData, isTimeout } = result;
         
-        // Update cache for next refresh
-        updateCache({
-          user: sessionUser,
-          isAdmin: adminStatus,
-          subscriptionStatus: subStatus,
-          subscription: subscriptionData
-        });
+        if (!mounted) return;
+        
+        // If it's a timeout, we keep the cached values if we have them
+        // otherwise we proceed with defaults
+        if (!isTimeout || !resolvedRef.current) {
+          setIsAdmin(adminStatus);
+          setSubscriptionStatus(subStatus);
+          setSubscription(subscriptionData);
+          resolvedRef.current = true;
+          setIsAuthResolved(true);
+          
+          // Update cache for next refresh
+          updateCache({
+            user: sessionUser,
+            isAdmin: adminStatus,
+            subscriptionStatus: subStatus,
+            subscription: subscriptionData
+          });
+        } else {
+          // It's a timeout but we already had resolved data (from cache)
+          // We keep the cache and just mark auth as resolved
+          setIsAuthResolved(true);
+        }
 
       } catch (err) {
         console.error("AuthContext: resolveUserData error:", err);
@@ -214,20 +234,27 @@ export const AuthProvider = ({ children }) => {
         if (!resolvedRef.current) setSubscriptionStatus('loading');
         
         try {
-          const { adminStatus, subStatus, subscriptionData } = await resolveUserData(sessionUser);
-          if (!mounted) return;
-          setIsAdmin(adminStatus);
-          setSubscriptionStatus(subStatus);
-          setSubscription(subscriptionData);
-          resolvedRef.current = true;
-          setIsAuthResolved(true);
+          const result = await resolveUserData(sessionUser);
+          const { adminStatus, subStatus, subscriptionData, isTimeout } = result;
           
-          updateCache({
-            user: sessionUser,
-            isAdmin: adminStatus,
-            subscriptionStatus: subStatus,
-            subscription: subscriptionData
-          });
+          if (!mounted) return;
+          
+          if (!isTimeout || !resolvedRef.current) {
+            setIsAdmin(adminStatus);
+            setSubscriptionStatus(subStatus);
+            setSubscription(subscriptionData);
+            resolvedRef.current = true;
+            setIsAuthResolved(true);
+            
+            updateCache({
+              user: sessionUser,
+              isAdmin: adminStatus,
+              subscriptionStatus: subStatus,
+              subscription: subscriptionData
+            });
+          } else {
+            setIsAuthResolved(true);
+          }
         } catch {
           if (!mounted) return;
           setSubscriptionStatus('allowed');
@@ -324,7 +351,10 @@ export const AuthProvider = ({ children }) => {
   const refreshAuth = useCallback(() => {
     const currentUser = user;
     if (!currentUser) return;
-    resolveUserData(currentUser).then(({ adminStatus, subStatus, subscriptionData }) => {
+    resolveUserData(currentUser).then((result) => {
+      const { adminStatus, subStatus, subscriptionData, isTimeout } = result;
+      if (isTimeout) return; // Don't update on timeout
+      
       setIsAdmin(adminStatus);
       setSubscriptionStatus(subStatus);
       setSubscription(subscriptionData);

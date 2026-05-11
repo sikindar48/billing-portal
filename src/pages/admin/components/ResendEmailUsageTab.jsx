@@ -16,12 +16,15 @@ const ResendEmailUsageTab = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_admin_resend_email_stats');
+      const { data, error } = await supabase.rpc('get_admin_resend_email_stats', {});
       if (error) throw error;
       setStats(data || null);
     } catch (e) {
       console.error(e);
-      toast.error(e.message || 'Failed to load Resend usage (run migration 20260512?)');
+      toast.error(
+        e.message ||
+          'Resend stats failed: apply migration 20260512, then in SQL editor run NOTIFY pgrst, \'reload schema\';',
+      );
       setStats(null);
     } finally {
       setLoading(false);

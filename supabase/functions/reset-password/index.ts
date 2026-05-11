@@ -63,12 +63,16 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
-    const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const serviceKey = (Deno.env.get('CUSTOM_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
 
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !serviceKey) {
       return json({ error: 'Server configuration error' }, 500);
     }
+
+    const adminClient = createClient(SUPABASE_URL, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     const body = await req.json();
     const { action, email } = body;
@@ -83,9 +87,6 @@ serve(async (req) => {
         return json({ error: 'Missing email' }, 400);
       }
       const normalizedEmail = email.toLowerCase().trim();
-      const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
       const user = await findUserByEmail(adminClient, normalizedEmail);
       if (!user) {
         return json({ exists: false, error: 'No account found with this email address.' }, 404);
@@ -104,10 +105,6 @@ serve(async (req) => {
       if (new_password.length < 6) {
         return json({ error: 'Password must be at least 6 characters' }, 400);
       }
-
-      const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
 
       // Verify the OTP record
       const { data: otpRecord, error: otpError } = await adminClient

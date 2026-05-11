@@ -26,7 +26,10 @@ function loadEnv() {
       if (trimmed && !trimmed.startsWith('#')) {
         const [key, ...valueParts] = trimmed.split('=');
         if (key && valueParts.length > 0) {
-          envVars[key] = valueParts.join('=').replace(/"/g, '');
+          const rawValue = valueParts.join('=').trim();
+          // Remove wrapping quotes (both " and ')
+          const cleanValue = rawValue.replace(/^['"]|['"]$/g, '');
+          envVars[key.trim()] = cleanValue;
         }
       }
     });
@@ -52,8 +55,14 @@ async function sendEmail(supabaseUrl, serviceRoleKey, emailData, templateName) {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error(`❌ ${templateName} – FAILED`);
-      console.error(`   Error: ${result.error || result.message}`);
+      console.error(`❌ ${templateName} – FAILED (Status: ${response.status})`);
+      console.error(`   Error: ${result.error || result.message || 'Unknown'}`);
+      if (result.debug) {
+        console.error(`   Debug: ${JSON.stringify(result.debug)}`);
+      }
+      if (result.details) {
+        console.error(`   Details: ${typeof result.details === 'object' ? JSON.stringify(result.details) : result.details}`);
+      }
       return false;
     }
 

@@ -21,9 +21,10 @@ serve(async (req) => {
       })
     }
 
+    const serviceKey = (Deno.env.get('CUSTOM_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim()
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      serviceKey
     )
 
     const normalizedEmail = String(email).toLowerCase().trim()
@@ -35,7 +36,11 @@ serve(async (req) => {
       })
       if (existsErr || !exists) {
         return new Response(
-          JSON.stringify({ success: true, message: 'If an account exists, an OTP has been sent.' }),
+          JSON.stringify({ 
+            success: true, 
+            message: 'If an account exists, an OTP has been sent.',
+            debug_found: false // [DEBUG HINT]
+          }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )
       }
@@ -62,10 +67,9 @@ serve(async (req) => {
 
     const { otp_id, otp_code } = data[0]
 
-    // 2. Send the email using the existing send-email logic or direct Resend call
-    // We'll call the existing send-email function internally to reuse the template
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    const emailResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+    // 2. Send the email internally
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,15 +83,18 @@ serve(async (req) => {
         purpose: purpose,
         expires_in: '10 minutes'
       }),
-    })
-
+    });
+ 
     if (!emailResponse.ok) {
-        throw new Error('Failed to send OTP email')
+        const errBody = await emailResponse.json().catch(() => ({}));
+        console.error('Internal send-email failed for OTP:', emailResponse.status, errBody);
+        throw new Error('Email delivery failed. Please try again later.');
     }
-
+ 
+    console.log(`✅ OTP email sent successfully to: ${normalizedEmail}`);
     return new Response(JSON.stringify({ success: true, otpId: otp_id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    });
 
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {

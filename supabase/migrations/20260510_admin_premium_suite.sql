@@ -3,16 +3,17 @@
 -- 1. Function to fetch all users with detailed status (User 360)
 CREATE OR REPLACE FUNCTION public.get_admin_users_detailed()
 RETURNS TABLE (
-    user_id UUID,
-    email TEXT,
-    full_name TEXT,
-    company_name TEXT,
-    logo_url TEXT,
-    plan_slug TEXT,
-    subscription_status TEXT,
-    period_end TIMESTAMPTZ,
-    invoice_count BIGINT,
-    last_active TIMESTAMPTZ
+    out_profile_id UUID,
+    out_email TEXT,
+    out_full_name TEXT,
+    out_company_name TEXT,
+    out_logo_url TEXT,
+    out_plan_slug TEXT,
+    out_subscription_status TEXT,
+    out_period_end TIMESTAMPTZ,
+    out_invoice_count BIGINT,
+    out_last_active TIMESTAMPTZ,
+    out_created_at TIMESTAMPTZ
 ) 
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -26,16 +27,17 @@ BEGIN
 
     RETURN QUERY
     SELECT 
-        u.id as user_id,
-        u.email::text,
-        COALESCE(p.full_name, 'N/A') as full_name,
-        COALESCE(b.company_name, 'No Company') as company_name,
-        b.logo_url,
-        COALESCE(plans.slug, 'trial') as plan_slug,
-        COALESCE(s.status, 'trialing') as subscription_status,
-        s.current_period_end as period_end,
-        (SELECT count(*) FROM invoices WHERE invoices.user_id = u.id) as invoice_count,
-        u.last_sign_in_at as last_active
+        u.id as out_profile_id,
+        u.email::text as out_email,
+        COALESCE(p.full_name, 'N/A') as out_full_name,
+        COALESCE(b.company_name, 'No Company') as out_company_name,
+        b.logo_url as out_logo_url,
+        COALESCE(plans.slug, 'trial') as out_plan_slug,
+        COALESCE(s.status, 'trialing') as out_subscription_status,
+        s.current_period_end as out_period_end,
+        (SELECT count(*) FROM invoices WHERE invoices.user_id = u.id) as out_invoice_count,
+        u.last_sign_in_at as out_last_active,
+        u.created_at as out_created_at
     FROM auth.users u
     LEFT JOIN profiles p ON u.id = p.id
     LEFT JOIN branding_settings b ON u.id = b.user_id

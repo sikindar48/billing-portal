@@ -1,0 +1,32 @@
+export const PLANS = [
+  {
+    id: 'starter',
+    slug: 'trial',
+    name: 'Free Starter',
+    price: 0,
+    period: '',
+    description: 'Essential tools for new businesses.',
+    features: ['10 Invoices Limit', '3 Days Access', '5 Downloads Limit', 'Basic Templates'],
+    highlight: false,
+  },
+  {
+    id: 'pro-monthly',
+    slug: 'monthly',
+    name: 'Pro Monthly',
+    price: 149,
+    period: '/month',
+    description: 'For freelancers & growing businesses.',
+    features: ['Unlimited Invoices', 'Unlimited Downloads', 'Email Integration', 'Priority Support', 'Custom Branding'],
+    highlight: false,
+  },
+  {
+    id: 'pro-yearly',
+    slug: 'yearly',
+    name: 'Pro Yearly',
+    price: 1499,
+    period: '/year',
+    description: 'Best value for committed users.',
+    features: ['Unlimited Invoices', 'Unlimited Downloads', 'Email Integration', 'Priority Support', 'Custom Branding'],
+    highlight: true,
+  },
+];

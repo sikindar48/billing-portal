@@ -32,36 +32,16 @@ export const checkEmailUsageLimit = async () => {
   try {
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Email usage check timeout')), 5000)
+      setTimeout(() => reject(new Error('Email usage check timeout')), 15000)
     );
     
     const checkPromise = (async () => {
-      // Check if user is admin first
-      const isAdmin = await isAdminUser();
-      if (isAdmin) {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        const { data: usageData } = await supabase
-          .from('user_subscriptions')
-          .select('email_usage_count')
-          .eq('user_id', authUser?.id)
-          .maybeSingle();
-
-        return {
-          canSendEmail: true,
-          currentUsage: usageData?.email_usage_count || 0,
-          emailLimit: 999999,
-          planName: 'Admin',
-          isPro: true,
-          isAdmin: true
-        };
-      }
-      
       const { data, error } = await supabase.rpc('check_email_limit');
       
       if (error) {
         // Default to trial limits on error
         return {
-          canSendEmail: false,
+          canSendEmail: true,
           currentUsage: 0,
           emailLimit: 3,
           planName: 'Trial',
@@ -73,10 +53,10 @@ export const checkEmailUsageLimit = async () => {
 
       if (!data || data.length === 0) {
         return {
-          canSendEmail: false,
+          canSendEmail: true,
           currentUsage: 0,
           emailLimit: 3,
-          planName: 'No Plan',
+          planName: 'Free Trial',
           isPro: false,
           isAdmin: false
         };
@@ -90,7 +70,7 @@ export const checkEmailUsageLimit = async () => {
         emailLimit: result.email_limit,
         planName: result.plan_name,
         isPro: result.is_pro,
-        isAdmin: false
+        isAdmin: result.plan_name === 'Admin'
       };
     })();
     

@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.43.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,150 +7,142 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // 1. Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const rawServiceKey = Deno.env.get('CUSTOM_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const serviceKey = rawServiceKey.trim();
+
+    // 2. Extract Token Safely
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    if (!token) {
       return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
+        JSON.stringify({ error: 'Authentication required', details: 'No Bearer token found in headers' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(
-        JSON.stringify({ error: 'Supabase configuration missing' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // 3. Initialize Authenticated Client (Native Verification)
+    // This client uses the user's own token to verify them against Supabase Auth
+    const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: { user }, error: authError } = await supabaseUserClient.auth.getUser();
 
-    // Verify the user token
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
     if (authError || !user) {
+      console.error('Auth check failed:', authError);
       return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
+        JSON.stringify({ 
+          error: 'Authentication failed', 
+          details: authError?.message || 'Invalid session',
+          hint: 'Your session may have expired. Please log out and log back in.'
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Parse and validate request
+    // 4. Parse Request Body
     const { planSlug, planPrice, planName } = await req.json();
-
-    if (!planSlug || !planPrice || !planName) {
+    if (!planSlug || !planPrice) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: planSlug, planPrice, planName' }),
+        JSON.stringify({ error: 'Invalid request', details: 'Missing plan details' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validate plan price (security check - ensure frontend isn't manipulating prices)
-    const validPlans = {
-      'monthly': 149,
-      'yearly': 1499,
-    };
-
-    if (validPlans[planSlug] !== planPrice) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid plan price' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get Razorpay credentials
-    const keyId = Deno.env.get('RAZORPAY_KEY_ID');
-    const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
+    // 5. Razorpay Configuration
+    const rawKeyId = Deno.env.get('RAZORPAY_KEY_ID') || '';
+    const rawKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET') || '';
+    
+    // Root Cause Fix: Remove quotes and whitespace that often get included via CLI 'secrets set'
+    const keyId = rawKeyId.trim().replace(/^["']|["']$/g, '');
+    const keySecret = rawKeySecret.trim().replace(/^["']|["']$/g, '');
 
     if (!keyId || !keySecret) {
       return new Response(
-        JSON.stringify({ error: 'Razorpay credentials not configured' }),
+        JSON.stringify({ error: 'Configuration error', details: 'Razorpay keys not set' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const credentials = btoa(`${keyId}:${keySecret}`);
+    // Diagnostic log (Masked)
+    console.log(`🔑 Using Key ID: ${keyId.slice(0, 8)}...${keyId.slice(-4)}`);
+    console.log(`🔑 Key Secret Length: ${keySecret.length}, Masked: ${keySecret.slice(0, 3)}...${keySecret.slice(-3)}`);
 
-    // Create Razorpay order
-    // Receipt must be max 40 characters - use short format
-    const timestamp = Date.now().toString().slice(-8); // Last 8 digits of timestamp
-    const userIdShort = user.id.slice(0, 8); // First 8 chars of user ID
-    const receipt = `ord_${userIdShort}_${timestamp}`; // Format: ord_12345678_12345678 (max 27 chars)
+    // 6. Create Razorpay Order
+    // Bulletproof Basic Auth encoding for Deno
+    const tokenStr = `${keyId}:${keySecret}`;
+    const credentials = btoa(tokenStr);
     
-    console.log('📝 Creating order with receipt:', receipt, 'length:', receipt.length);
+    const receipt = `rcpt_${user.id.slice(0, 8)}_${Date.now().toString().slice(-6)}`;
     
-    const response = await fetch('https://api.razorpay.com/v1/orders', {
+    console.log(`📡 Sending request to Razorpay for user: ${user.id}`);
+    console.log(`📡 Auth Header: Basic ${credentials.slice(0, 10)}...`);
+    
+    const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        amount: planPrice * 100, // Razorpay expects paise
+        amount: Math.round(planPrice * 100), // Ensure integer paise
         currency: 'INR',
         receipt,
-        notes: {
-          userId: user.id,
-          userEmail: user.email,
-          planSlug,
-          planName,
-        },
+        notes: { userId: user.id, planSlug }
       }),
     });
 
-    const order = await response.json();
+    const order = await rzpResponse.json();
 
-    if (!response.ok) {
-      console.error('Razorpay order creation failed:', order);
+    if (!rzpResponse.ok) {
+      console.error('🚨 RAZORPAY ERROR CODE:', order.error?.code);
+      console.error('🚨 RAZORPAY ERROR DESC:', order.error?.description);
       return new Response(
-        JSON.stringify({ error: order.error?.description || 'Failed to create order' }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Payment gateway error', 
+          details: order.error?.description || order.error?.reason || 'Authentication failed',
+          code: order.error?.code,
+          raw: order 
+        }),
+        { status: rzpResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('✅ Razorpay order created:', { orderId: order.id, userId: user.id, planSlug });
+    // 7. Store Order (Elevated Privileges)
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    await supabaseAdmin.from('payment_orders').insert({
+      order_id: order.id,
+      user_id: user.id,
+      plan_slug: planSlug,
+      amount: planPrice,
+      status: 'created',
+      receipt
+    });
 
-    // Store order in database for verification later
-    const { error: dbError } = await supabase
-      .from('payment_orders')
-      .insert({
-        order_id: order.id,
-        user_id: user.id,
-        plan_slug: planSlug,
-        amount: planPrice,
-        currency: 'INR',
-        status: 'created',
-        receipt,
-      });
-
-    if (dbError) {
-      console.error('Failed to store order in DB:', dbError);
-      // Don't fail the request - order is already created in Razorpay
-    }
-
+    // 8. Success Response
     return new Response(
       JSON.stringify({
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        keyId,
+        keyId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (err) {
-    console.error('Edge function error:', err);
+    console.error('Critical Function Error:', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: err.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

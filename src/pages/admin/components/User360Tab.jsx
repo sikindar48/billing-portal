@@ -170,7 +170,9 @@ const User360Tab = ({ users, onRefresh }) => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5 text-[11px] text-gray-600 font-medium whitespace-nowrap">
                       <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                      {user.out_period_end ? format(new Date(user.out_period_end), 'MMM dd, yyyy') : 'Never'}
+                      {user.out_period_end ? format(new Date(user.out_period_end), 'MMM dd, yyyy') : 
+                       user.out_created_at ? format(new Date(new Date(user.out_created_at).getTime() + 3 * 24 * 60 * 60 * 1000), 'MMM dd, yyyy') : 
+                       'Never'}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">

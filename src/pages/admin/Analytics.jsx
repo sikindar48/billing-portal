@@ -78,27 +78,40 @@ const Analytics = () => {
       // Email usage stats - handle if table doesn't exist
       let emailUsage = {
         sent: 0,
-        limit: 10,
+        limit: 3000, // Universal max
         percentage: 0
       };
 
       try {
-        const [{ count: logCount, error: logErr }, { data: subRow, error: subErr }] = await Promise.all([
-          supabase.from('email_usage_log').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-          supabase.from('user_subscriptions').select('email_usage_count, email_limit').eq('user_id', user.id).maybeSingle(),
-        ]);
+        if (isAdmin) {
+          const { data: resendStats, error: resendErr } = await supabase.rpc('get_admin_resend_email_stats');
+          if (!resendErr && resendStats) {
+            const sent = resendStats.total_this_month || 0;
+            const limit = resendStats.monthly_limit || 3000;
+            emailUsage = {
+              sent,
+              limit,
+              percentage: limit > 0 ? ((sent / limit) * 100).toFixed(1) : 0,
+            };
+          }
+        } else {
+          const [{ count: logCount, error: logErr }, { data: subRow, error: subErr }] = await Promise.all([
+            supabase.from('email_usage_log').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+            supabase.from('user_subscriptions').select('email_usage_count, email_limit').eq('user_id', user.id).maybeSingle(),
+          ]);
 
-        const limit = subRow?.email_limit ?? 3;
-        const sentFromLog = typeof logCount === 'number' ? logCount : null;
-        const sentFromSub = subRow?.email_usage_count ?? 0;
-        const sent = sentFromLog !== null && !logErr ? sentFromLog : sentFromSub;
+          const limit = subRow?.email_limit ?? 3000;
+          const sentFromLog = typeof logCount === 'number' ? logCount : null;
+          const sentFromSub = subRow?.email_usage_count ?? 0;
+          const sent = sentFromLog !== null && !logErr ? sentFromLog : sentFromSub;
 
-        if (!subErr || !logErr) {
-          emailUsage = {
-            sent,
-            limit,
-            percentage: limit > 0 ? ((sent / limit) * 100).toFixed(1) : 0,
-          };
+          if (!subErr || !logErr) {
+            emailUsage = {
+              sent,
+              limit,
+              percentage: limit > 0 ? ((sent / limit) * 100).toFixed(1) : 0,
+            };
+          }
         }
       } catch (emailErr) {
         console.warn('Email usage tracking not available:', emailErr);
@@ -279,7 +292,7 @@ const Analytics = () => {
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
-                    {analytics.emailUsage.percentage}% of limit used
+                    {analytics.emailUsage.percentage}% of universal limit used (3000 max)
                   </p>
                 </div>
 

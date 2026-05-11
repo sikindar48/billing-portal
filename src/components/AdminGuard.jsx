@@ -16,20 +16,47 @@ const AdminGuard = ({ children }) => {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-red-100">
-          <div className="mx-auto bg-red-100 h-16 w-16 rounded-full flex items-center justify-center mb-6">
-            <ShieldAlert className="h-8 w-8 text-red-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-500 mb-6">You do not have permission to view this area.</p>
-          <Button
-            className="w-full bg-gray-900 text-white"
-            onClick={() => window.location.href = '/dashboard'}
-          >
-            Back to Dashboard
-          </Button>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0B0F19] p-6 text-center">
+        {/* Decorative background elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-red-500/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px]" />
         </div>
+
+        <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-white/10 relative overflow-hidden">
+          {/* Top accent line */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-purple-500 to-indigo-500" />
+          
+          <div className="mx-auto bg-red-500/10 h-20 w-20 rounded-2xl flex items-center justify-center mb-8 rotate-3 transition-transform hover:rotate-0 duration-500">
+            <ShieldAlert className="h-10 w-10 text-red-500" />
+          </div>
+          
+          <h1 className="text-3xl font-extrabold text-white mb-3 tracking-tight">Access Denied</h1>
+          <p className="text-gray-400 mb-8 leading-relaxed">
+            This high-security area is restricted to system administrators only. Your current account does not have the required permissions.
+          </p>
+          
+          <div className="space-y-4">
+            <Button
+              className="w-full bg-white text-black hover:bg-gray-100 h-12 rounded-xl font-semibold transition-all active:scale-[0.98]"
+              onClick={() => window.location.href = '/dashboard'}
+            >
+              Back to Dashboard
+            </Button>
+            
+            <div className="pt-6 border-t border-white/10">
+              <p className="text-[11px] text-gray-500 uppercase tracking-widest font-bold mb-2">Admin Resource</p>
+              <div className="bg-white/5 rounded-lg p-3 border border-white/5 flex items-center justify-center gap-2 group cursor-pointer hover:bg-white/10 transition-colors">
+                <code className="text-indigo-400 text-xs">http://192.168.2.1:8080/admin</code>
+                <span className="text-gray-600 text-xs">— for admin email</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <p className="mt-8 text-gray-600 text-sm">
+          Protected by InvoicePort Security Engine
+        </p>
       </div>
     );
   }

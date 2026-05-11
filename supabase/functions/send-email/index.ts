@@ -41,30 +41,39 @@ async function parseUserJwt(
 }
 
 async function authorizeRequest(req: Request): Promise<AuthResult> {
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return { ok: false, response: json({ error: 'Missing Authorization: Bearer <token>' }, 401) };
-  }
-
+  const authHeader = req.headers.get('Authorization') || '';
+  const apiHeader = req.headers.get('apikey') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!token) {
-    return { ok: false, response: json({ error: 'Empty bearer token' }, 401) };
-  }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  // Use custom override if available, otherwise fallback to system key
+  const serviceKey = (Deno.env.get('CUSTOM_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
 
-  if (!supabaseUrl || !serviceKey) {
-    return { ok: false, response: json({ error: 'Server configuration missing' }, 500) };
+  // Root Cause Fix: Allow internal calls that use either Bearer token OR apikey header as the service role key
+  const isServiceKeyMatch = (token && token === serviceKey) || (apiHeader.trim() === serviceKey);
+  
+  if (isServiceKeyMatch) {
+    return { ok: true, mode: 'service' };
   }
 
-  if (token === serviceKey) {
-    return { ok: true, mode: 'service' };
+  if (!token) {
+    return { ok: false, response: json({ error: 'Missing Authorization: Bearer <token>' }, 401) };
   }
 
   const { user, error } = await parseUserJwt(supabaseUrl, serviceKey, token);
   if (!user) {
-    return { ok: false, response: json({ error: 'Invalid or expired session', details: error }, 401) };
+    return { 
+      ok: false, 
+      response: json({ 
+        error: 'Invalid or expired session', 
+        details: error,
+        debug: {
+          token_len: token.length,
+          expected_len: serviceKey.length,
+          match: false
+        }
+      }, 401) 
+    };
   }
 
   return { ok: true, mode: 'user', user };

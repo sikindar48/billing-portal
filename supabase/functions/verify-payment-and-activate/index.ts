@@ -43,25 +43,42 @@ serve(async (req) => {
     // ── 1. Auth ───────────────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return json({ error: 'Missing authorization header' }, 401);
+    
+    // Create Supabase client with the USER'S token for verification
+    // This supports both HS256 and ES256 (Elliptic Curve) tokens automatically
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    
+    // Client 1: User-context client for verification
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+ 
+    // Verify the user
+    const token = authHeader.replace('Bearer ', '').trim();
+    const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('Supabase Auth Error:', authError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Authentication failed', 
+          details: authError?.message || 'User not found',
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const rzpSecret   = Deno.env.get('RAZORPAY_KEY_SECRET');
+    // Client 2: Service-role client for database operations
+    const rawServiceKey = Deno.env.get('CUSTOM_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const serviceKey = (rawServiceKey || '').trim();
+    const rawRzpSecret = Deno.env.get('RAZORPAY_KEY_SECRET') || '';
+    const rzpSecret = rawRzpSecret.trim().replace(/^["']|["']$/g, '');
+    const db = createClient(supabaseUrl, serviceKey);
 
     if (!supabaseUrl || !serviceKey || !rzpSecret) {
       console.error('Missing env vars');
       return json({ error: 'Server configuration missing' }, 500);
-    }
-
-    const db = createClient(supabaseUrl, serviceKey, {
-      auth: { persistSession: false },
-    });
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authErr } = await db.auth.getUser(token);
-    if (authErr || !user) {
-      console.error('Auth failed:', authErr?.message);
-      return json({ error: 'Invalid or expired token' }, 401);
     }
 
     console.log('Authenticated user:', user.id);
