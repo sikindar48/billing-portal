@@ -29,17 +29,19 @@ serve(async (req) => {
 
     const normalizedEmail = String(email).toLowerCase().trim()
 
-    // Password reset: only create OTP / send email if an auth user exists (saves Resend quota, reduces abuse)
-    if (purpose === 'password_reset') {
+    // ENFORCE REGISTRATION CHECK for Login and Password Reset
+    if (purpose === 'login' || purpose === 'password_reset') {
       const { data: exists, error: existsErr } = await supabase.rpc('auth_email_exists', {
         p_email: normalizedEmail,
       })
+      
       if (existsErr || !exists) {
+        console.log(`🚫 OTP Blocked: Email ${normalizedEmail} is not registered for ${purpose}`);
         return new Response(
           JSON.stringify({ 
             success: true, 
-            message: 'If an account exists, an OTP has been sent.',
-            debug_found: false // [DEBUG HINT]
+            message: 'If an account exists, an OTP has been sent.', 
+            debug_found: false 
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )

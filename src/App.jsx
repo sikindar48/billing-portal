@@ -75,7 +75,7 @@ const App = () => {
               closeButton={true}
               richColors={true}
             />
-            <BrowserRouter>
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <AuthProvider>
                 <Suspense fallback={
                   <div className="min-h-screen flex items-center justify-center bg-[#0B0F19]">
