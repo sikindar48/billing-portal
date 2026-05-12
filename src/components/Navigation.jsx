@@ -47,19 +47,26 @@ const Navigation = () => {
     return `${baseClass} ${isActivePath(path) ? activeClass : inactiveClass}`;
   }, [isActivePath]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsMenuOpen(false);
-    
-    // 1. Clear ALL local caches immediately for instant UI feedback
-    localStorage.removeItem('invoiceport_auth_cache');
-    localStorage.removeItem('invoiceport_auth_v2');
-    
-    // 2. Trigger the signout in the background
-    // We don't await this to make the UI transition feel instant
-    supabase.auth.signOut().catch(console.error);
+    try {
+      // 1. Clear local custom caches immediately
+      localStorage.removeItem('invoiceport_auth_cache');
 
-    // 3. Navigate to landing page immediately
-    navigate('/', { replace: true });
+      // 2. Perform the signout and wait for it to complete
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // 3. Navigate to auth page instead of root to prevent redirect loops
+      navigate('/auth', { replace: true });
+
+      // 4. Force a clean state refresh
+      window.location.reload();
+    } catch (err) {
+      console.error('Logout error:', err);
+      // Fallback: navigate anyway
+      navigate('/auth', { replace: true });
+    }
   };
 
   const handleNavigation = (path) => {
