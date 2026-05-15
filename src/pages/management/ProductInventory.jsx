@@ -39,8 +39,8 @@ const ProductInventory = () => {
   const [currentProduct, setCurrentProduct] = useState({ id: null, name: '', description: '', price: '' });
 
   useEffect(() => {
-    if (user) fetchProducts();
-  }, [user]);
+    if (user?.id) fetchProducts();
+  }, [user?.id]);
 
   const fetchProducts = async () => {
     try {

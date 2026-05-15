@@ -93,8 +93,8 @@ const InvoiceHistory = () => {
   const [savingPayment, setSavingPayment] = useState(false);
 
   useEffect(() => {
-    if (user) loadInvoices(1);
-  }, [user, statusFilter, modeFilter, debouncedSearchTerm]);
+    if (user?.id) loadInvoices(1);
+  }, [user?.id, statusFilter, modeFilter, debouncedSearchTerm]);
 
   const loadInvoices = async (page = 1) => {
     setLoading(true);

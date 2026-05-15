@@ -51,7 +51,7 @@ const Navigation = () => {
     setIsMenuOpen(false);
     try {
       // 1. Clear local custom caches immediately
-      localStorage.removeItem('invoiceport_auth_cache');
+      localStorage.removeItem('invoiceport_auth_v2');
 
       // 2. Perform the signout and wait for it to complete
       const { error } = await supabase.auth.signOut();
@@ -96,7 +96,7 @@ const Navigation = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex gap-1 items-center">
 
-            {(isAdmin || JSON.parse(localStorage.getItem('invoiceport_auth_cache') || '{}').isAdmin) && (
+            {isAdmin && (
               <Button
                 variant="ghost"
                 onClick={() => navigate('/admin')}
@@ -124,7 +124,7 @@ const Navigation = () => {
               </Button>
             )}
 
-            {(isAdmin || JSON.parse(localStorage.getItem('invoiceport_auth_cache') || '{}').isAdmin) && (
+            {isAdmin && (
               <Button variant="ghost" onClick={() => navigate('/analytics')} className={getNavButtonClass('/analytics')} title="System Stats">
                 <BarChart3 className="mr-2 h-4 w-4" /> System Stats
               </Button>
@@ -184,7 +184,7 @@ const Navigation = () => {
       {/* Mobile Menu Dropdown (Vertical List) */}
       {isMenuOpen && (
         <div className="md:hidden bg-indigo-700 border-t border-indigo-500/30 px-4 pt-2 pb-4 space-y-2 shadow-lg">
-          {(isAdmin || JSON.parse(localStorage.getItem('invoiceport_auth_cache') || '{}').isAdmin) && (
+          {isAdmin && (
             <Button variant="ghost" onClick={() => handleNavigation('/admin')} className={`${getMobileNavButtonClass('/admin')} mb-2`}>
               <Shield className="mr-3 h-5 w-5" /> Admin Dashboard
             </Button>
@@ -208,7 +208,7 @@ const Navigation = () => {
             </Button>
           )}
 
-          {(isAdmin || JSON.parse(localStorage.getItem('invoiceport_auth_cache') || '{}').isAdmin) && (
+          {isAdmin && (
             <Button variant="ghost" onClick={() => handleNavigation('/analytics')} className={getMobileNavButtonClass('/analytics')}>
               <BarChart3 className="mr-3 h-5 w-5" /> System Stats
             </Button>

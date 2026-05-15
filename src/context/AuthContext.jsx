@@ -25,6 +25,8 @@ export const AuthProvider = ({ children }) => {
   const [isAuthResolved, setIsAuthResolved] = useState(!!cache);
   
   const resolvedRef = useRef(!!cache);
+  const currentUserIdRef = useRef(cache?.user?.id || null);
+  const initDoneRef = useRef(false);
 
   const updateCache = useCallback((data) => {
     try {
@@ -96,6 +98,8 @@ export const AuthProvider = ({ children }) => {
       const sUser = session?.user ?? null;
       
       if (!mounted) return;
+      initDoneRef.current = true;
+      currentUserIdRef.current = sUser?.id || null;
       setUser(sUser);
 
       if (!sUser) {
@@ -117,6 +121,8 @@ export const AuthProvider = ({ children }) => {
         setAuthLoading(false);
         updateCache({ user: sUser, isAdmin: data.adminStatus, subscriptionStatus: data.subStatus, subscription: data.subscriptionData });
       } else if (mounted) {
+        // resolveUserData failed (network/DB error) — fall back gracefully
+        setSubscriptionStatus('expired');
         setIsAuthResolved(true);
         setAuthLoading(false);
       }
@@ -125,8 +131,20 @@ export const AuthProvider = ({ children }) => {
     initAuth();
 
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Skip token refreshes — they don't change user identity and cause
+      // unnecessary re-renders + DB queries across the whole app.
+      if (event === 'TOKEN_REFRESHED') return;
+
+      // Skip INITIAL_SESSION if initAuth already ran to avoid double DB queries.
+      if (event === 'INITIAL_SESSION' && initDoneRef.current) return;
+
       const sUser = session?.user ?? null;
       if (!mounted) return;
+
+      // Skip if the user ID hasn't changed (e.g. redundant SIGNED_IN events).
+      if (sUser?.id && sUser.id === currentUserIdRef.current && event !== 'SIGNED_OUT') return;
+
+      currentUserIdRef.current = sUser?.id || null;
       setUser(sUser);
 
       if (sUser) {
@@ -137,6 +155,9 @@ export const AuthProvider = ({ children }) => {
           setSubscription(data.subscriptionData);
           setIsAuthResolved(true);
           updateCache({ user: sUser, isAdmin: data.adminStatus, subscriptionStatus: data.subStatus, subscription: data.subscriptionData });
+        } else if (mounted) {
+          setSubscriptionStatus('expired');
+          setIsAuthResolved(true);
         }
       } else {
         setIsAdmin(false);
