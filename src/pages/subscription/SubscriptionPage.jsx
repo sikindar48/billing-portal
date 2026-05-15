@@ -228,8 +228,8 @@ const SubscriptionPage = () => {
       />
 
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-violet-50">
-        <div className="container mx-auto px-4 py-12 max-w-6xl">
-          <div className="text-center mb-12">
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+          <div className="text-center mb-6">
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight mb-3">
               Choose your plan
             </h1>
