@@ -407,15 +407,76 @@ const Index = () => {
         selectedTemplateId
       };
 
-      // 1. Generate PDF
-      toast.loading('Generating invoice PDF...', { id: 'email-progress' });
+      // 1. Validate invoice data
+      toast.loading('Preparing invoice...', { id: 'email-progress' });
       const validation = validateInvoiceForEmail(invoiceData);
       if (!validation.isValid) {
         toast.error(validation.errors[0], { id: 'email-progress' });
         return;
       }
 
-      // 2. Send email
+      // 2. Ensure invoice is saved in DB before sending — the Edge Function
+      //    validates the invoice exists by number before it will send the email.
+      const { data: existingInvoice } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq('invoice_number', invoice.number)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!existingInvoice) {
+        // Invoice not yet saved — save it silently now
+        if (!isAdmin && usageStats.count >= usageStats.limit) {
+          toast.error('Invoice limit reached. Upgrade to send more invoices.', { id: 'email-progress' });
+          return;
+        }
+
+        const dbInvoiceData = {
+          user_id: user.id,
+          invoice_number: invoice.number,
+          subtotal: subTotal,
+          grand_total: grandTotal,
+          notes,
+          template_name: `template_${selectedTemplateId}`,
+          bill_to: billTo,
+          ship_to: shipTo,
+          invoice_details: {
+            ...invoice,
+            invoiceMode,
+            status: 'sent',
+            taxType,
+            enableRoundOff,
+            roundOffAmount,
+            taxAmount,
+            currency: selectedCurrency,
+            currency_symbol: selectedCurrency === 'USD' ? '$' : selectedCurrency === 'EUR' ? '€' : '₹',
+          },
+          from_details: {
+            name: yourCompany.name,
+            address: yourCompany.address,
+            phone: yourCompany.phone,
+            website: yourCompany.website,
+            tagline: brandingSettings.brandingTagline,
+            logo_url: brandingSettings.logoUrl
+          },
+          items,
+          tax: taxPercentage
+        };
+
+        const { error: saveError } = await supabase
+          .from('invoices')
+          .insert(dbInvoiceData);
+
+        if (saveError) {
+          toast.error('Failed to save invoice before sending: ' + saveError.message, { id: 'email-progress' });
+          return;
+        }
+
+        await supabase.rpc('increment_invoice_usage');
+        setUsageStats(prev => ({ ...prev, count: prev.count + 1 }));
+      }
+
+      // 3. Send email
       toast.loading('Sending email to customer...', { id: 'email-progress' });
       const result = await sendInvoiceEmail(invoiceData, user?.id);
       

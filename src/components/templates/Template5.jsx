@@ -1,7 +1,7 @@
 import React from 'react';
-import { format } from 'date-fns';
 import BaseTemplate from './BaseTemplate';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { formatDateSafely } from '../../utils/formatDate';
 import { QRCodeSVG } from 'qrcode.react';
 
 const Template5 = ({ data = {} }) => {
@@ -50,13 +50,13 @@ const Template5 = ({ data = {} }) => {
               <p className="text-sm">
                 <span className="font-semibold">Date:</span>
                 <span>
-                  {invoice.date ? format(new Date(invoice.date), "MMM dd, yyyy") : "N/A"}
+                  {formatDateSafely(invoice.date, "MMM dd, yyyy")}
                 </span>
               </p>
               <p className="text-sm">
                 <span className="font-semibold">Due:</span>
                 <span>
-                  {invoice.paymentDate ? format(new Date(invoice.paymentDate), "MMM dd, yyyy") : "N/A"}
+                  {formatDateSafely(invoice.paymentDate, "MMM dd, yyyy")}
                 </span>
               </p>
             </div>
