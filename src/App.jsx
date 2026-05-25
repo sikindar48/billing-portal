@@ -13,7 +13,6 @@ import AdminGuard from "./components/AdminGuard";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
-import Index from "./pages/public/Index";
 
 // Lazy-loaded pages
 const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
@@ -38,6 +37,14 @@ const TermsOfService = lazy(() => import("./pages/public/TermsOfService"));
 const NotFound = lazy(() => import("./pages/public/NotFound"));
 const UserAnalytics = lazy(() => import("./pages/dashboard/UserAnalytics"));
 const AdminVerifyPayment = lazy(() => import("./pages/admin/AdminVerifyPayment"));
+
+// SEO Landing Pages
+const FreeSoftwarePage = lazy(() => import("./pages/public/FreeSoftwarePage"));
+const FreelancerInvoicingPage = lazy(() => import("./pages/public/FreelancerInvoicingPage"));
+const SmallBusinessInvoicingPage = lazy(() => import("./pages/public/SmallBusinessInvoicingPage"));
+const HomePage = lazy(() => import("./pages/public/HomePage"));
+const FeaturesPage = lazy(() => import("./pages/public/FeaturesPage"));
+const PricingPage = lazy(() => import("./pages/public/PricingPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -83,14 +90,19 @@ const App = () => {
                 }>
                   <Routes>
                     {/* Public Routes - No Navigation */}
-                    <Route path="/" element={<Index />} /> {/* Landing page with auth form */}
-                    <Route path="/auth" element={<AuthPage />} /> {/* Keep for backward compatibility */}
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/auth" element={<AuthPage />} />
+                    <Route path="/features" element={<FeaturesPage />} />
+                    <Route path="/pricing" element={<PricingPage />} />
                     <Route path="/confirm-email" element={<ConfirmEmail />} />
                     <Route path="/gmail-callback" element={<GmailCallback />} /> {/* Gmail OAuth callback */}
                     <Route path="/otp-verification" element={<OTPVerification />} /> {/* OTP verification */}
                     <Route path="/verify-invoice" element={<InvoiceVerify />} /> {/* Public invoice verification */}
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} /> {/* Privacy Policy */}
                     <Route path="/terms-of-service" element={<TermsOfService />} /> {/* Terms of Service */}
+                    <Route path="/free-invoicing-software" element={<FreeSoftwarePage />} />
+                    <Route path="/invoicing-software-for-freelancers" element={<FreelancerInvoicingPage />} />
+                    <Route path="/invoicing-software-for-small-business" element={<SmallBusinessInvoicingPage />} />
 
                     {/* Protected Routes - With Navigation */}
                     <Route

@@ -115,9 +115,9 @@ const ConfirmEmail = () => {
     const email = searchParams.get('email');
     if (email) {
       // Redirect back to signup with email prefilled
-      navigate(`/?email=${encodeURIComponent(email)}&resend=true`);
+      navigate(`/auth?email=${encodeURIComponent(email)}&resend=true`);
     } else {
-      navigate('/');
+      navigate('/auth');
     }
   };
 
@@ -182,7 +182,7 @@ const ConfirmEmail = () => {
               Resend Confirmation
             </button>
             <button 
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/auth')}
               className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-xl transition-colors"
             >
               Back to Sign Up

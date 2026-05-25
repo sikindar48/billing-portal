@@ -38,7 +38,7 @@ const OTPVerification = () => {
   useEffect(() => {
     if (!email) {
       toast.error('Invalid verification link');
-      navigate('/', { replace: true });
+      navigate('/auth', { replace: true });
     }
   }, [email, navigate]);
 
@@ -166,7 +166,7 @@ const OTPVerification = () => {
       }
 
       toast.success('Password updated successfully! Please sign in.');
-      navigate('/', { replace: true });
+      navigate('/auth', { replace: true });
 
     } catch (error) {
       console.error('Password reset error:', error);
@@ -207,7 +207,7 @@ const OTPVerification = () => {
             
             {/* Back Button */}
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/auth')}
               className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-8"
             >
               <ArrowLeft className="w-4 h-4" />

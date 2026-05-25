@@ -7,11 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import SEO from '@/components/SEO';
+import Navbar from '@/components/Navbar';
+import PublicFooter from '@/components/PublicFooter';
 import { 
-  Loader2, Mail, Lock, ArrowRight, LayoutDashboard, CheckCircle2, 
-  Zap, ShieldCheck, Smartphone, Globe, BarChart3, FileText, Box, 
-  Star, Check, Layers, Repeat, CreditCard, User, Eye, EyeOff,
-  Clock, Rocket, Palette, Settings, Users
+  Loader2, Mail, Lock, User, Eye, EyeOff, CheckCircle2 
 } from 'lucide-react';
 
 // --- 3D TILT COMPONENT ---
@@ -53,28 +52,6 @@ const TiltCard = ({ children, className = "" }) => {
   );
 };
 
-// Helper for Feature Cards
-const FeatureCard = ({ icon, title, desc, color }) => {
-    const colorMap = {
-        indigo: "text-indigo-400 bg-indigo-500/10",
-        emerald: "text-emerald-400 bg-emerald-500/10",
-        blue: "text-blue-400 bg-blue-500/10",
-        purple: "text-purple-400 bg-purple-500/10",
-        orange: "text-orange-400 bg-orange-500/10",
-        pink: "text-pink-400 bg-pink-500/10"
-    };
-
-    return (
-        <div className="group p-6 rounded-3xl border border-white/5 bg-slate-900/50 hover:bg-slate-800/50 hover:border-white/10 transition-all duration-300">
-            <div className={`mb-4 inline-flex items-center justify-center p-3 rounded-xl ${colorMap[color]} transition-transform duration-300 group-hover:scale-110`}>
-                {icon}
-            </div>
-            <h4 className="text-lg font-bold text-white mb-3">{title}</h4>
-            <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
-        </div>
-    );
-};
-
 const AuthPage = () => {
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -83,7 +60,6 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [verifyingSession, setVerifyingSession] = useState(true);
-  const [billingCycle, setBillingCycle] = useState('monthly');
   const [showPassword, setShowPassword] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
   const otpCooldownRef = useRef(null);
@@ -103,6 +79,9 @@ const AuthPage = () => {
       }
     };
     checkUser();
+    return () => {
+      if (otpCooldownRef.current) clearInterval(otpCooldownRef.current);
+    };
   }, [navigate]);
 
   const handleAuth = async (e) => {
@@ -133,12 +112,10 @@ const AuthPage = () => {
           throw error;
         }
 
-        // Supabase returns identities=[] when email already exists
         if (data?.user && data.user.identities?.length === 0) {
           throw new Error('This email is already registered. Please log in instead.');
         }
 
-        // Welcome email only when we have a session JWT (send-email rejects anon-only calls)
         if (data?.session?.access_token) {
           void supabase.functions.invoke('send-email', {
             headers: { Authorization: `Bearer ${data.session.access_token}` },
@@ -163,46 +140,33 @@ const AuthPage = () => {
 
   const handleForgotPassword = async () => {
     if (!email) {
-        toast.error("Please enter your email address first.", { duration: 2000 });
-        return;
+      toast.error("Please enter your email address first.", { duration: 2000 });
+      return;
     }
     if (otpCooldown > 0) {
-        toast.error(`Please wait ${otpCooldown}s before requesting another OTP.`, { duration: 2000 });
-        return;
+      toast.error(`Please wait ${otpCooldown}s before requesting another OTP.`, { duration: 2000 });
+      return;
     }
     setLoading(true);
     try {
-        // Security Fix: Removed the 'check' action call to prevent email enumeration.
-        // We now call sendOTP directly. The backend handles the check silently.
-        const result = await sendOTP(email, 'password_reset');
-        if (!result.success) {
-            throw new Error(result.error || 'Failed to send OTP');
-        }
-        toast.success("OTP sent to your email!", { duration: 2500 });
-        // Start 60s cooldown
-        setOtpCooldown(60);
-        otpCooldownRef.current = setInterval(() => {
-            setOtpCooldown(prev => {
-                if (prev <= 1) { clearInterval(otpCooldownRef.current); return 0; }
-                return prev - 1;
-            });
-        }, 1000);
-        navigate(`/otp-verification?email=${encodeURIComponent(email)}&purpose=password_reset`);
+      const result = await sendOTP(email, 'password_reset');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send OTP');
+      }
+      toast.success("OTP sent to your email!", { duration: 2500 });
+      setOtpCooldown(60);
+      otpCooldownRef.current = setInterval(() => {
+        setOtpCooldown(prev => {
+          if (prev <= 1) { clearInterval(otpCooldownRef.current); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+      navigate(`/otp-verification?email=${encodeURIComponent(email)}&purpose=password_reset`);
     } catch (error) {
-        toast.error(error.message || "Failed to send OTP", { duration: 2500 });
+      toast.error(error.message || "Failed to send OTP", { duration: 2500 });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-  };
-
-  const scrollToSection = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const focusSignup = () => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setIsLogin(false);
-      setTimeout(() => document.getElementById('email')?.focus(), 500);
   };
 
   if (verifyingSession) {
@@ -216,410 +180,152 @@ const AuthPage = () => {
   return (
     <>
       <SEO 
-        title="Sign In"
-        description="Sign in to access your account."
+        title="Sign In - Access Your Account | Invoice Port"
+        description="Sign in to your Invoice Port account to manage clients, templates, and billing details."
         noIndex={true}
         noFollow={true}
       />
-      <div className="min-h-screen bg-[#0B0F19] text-white font-sans selection:bg-indigo-500/30 overflow-x-hidden">
-      
-      {/* --- BACKGROUND --- */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
+      <div className="min-h-screen bg-[#0B0F19] text-white font-sans selection:bg-indigo-500/30 overflow-x-hidden flex flex-col justify-between">
+        
+        {/* Background */}
+        <div className="fixed inset-0 z-0 pointer-events-none">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]"></div>
           <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-indigo-900/20 via-transparent to-transparent blur-3xl"></div>
-      </div>
+        </div>
 
-      {/* --- NAVBAR --- */}
-      <nav className="relative z-50 w-full max-w-7xl mx-auto px-6 py-6 flex justify-between items-center backdrop-blur-sm">
-          <div className="flex items-center gap-2">
-              <img 
-                src="https://twfoqvxlhxhdulqchjbq.supabase.co/storage/v1/object/public/icon/invoice_logo.webp" 
-                alt="InvoicePort Logo" 
-                className="h-10 w-auto"
-              />
-              <span className="text-xl font-bold tracking-tight">InvoicePort</span>
-          </div>
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
-              <button onClick={() => scrollToSection('features')} className="hover:text-white transition-colors">Features</button>
-              <button onClick={() => scrollToSection('how-it-works')} className="hover:text-white transition-colors">How It Works</button>
-              <button onClick={() => scrollToSection('pricing')} className="hover:text-white transition-colors">Pricing</button>
-              <Button 
-                  variant="ghost" 
-                  onClick={() => { window.scrollTo({top: 0, behavior: 'smooth'}); setIsLogin(!isLogin); }}
-                  className="text-white hover:bg-white/10"
-              >
-                  {isLogin ? 'Create Account' : 'Log In'}
-              </Button>
-          </div>
-      </nav>
+        {/* Navbar */}
+        <Navbar />
 
-      {/* --- HERO SECTION --- */}
-      <div className="relative z-10 flex flex-col lg:flex-row items-center justify-center max-w-7xl mx-auto px-6 py-16 lg:py-24 gap-16 lg:gap-24 min-h-[80vh]">
+        {/* Hero Section / Login Form */}
+        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-center max-w-7xl mx-auto px-6 py-16 lg:py-24 gap-16 lg:gap-24 flex-1 w-full">
+          
           {/* Left: Content */}
           <div className="w-full lg:w-1/2 text-center lg:text-left space-y-8">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/50 border border-indigo-500/30 text-indigo-300 text-xs font-medium">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-                  </span>
-                  Automated Financial Suite v2.0
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/50 border border-indigo-500/30 text-indigo-300 text-xs font-medium">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+              </span>
+              Automated Financial Suite v2.0
+            </div>
+            <h1 className="text-4xl lg:text-6xl font-extrabold tracking-tight leading-[1.15]">
+              Welcome to <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
+                InvoicePort.
+              </span>
+            </h1>
+            <p className="text-lg text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              Create professional invoices, automate client billing, and track your revenue growth instantly.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
+              <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+                <CheckCircle2 className="w-4 h-4 text-indigo-400" /> No credit card required
               </div>
-              <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
-                  Billing made <br/>
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-                      Effortless.
-                  </span>
-              </h1>
-              <p className="text-lg text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                  Stop wrestling with spreadsheets. Generate professional invoices, track payments, and manage clients in seconds.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 px-4 py-2 rounded-full border border-white/10">
-                      <CheckCircle2 className="w-4 h-4 text-indigo-400" /> No credit card required
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 px-4 py-2 rounded-full border border-white/10">
-                      <CheckCircle2 className="w-4 h-4 text-indigo-400" /> 3-day free trial
-                  </div>
+              <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+                <CheckCircle2 className="w-4 h-4 text-indigo-400" /> 3-day free trial
               </div>
+            </div>
           </div>
 
           {/* Right: Auth Card */}
           <div className="w-full lg:w-1/2 max-w-md relative">
-              {/* Glow Effects */}
-              <div className="absolute -top-20 -right-20 w-72 h-72 bg-indigo-600/20 rounded-full blur-[80px] animate-pulse"></div>
-              <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-purple-600/10 rounded-full blur-[80px]"></div>
+            <div className="absolute -top-20 -right-20 w-72 h-72 bg-indigo-600/20 rounded-full blur-[80px] animate-pulse"></div>
+            <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-purple-600/10 rounded-full blur-[80px]"></div>
 
-              <TiltCard>
-                  <div className="relative bg-slate-900/80 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl ring-1 ring-white/5">
-                      <div className="text-center mb-8">
-                          <h2 className="text-2xl font-bold text-white">{isLogin ? 'Sign In' : 'Get Started'}</h2>
-                          <p className="text-slate-400 text-sm mt-2">{isLogin ? 'Access your dashboard' : 'Start your 3-day free trial.'}</p>
-                      </div>
-                      <form onSubmit={handleAuth} className="space-y-5">
-                          
-                          {/* Name Input (Signup Only) */}
-                          {!isLogin && (
-                              <div className="space-y-2 text-left animate-in fade-in slide-in-from-top-2">
-                                  <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Full Name</Label>
-                                  <div className="relative group">
-                                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
-                                      <Input 
-                                          type="text" 
-                                          value={name} 
-                                          onChange={(e) => setName(e.target.value)} 
-                                          placeholder="John Doe" 
-                                          className="pl-10 h-11 bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl" 
-                                          required={!isLogin} 
-                                      />
-                                  </div>
-                              </div>
-                          )}
-
-                          <div className="space-y-2 text-left">
-                              <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Email</Label>
-                              <div className="relative group">
-                                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
-                                  <Input 
-                                      id="email"
-                                      type="email" 
-                                      value={email} 
-                                      onChange={(e) => setEmail(e.target.value)} 
-                                      placeholder="you@example.com" 
-                                      className="pl-10 h-11 bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl" 
-                                      required 
-                                  />
-                              </div>
-                          </div>
-                          
-                          <div className="space-y-2 text-left">
-                              <div className="flex justify-between items-center">
-                                  <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Password</Label>
-                                  {isLogin && (
-                                      <button 
-                                        type="button"
-                                        onClick={handleForgotPassword}
-                                        disabled={otpCooldown > 0 || loading}
-                                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                                      >
-                                          {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Forgot password?'}
-                                      </button>
-                                  )}
-                              </div>
-                              <div className="relative group">
-                                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
-                                  <Input 
-                                      id="password"
-                                      type={showPassword ? "text" : "password"} 
-                                      value={password} 
-                                      onChange={(e) => setPassword(e.target.value)} 
-                                      placeholder="••••••••" 
-                                      className="pl-10 pr-10 h-11 bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl" 
-                                      required 
-                                  />
-                                  <button 
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors focus:outline-none"
-                                  >
-                                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                  </button>
-                              </div>
-                          </div>
-
-                          <Button className="w-full h-11 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all mt-2">
-                              {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (isLogin ? 'Access Account' : 'Start Free Trial')}
-                          </Button>
-                      </form>
-                      <div className="mt-6 text-center">
-                          <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-slate-400 hover:text-white transition-colors">
-                              {isLogin ? "New here? Create an account" : "Already have an account? Sign In"}
-                          </button>
-                      </div>
-                  </div>
-              </TiltCard>
-          </div>
-      </div>
-
-      {/* --- FEATURES SECTION --- */}
-      <section id="features" className="py-32 relative">
-          <div className="max-w-7xl mx-auto px-6">
-              <div className="text-center mb-24">
-                  <h2 className="text-indigo-400 font-semibold tracking-widest uppercase text-sm mb-3">System Capabilities</h2>
-                  <h3 className="text-3xl md:text-5xl font-bold text-white mb-6">Engineered for speed.</h3>
-                  <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                      We stripped away the complexity. What's left is the fastest, most secure way to bill your clients.
-                  </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  <FeatureCard icon={<Zap className="w-6 h-6" />} title="Instant Generation" desc="Create high-fidelity PDF invoices in milliseconds. Fast rendering ensures smooth workflow." color="indigo" />
-                  <FeatureCard icon={<ShieldCheck className="w-6 h-6" />} title="Bank-Grade Security" desc="Enterprise-grade encryption for all financial data. Your client information is isolated and secure." color="emerald" />
-                  <FeatureCard icon={<BarChart3 className="w-6 h-6" />} title="Live Analytics" desc="Visualize revenue, track outstanding payments, and monitor growth with real-time dashboards." color="blue" />
-                  <FeatureCard icon={<Globe className="w-6 h-6" />} title="Multi-Currency Support" desc="Create invoices in major currencies (INR, USD, EUR) with proper currency symbols and formatting." color="purple" />
-                  <FeatureCard icon={<FileText className="w-6 h-6" />} title="9 Professional Templates" desc="Choose from 9 GST-compliant templates that match your brand. Upload logos and customize branding." color="pink" />
-                  <FeatureCard icon={<Repeat className="w-6 h-6" />} title="Payment Tracking" desc="Record payments, track transaction details, and automatically update invoice status to paid." color="orange" />
-              </div>
-          </div>
-      </section>
-
-      {/* --- HOW IT WORKS SECTION --- */}
-      <section id="how-it-works" className="py-32 relative bg-gradient-to-b from-[#0B0F19] to-slate-900/50">
-          <div className="max-w-7xl mx-auto px-6">
-              <div className="text-center mb-20">
-                  <h2 className="text-indigo-400 font-semibold tracking-widest uppercase text-sm mb-3">Simple Process</h2>
-                  <h3 className="text-3xl md:text-5xl font-bold text-white mb-6">Set up once, use forever.</h3>
-                  <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                      Each user gets their own branded experience. Your clients will see YOUR company name, logo, and contact details on every invoice and email.
-                  </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-16">
-                  {/* Step 1 */}
-                  <div className="relative group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-blue-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-indigo-500/30 transition-all">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center">
-                                  <Settings className="w-6 h-6 text-white" />
-                              </div>
-                              <h4 className="text-xl font-bold text-white">Brand Setup</h4>
-                          </div>
-                          <div className="space-y-4 text-slate-300">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Upload YOUR company logo</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Add YOUR business contact details</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Choose YOUR preferred template</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                                  <span className="text-sm">Set YOUR payment terms & methods</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div className="relative group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-purple-500/30 transition-all">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                                  <Users className="w-6 h-6 text-white" />
-                              </div>
-                              <h4 className="text-xl font-bold text-white">Client & Service Management</h4>
-                          </div>
-                          <div className="space-y-4 text-slate-300">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Add client information once</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Create product/service catalog</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Set standard pricing & rates</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                  <span className="text-sm">Configure tax settings</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="relative group">
-                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                      <div className="relative p-8 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl hover:border-emerald-500/30 transition-all">
-                          <div className="flex items-center gap-4 mb-6">
-                              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-                                  <Rocket className="w-6 h-6 text-white" />
-                              </div>
-                              <h4 className="text-xl font-bold text-white">Generate & Send</h4>
-                          </div>
-                          <div className="space-y-4 text-slate-300">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Select client & services</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Add items - prices auto-populate</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Review & send via email</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                                  <span className="text-sm">Download PDF instantly</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-
-              {/* Call to Action */}
-              <div className="text-center mt-20">
-                  <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-gradient-to-r from-indigo-950/80 to-purple-950/80 border border-indigo-500/30 mb-6">
-                      <Clock className="w-5 h-5 text-indigo-400" />
-                      <span className="text-indigo-300 font-medium">Save 5+ hours per week</span>
-                  </div>
-                  <p className="text-slate-400 text-lg mb-8">
-                      Every invoice and email will have YOUR branding. Your clients will never see "InvoicePort" - only YOUR business information.
-                  </p>
-                  <Button 
-                      onClick={focusSignup}
-                      className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all"
-                  >
-                      <span className="mr-2">Start Your Free Trial</span>
-                      <ArrowRight className="w-5 h-5" />
-                  </Button>
-              </div>
-          </div>
-      </section>
-
-      {/* --- PRICING SECTION --- */}
-      <section id="pricing" className="py-32 relative bg-gradient-to-b from-[#0B0F19] to-black">
-          <div className="max-w-7xl mx-auto px-6">
-              <div className="text-center mb-20">
-                  <h2 className="text-indigo-400 font-semibold tracking-widest uppercase text-sm mb-3">Pricing</h2>
-                  <h3 className="text-3xl md:text-5xl font-bold text-white mb-8">Simple, transparent pricing.</h3>
-                  <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                      Start free, then upgrade to unlock unlimited access. No hidden fees.
-                  </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <TiltCard>
+              <div className="relative bg-slate-900/80 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl ring-1 ring-white/5">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-bold text-white">{isLogin ? 'Sign In' : 'Get Started'}</h2>
+                  <p className="text-slate-400 text-sm mt-2">{isLogin ? 'Access your dashboard' : 'Start your 3-day free trial.'}</p>
+                </div>
+                <form onSubmit={handleAuth} className="space-y-5">
                   
-                  {/* FREE TIER */}
-                  <div className="p-8 rounded-3xl border border-white/5 bg-slate-900/40 flex flex-col hover:border-white/10 transition-all">
-                      <div className="mb-6">
-                          <span className="text-blue-400 font-bold text-sm uppercase tracking-wider">Starter</span>
-                          <div className="mt-2 flex items-baseline">
-                              <span className="text-4xl font-bold text-white">₹0</span>
-                              <span className="text-slate-500 ml-2">/forever</span>
-                          </div>
-                          <p className="text-slate-400 text-sm mt-4">Perfect for freelancers just starting out.</p>
+                  {/* Name Input (Signup Only) */}
+                  {!isLogin && (
+                    <div className="space-y-2 text-left animate-in fade-in slide-in-from-top-2">
+                      <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Full Name</Label>
+                      <div className="relative group">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                        <Input 
+                          type="text" 
+                          value={name} 
+                          onChange={(e) => setName(e.target.value)} 
+                          placeholder="John Doe" 
+                          className="pl-10 h-11 bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl" 
+                          required={!isLogin} 
+                        />
                       </div>
-                      <ul className="space-y-4 mb-8 flex-1">
-                          {['10 Invoices Limit', '3 Days Full Access', '5 Downloads Limit', 'Basic Templates'].map(f => (
-                              <li key={f} className="flex gap-3 text-sm text-slate-300"><Check className="w-4 h-4 text-blue-500 shrink-0" /> {f}</li>
-                          ))}
-                      </ul>
-                      <Button onClick={focusSignup} className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10">Start Free</Button>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 text-left">
+                    <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Email</Label>
+                    <div className="relative group">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                      <Input 
+                        id="email"
+                        type="email" 
+                        value={email} 
+                        onChange={(e) => setEmail(e.target.value)} 
+                        placeholder="you@example.com" 
+                        className="pl-10 h-11 bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl" 
+                        required 
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-left">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Password</Label>
+                      {isLogin && (
+                        <button 
+                          type="button"
+                          onClick={handleForgotPassword}
+                          disabled={otpCooldown > 0 || loading}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Forgot password?'}
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative group">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                      <Input 
+                        id="password"
+                        type={showPassword ? "text" : "password"} 
+                        value={password} 
+                        onChange={(e) => setPassword(e.target.value)} 
+                        placeholder="••••••••" 
+                        className="pl-10 pr-10 h-11 bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl" 
+                        required 
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors focus:outline-none"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
-                  {/* PRO MONTHLY */}
-                  <div className="p-8 rounded-3xl border border-white/5 bg-slate-900/40 flex flex-col hover:border-white/10 transition-all">
-                      <div className="mb-6">
-                          <span className="text-indigo-400 font-bold text-sm uppercase tracking-wider">Pro Monthly</span>
-                          <div className="mt-2 flex items-baseline">
-                              <span className="text-4xl font-bold text-white">₹149</span>
-                              <span className="text-slate-400 ml-2">/month</span>
-                          </div>
-                          <p className="text-slate-400 text-sm mt-4">For freelancers & growing businesses.</p>
-                      </div>
-                      <ul className="space-y-4 mb-8 flex-1">
-                          {['Unlimited Invoices', 'Unlimited Downloads', 'Email Integration', 'Priority Support', 'Custom Branding'].map(f => (
-                              <li key={f} className="flex gap-3 text-sm text-slate-300"><Check className="w-4 h-4 text-indigo-400 shrink-0" /> {f}</li>
-                          ))}
-                      </ul>
-                      <Button onClick={focusSignup} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-500/25">Get Started</Button>
-                  </div>
-
-                  {/* PRO YEARLY */}
-                  <div className="p-8 rounded-3xl border border-indigo-500/50 bg-slate-800/60 shadow-2xl shadow-indigo-500/10 relative flex flex-col scale-105 z-10">
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg shadow-indigo-500/50">Best Value</div>
-                      <div className="mb-6">
-                          <span className="text-indigo-400 font-bold text-sm uppercase tracking-wider">Pro Yearly</span>
-                          <div className="mt-2 flex items-baseline">
-                              <span className="text-5xl font-bold text-white">₹1499</span>
-                              <span className="text-slate-400 ml-2">/year</span>
-                          </div>
-                          <p className="text-indigo-100/80 text-sm mt-4">Best value for committed users.</p>
-                          <span className="inline-block mt-2 text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
-                              Save ₹289/year
-                          </span>
-                      </div>
-                      <ul className="space-y-4 mb-8 flex-1">
-                          {['Unlimited Invoices', 'Unlimited Downloads', 'Email Integration', 'Priority Support', 'Custom Branding'].map(f => (
-                              <li key={f} className="flex gap-3 text-sm text-white"><Check className="w-4 h-4 text-indigo-400 shrink-0" /> {f}</li>
-                          ))}
-                      </ul>
-                      <Button onClick={focusSignup} className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold shadow-lg shadow-indigo-500/25">Get Started</Button>
-                  </div>
-
+                  <Button className="w-full h-11 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all mt-2">
+                    {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (isLogin ? 'Access Account' : 'Start Free Trial')}
+                  </Button>
+                </form>
+                <div className="mt-6 text-center">
+                  <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-slate-400 hover:text-white transition-colors">
+                    {isLogin ? "New here? Create an account" : "Already have an account? Sign In"}
+                  </button>
+                </div>
               </div>
+            </TiltCard>
           </div>
-      </section>
+        </div>
 
-      {/* --- FOOTER --- */}
-      <footer className="py-12 border-t border-white/5 bg-[#05080F]">
-          <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="flex items-center gap-2 text-white">
-                  <img 
-                    src="https://twfoqvxlhxhdulqchjbq.supabase.co/storage/v1/object/public/icon/invoice_logo.webp" 
-                    alt="InvoicePort Logo" 
-                    className="h-5 w-auto"
-                  />
-                  <span className="text-lg font-bold tracking-tight">InvoicePort</span>
-              </div>
-              <div className="text-sm text-slate-600">
-                  © {new Date().getFullYear()} InvoicePort Inc.
-              </div>
-          </div>
-      </footer>
-    </div>
+        {/* Footer */}
+        <PublicFooter />
+      </div>
     </>
   );
 };
