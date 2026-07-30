@@ -28,9 +28,9 @@ const FreelancerInvoicingPage = () => {
   return (
     <>
       <SEO
-        title="Invoicing Software for Freelancers - Free & Simple | Invoice Port"
-        description="Professional invoicing software designed for freelancers. Create invoices in seconds, get paid faster, track income automatically. Try our 3-Day Free Trial today!"
-        keywords="invoicing software for freelancers, freelancer invoice software, freelance billing software, invoice generator for freelancers, freelancer billing tool, freelance invoicing app"
+        title="Invoicing Software for Freelancers - Free & Easy | Invoice Port"
+        description="Best invoicing software designed for freelancers, writers & consultants. Create unlimited custom invoices, track payments, send automated email alerts, and get paid 2x faster."
+        keywords="invoicing software for freelancers, freelancer invoice software, freelance billing software, invoice generator for freelancers, freelance invoicing app"
         canonicalUrl="/invoicing-software-for-freelancers"
         structuredData={{
           "@context": "https://schema.org",

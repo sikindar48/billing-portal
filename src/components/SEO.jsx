@@ -14,7 +14,7 @@ const SEO = ({
   structuredData = null,
   isHomepage = false
 }) => {
-  const siteUrl = "https://invoiceport.live";
+  const siteUrl = "https://www.invoiceport.live";
   const fullCanonicalUrl = canonicalUrl ? `${siteUrl}${canonicalUrl}` : siteUrl;
   const fullOgImage = ogImage.startsWith('http') ? ogImage : `${siteUrl}${ogImage}`;
 
@@ -129,9 +129,32 @@ const SEO = ({
       
       {/* Structured Data - Only for indexable pages */}
       {!noIndex && (
-        <script type="application/ld+json">
-          {JSON.stringify(structuredData || defaultStructuredData)}
-        </script>
+        <>
+          {/* Always include the SoftwareApplication (rating/pricing) schema on all pages */}
+          <script type="application/ld+json">
+            {JSON.stringify(defaultStructuredData)}
+          </script>
+          
+          {/* Add WebSite schema on homepage for Sitelinks */}
+          {isHomepage && (
+            <script type="application/ld+json">
+              {JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "name": "Invoice Port",
+                "alternateName": "InvoicePort",
+                "url": siteUrl
+              })}
+            </script>
+          )}
+
+          {/* Add page-specific structured data (like FAQPage or custom page schema) if provided */}
+          {structuredData && (
+            <script type="application/ld+json">
+              {JSON.stringify(structuredData)}
+            </script>
+          )}
+        </>
       )}
     </Helmet>
   );

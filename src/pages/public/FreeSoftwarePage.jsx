@@ -46,9 +46,9 @@ const FreeSoftwarePage = () => {
   return (
     <>
       <SEO
-        title="Invoicing Software Trial - No Credit Card Required | Invoice Port"
-        description="Try Invoice Port with our 3-Day Free Trial. Create professional invoices, manage clients, and export PDFs. No credit card required, start today!"
-        keywords="invoicing software trial, free invoice trial, invoice generator trial, no credit card invoice, trial invoice maker"
+        title="Free Invoicing Software & GST Invoice Generator | Invoice Port"
+        description="Create professional invoices instantly with Invoice Port's free invoicing software. GST calculations, customizable templates, client registers & PDF export. Try it free today!"
+        keywords="free invoicing software, free invoice software, GST invoice software free, online invoicing software, free invoice generator India"
         canonicalUrl="/free-invoicing-software"
         structuredData={{
           "@context": "https://schema.org",

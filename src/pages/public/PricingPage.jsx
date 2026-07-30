@@ -35,9 +35,9 @@ const PricingPage = () => {
   return (
     <>
       <SEO 
-        title="Pricing - Simple & Transparent Plans | Invoice Port"
-        description="Choose the plan that fits your business: Starter free plan, Pro Monthly, or Pro Yearly. No hidden fees. Cancel anytime."
-        keywords="invoice software pricing, free billing plans, cheap invoice generator, premium invoicing"
+        title="Invoicing Software Pricing & Plans | Invoice Port"
+        description="Affordable invoicing software plans for Indian businesses and freelancers. Start with our 3-Day Free Trial. No hidden fees. Cancel anytime."
+        keywords="invoice software pricing, free billing plans, cheap invoice generator, premium invoicing, invoicing cost"
         canonicalUrl="/pricing"
       />
       <div className="min-h-screen bg-[#0B0F19] text-white font-sans overflow-x-hidden flex flex-col justify-between">

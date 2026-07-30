@@ -36,9 +36,9 @@ const FeaturesPage = () => {
   return (
     <>
       <SEO 
-        title="Features - High-Performance Invoicing Capabilities | Invoice Port"
-        description="Explore the key features of Invoice Port: GST billing, professional templates, multi-currency transactions, client registers, and analytics."
-        keywords="invoice features, GST calculation, automatic invoicing, invoice templates, billing features"
+        title="Billing Software Features - Professional GST Invoicing | Invoice Port"
+        description="Explore features of Invoice Port: GST calculations, customizable invoice templates, client registers, financial analytics, multi-currency support, and cloud security."
+        keywords="invoice features, GST calculation, automatic invoicing, invoice templates, billing features, invoice analytics"
         canonicalUrl="/features"
       />
       <div className="min-h-screen bg-[#0B0F19] text-white font-sans overflow-x-hidden flex flex-col justify-between">
